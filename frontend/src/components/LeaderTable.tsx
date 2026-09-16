@@ -1,4 +1,4 @@
-import type { LeaderCategory } from "../data/dummyLeaders"
+import type { LeaderCategory } from "../data/leaderTypes"
 
 function LeaderTable({ title, unit, rows }: LeaderCategory) {
   return (
@@ -22,7 +22,7 @@ function LeaderTable({ title, unit, rows }: LeaderCategory) {
               <td className="px-2 py-2 font-medium text-[var(--text-primary)]">{row.player}</td>
               <td className="px-2 py-2 text-[var(--text-secondary)]">{row.team}</td>
               <td className="px-4 py-2 text-right tabular-nums text-[var(--text-primary)]">
-                {row.yards.toLocaleString()}
+                {row.value.toLocaleString()}
               </td>
             </tr>
           ))}
