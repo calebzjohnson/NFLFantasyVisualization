@@ -1,9 +1,14 @@
+import Navbar from "./components/Navbar"
+import StatLeaders from "./components/StatLeaders"
+
 function App() {
   return (
-    <main>
-      <h1>NFL Fantasy Visualization</h1>
-      <p>Coming soon.</p>
-    </main>
+    <div className="min-h-screen">
+      <Navbar />
+      <main className="mx-auto max-w-5xl px-4 py-8">
+        <StatLeaders />
+      </main>
+    </div>
   )
 }
 
