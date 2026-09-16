@@ -2,7 +2,7 @@
 
 A public, read-only site for visualizing NFL usage data relevant to fantasy football — starting with weekly and season-long rush attempt shares among a team's running backs, and target shares among its receivers.
 
-No accounts or login. Data is sourced from [nflverse](https://github.com/nflverse) via [nfl_data_py](https://github.com/nflverse/nfl_data_py).
+No accounts or login. Data is sourced from [nflverse](https://github.com/nflverse) via [nflreadpy](https://github.com/nflverse/nflreadpy).
 
 ## Stack
 
