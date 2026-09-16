@@ -1,6 +1,11 @@
-const NAV_TABS = ["Home", "Players", "Teams", "Stats"] as const
+import { NavLink } from "react-router-dom"
 
-const ACTIVE_TAB: (typeof NAV_TABS)[number] = "Home"
+const NAV_TABS = [
+  { label: "Home", to: "/" },
+  { label: "Players", to: "/players" },
+  { label: "Teams", to: "/teams" },
+  { label: "Stats", to: "/stats" },
+] as const
 
 function Navbar() {
   return (
@@ -10,25 +15,21 @@ function Navbar() {
           NFL Fantasy Visualization
         </span>
         <ul className="flex flex-wrap gap-x-6 gap-y-2">
-          {NAV_TABS.map((tab) => {
-            const isActive = tab === ACTIVE_TAB
-            return (
-              <li key={tab}>
-                <a
-                  href="#"
-                  aria-current={isActive ? "page" : undefined}
-                  className={
-                    isActive
-                      ? "font-medium text-[var(--text-primary)] border-b-2 border-[var(--accent)] pb-1"
-                      : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] pb-1"
-                  }
-                  onClick={(e) => e.preventDefault()}
-                >
-                  {tab}
-                </a>
-              </li>
-            )
-          })}
+          {NAV_TABS.map(({ label, to }) => (
+            <li key={to}>
+              <NavLink
+                to={to}
+                end={to === "/"}
+                className={({ isActive }) =>
+                  isActive
+                    ? "font-medium text-[var(--text-primary)] border-b-2 border-[var(--accent)] pb-1"
+                    : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] pb-1"
+                }
+              >
+                {label}
+              </NavLink>
+            </li>
+          ))}
         </ul>
       </div>
     </nav>
