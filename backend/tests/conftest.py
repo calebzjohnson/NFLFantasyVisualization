@@ -1,95 +1,89 @@
+import numpy as np
 import pandas as pd
 import pytest
 
 
 @pytest.fixture
-def sample_weekly_data() -> pd.DataFrame:
-    """A small, hand-built stand-in for weekly.get_weekly_data(season).
-
-    Covers: normal ranking, a player traded mid-season (R3: DAL -> PHI, whose
-    team should show as their most recent one), and a postseason row that
-    must be excluded from regular-season totals.
+def sample_season_stats() -> pd.DataFrame:
+    """Small stand-in for player_stats.get_season_stats(season): one row per
+    player, season totals. W One's `pacr` is NaN, mirroring nflverse's real
+    shape for a rate stat that doesn't apply to a player (a WR who never
+    attempted a pass), rather than a placeholder like 0.
     """
     rows = [
-        # QBs
         dict(player_id="Q1", player_display_name="Q One", position="QB", team="DAL",
-             week=1, season_type="REG", passing_yards=300, rushing_yards=0, receiving_yards=0),
-        dict(player_id="Q1", player_display_name="Q One", position="QB", team="DAL",
-             week=2, season_type="REG", passing_yards=250, rushing_yards=0, receiving_yards=0),
-        dict(player_id="Q2", player_display_name="Q Two", position="QB", team="PHI",
-             week=1, season_type="REG", passing_yards=200, rushing_yards=0, receiving_yards=0),
-        dict(player_id="Q2", player_display_name="Q Two", position="QB", team="PHI",
-             week=2, season_type="REG", passing_yards=300, rushing_yards=0, receiving_yards=0),
-        # RBs (R2 outranks R1 on total despite lower week-1 total)
-        dict(player_id="R1", player_display_name="R One", position="RB", team="DAL",
-             week=1, season_type="REG", passing_yards=0, rushing_yards=100, receiving_yards=0),
-        dict(player_id="R1", player_display_name="R One", position="RB", team="DAL",
-             week=2, season_type="REG", passing_yards=0, rushing_yards=80, receiving_yards=0),
-        dict(player_id="R2", player_display_name="R Two", position="RB", team="PHI",
-             week=1, season_type="REG", passing_yards=0, rushing_yards=90, receiving_yards=0),
-        dict(player_id="R2", player_display_name="R Two", position="RB", team="PHI",
-             week=2, season_type="REG", passing_yards=0, rushing_yards=95, receiving_yards=0),
-        # R3 traded DAL (week 1) -> PHI (week 2): team should show as PHI, total across both
-        dict(player_id="R3", player_display_name="R Three", position="RB", team="DAL",
-             week=1, season_type="REG", passing_yards=0, rushing_yards=10, receiving_yards=0),
-        dict(player_id="R3", player_display_name="R Three", position="RB", team="PHI",
-             week=2, season_type="REG", passing_yards=0, rushing_yards=5, receiving_yards=0),
-        # WRs
+             completions=200, attempts=300, passing_yards=2500, pacr=1.5),
         dict(player_id="W1", player_display_name="W One", position="WR", team="DAL",
-             week=1, season_type="REG", passing_yards=0, rushing_yards=0, receiving_yards=70),
-        dict(player_id="W1", player_display_name="W One", position="WR", team="DAL",
-             week=2, season_type="REG", passing_yards=0, rushing_yards=0, receiving_yards=60),
-        dict(player_id="W2", player_display_name="W Two", position="WR", team="PHI",
-             week=1, season_type="REG", passing_yards=0, rushing_yards=0, receiving_yards=50),
-        dict(player_id="W2", player_display_name="W Two", position="WR", team="PHI",
-             week=2, season_type="REG", passing_yards=0, rushing_yards=0, receiving_yards=90),
-        # TEs
-        dict(player_id="T1", player_display_name="T One", position="TE", team="DAL",
-             week=1, season_type="REG", passing_yards=0, rushing_yards=0, receiving_yards=30),
-        dict(player_id="T1", player_display_name="T One", position="TE", team="DAL",
-             week=2, season_type="REG", passing_yards=0, rushing_yards=0, receiving_yards=40),
-        dict(player_id="T2", player_display_name="T Two", position="TE", team="PHI",
-             week=1, season_type="REG", passing_yards=0, rushing_yards=0, receiving_yards=45),
-        dict(player_id="T2", player_display_name="T Two", position="TE", team="PHI",
-             week=2, season_type="REG", passing_yards=0, rushing_yards=0, receiving_yards=35),
-        # DL (sacks)
-        dict(player_id="D1", player_display_name="D One", position="DE", team="DAL",
-             week=1, season_type="REG", def_sacks=2.0),
-        dict(player_id="D1", player_display_name="D One", position="DE", team="DAL",
-             week=2, season_type="REG", def_sacks=1.5),
-        dict(player_id="D2", player_display_name="D Two", position="DT", team="PHI",
-             week=1, season_type="REG", def_sacks=1.0),
-        dict(player_id="D2", player_display_name="D Two", position="DT", team="PHI",
-             week=2, season_type="REG", def_sacks=1.0),
-        # LB (tackles = solo + assist; L1 outranks L2 on combined total)
-        dict(player_id="L1", player_display_name="L One", position="MLB", team="DAL",
-             week=1, season_type="REG", def_tackles_solo=5, def_tackles_with_assist=2),
-        dict(player_id="L1", player_display_name="L One", position="MLB", team="DAL",
-             week=2, season_type="REG", def_tackles_solo=4, def_tackles_with_assist=1),
-        dict(player_id="L2", player_display_name="L Two", position="OLB", team="PHI",
-             week=1, season_type="REG", def_tackles_solo=3, def_tackles_with_assist=3),
-        dict(player_id="L2", player_display_name="L Two", position="OLB", team="PHI",
-             week=2, season_type="REG", def_tackles_solo=4, def_tackles_with_assist=0),
-        # CB (interceptions)
-        dict(player_id="C1", player_display_name="C One", position="CB", team="DAL",
-             week=1, season_type="REG", def_interceptions=1),
-        dict(player_id="C1", player_display_name="C One", position="CB", team="DAL",
-             week=2, season_type="REG", def_interceptions=1),
-        dict(player_id="C2", player_display_name="C Two", position="CB", team="PHI",
-             week=1, season_type="REG", def_interceptions=1),
-        dict(player_id="C2", player_display_name="C Two", position="CB", team="PHI",
-             week=2, season_type="REG", def_interceptions=0),
-        # S (interceptions) - mix of "S" and "SAF" position codes, both should count
-        dict(player_id="S1", player_display_name="S One", position="S", team="DAL",
-             week=1, season_type="REG", def_interceptions=0),
-        dict(player_id="S1", player_display_name="S One", position="S", team="DAL",
-             week=2, season_type="REG", def_interceptions=2),
-        dict(player_id="S2", player_display_name="S Two", position="SAF", team="PHI",
-             week=1, season_type="REG", def_interceptions=1),
-        dict(player_id="S2", player_display_name="S Two", position="SAF", team="PHI",
-             week=2, season_type="REG", def_interceptions=0),
-        # Postseason row that must not count toward regular-season totals
-        dict(player_id="Q1", player_display_name="Q One", position="QB", team="DAL",
-             week=19, season_type="POST", passing_yards=999, rushing_yards=0, receiving_yards=0),
+             completions=0, attempts=0, passing_yards=0, pacr=np.nan),
     ]
     return pd.DataFrame(rows)
+
+
+@pytest.fixture
+def sample_schedule() -> pd.DataFrame:
+    """Small stand-in for schedules.get_season_schedule(season): week 1 games
+    are complete (have scores), week 2 games haven't been played yet (NaN
+    scores) - mirrors nflverse's real shape mid-season. The LA game's `temp`
+    is NaN (a dome game), like real weather data for indoor stadiums.
+    """
+    rows = [
+        dict(game_id="2026_01_DAL_NYG", season=2026, game_type="REG", week=1,
+             away_team="DAL", home_team="NYG", away_score=20.0, home_score=28.0, temp=72.0),
+        dict(game_id="2026_01_SF_LA", season=2026, game_type="REG", week=1,
+             away_team="SF", home_team="LA", away_score=27.0, home_score=7.0, temp=np.nan),
+        dict(game_id="2026_02_DET_BUF", season=2026, game_type="REG", week=2,
+             away_team="DET", home_team="BUF", away_score=np.nan, home_score=np.nan, temp=65.0),
+    ]
+    return pd.DataFrame(rows)
+
+
+@pytest.fixture
+def sample_teams() -> pd.DataFrame:
+    """Small stand-in for teams.get_teams(): two divisions' worth of teams."""
+    rows = [
+        dict(team_abbr="BUF", team_conf="AFC", team_division="AFC East"),
+        dict(team_abbr="MIA", team_conf="AFC", team_division="AFC East"),
+        dict(team_abbr="NE", team_conf="AFC", team_division="AFC East"),
+        dict(team_abbr="NYJ", team_conf="AFC", team_division="AFC East"),
+        dict(team_abbr="DAL", team_conf="NFC", team_division="NFC East"),
+        dict(team_abbr="NYG", team_conf="NFC", team_division="NFC East"),
+        dict(team_abbr="PHI", team_conf="NFC", team_division="NFC East"),
+        dict(team_abbr="WAS", team_conf="NFC", team_division="NFC East"),
+    ]
+    return pd.DataFrame(rows)
+
+
+@pytest.fixture
+def sample_standings_schedule() -> pd.DataFrame:
+    """Small stand-in for schedules.get_season_schedule(season), covering:
+    a normal win/loss (BUF beats MIA), a tie (NE/NYJ), a team with two games
+    to test aggregation (BUF also beats NE), and a second division (NFC
+    East) to test division grouping.
+    """
+    rows = [
+        dict(game_type="REG", week=1, away_team="MIA", home_team="BUF",
+             away_score=10.0, home_score=24.0),
+        dict(game_type="REG", week=1, away_team="NYJ", home_team="NE",
+             away_score=17.0, home_score=17.0),
+        dict(game_type="REG", week=2, away_team="NE", home_team="BUF",
+             away_score=15.0, home_score=20.0),
+        dict(game_type="REG", week=1, away_team="NYG", home_team="DAL",
+             away_score=20.0, home_score=28.0),
+        dict(game_type="REG", week=1, away_team="WAS", home_team="PHI",
+             away_score=10.0, home_score=30.0),
+    ]
+    return pd.DataFrame(rows)
+
+
+@pytest.fixture
+def sample_weekly_team_stats() -> pd.DataFrame:
+    """Small stand-in for team_stats.get_weekly_team_stats(season). Empty is
+    fine for scenarios that never reach the net-touchdowns tiebreaker step;
+    it still needs the right columns so net_touchdowns() doesn't KeyError.
+    """
+    return pd.DataFrame(
+        columns=[
+            "game_id", "team", "opponent_team", "passing_tds", "rushing_tds",
+            "special_teams_tds", "def_tds", "fumble_recovery_tds", "pt_return_tds",
+        ]
+    )
