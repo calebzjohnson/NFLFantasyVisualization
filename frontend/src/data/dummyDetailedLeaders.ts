@@ -43,17 +43,22 @@ export const DETAILED_LEADER_CATEGORIES: DetailedLeaderCategory[] = [
     key: "rushing",
     label: "Rushing",
     columns: [
-      { key: "att", label: "ATT" },
-      { key: "yards", label: "YARDS" },
-      { key: "td", label: "TD" },
+      { key: "att", label: "RUSH ATT" },
+      { key: "yards", label: "RUSH YDS" },
+      { key: "td", label: "RUSH TD" },
       { key: "ypc", label: "YPC" },
+      { key: "rec", label: "REC" },
+      { key: "recYards", label: "REC YDS" },
+      { key: "recTd", label: "REC TD" },
     ],
+    // Receiving stats are included here (not split into their own category) since
+    // pass-catching volume is a major part of an RB's fantasy value.
     rows: [
-      { rank: 1, player: "Christian McCaffrey", team: "San Francisco 49ers", stats: { att: 272, yards: 1459, td: 14, ypc: 5.4 } },
-      { rank: 2, player: "Derrick Henry", team: "Baltimore Ravens", stats: { att: 280, yards: 1421, td: 16, ypc: 5.1 } },
-      { rank: 3, player: "Saquon Barkley", team: "Philadelphia Eagles", stats: { att: 265, yards: 1398, td: 12, ypc: 5.3 } },
-      { rank: 4, player: "Bijan Robinson", team: "Atlanta Falcons", stats: { att: 248, yards: 1211, td: 9, ypc: 4.9 } },
-      { rank: 5, player: "Jahmyr Gibbs", team: "Detroit Lions", stats: { att: 220, yards: 1147, td: 11, ypc: 5.2 } },
+      { rank: 1, player: "Christian McCaffrey", team: "San Francisco 49ers", stats: { att: 272, yards: 1459, td: 14, ypc: 5.4, rec: 67, recYards: 564, recTd: 4 } },
+      { rank: 2, player: "Derrick Henry", team: "Baltimore Ravens", stats: { att: 280, yards: 1421, td: 16, ypc: 5.1, rec: 19, recYards: 154, recTd: 1 } },
+      { rank: 3, player: "Saquon Barkley", team: "Philadelphia Eagles", stats: { att: 265, yards: 1398, td: 12, ypc: 5.3, rec: 33, recYards: 278, recTd: 2 } },
+      { rank: 4, player: "Bijan Robinson", team: "Atlanta Falcons", stats: { att: 248, yards: 1211, td: 9, ypc: 4.9, rec: 58, recYards: 431, recTd: 3 } },
+      { rank: 5, player: "Jahmyr Gibbs", team: "Detroit Lions", stats: { att: 220, yards: 1147, td: 11, ypc: 5.2, rec: 52, recYards: 517, recTd: 4 } },
     ],
   },
 ]

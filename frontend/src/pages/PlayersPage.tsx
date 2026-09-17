@@ -1,7 +1,5 @@
-import PositionGroupSection from "../components/PositionGroupSection"
 import SearchBar from "../components/SearchBar"
 import StatLeadersPanel from "../components/StatLeadersPanel"
-import { DEFENSE_POSITION_LEADERS, OFFENSE_POSITION_LEADERS } from "../data/dummyPositionLeaders"
 
 function PlayersPage() {
   return (
@@ -10,8 +8,6 @@ function PlayersPage() {
         <h1 className="text-xl font-semibold text-[var(--text-primary)]">Players</h1>
         <SearchBar placeholder="Search players..." />
       </div>
-      {/* <PositionGroupSection title="Offense" categories={OFFENSE_POSITION_LEADERS} />
-      <PositionGroupSection title="Defense" categories={DEFENSE_POSITION_LEADERS} /> */}
       <StatLeadersPanel />
     </div>
   )
