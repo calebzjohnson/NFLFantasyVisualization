@@ -11,9 +11,9 @@ function App() {
       <main className="mx-auto max-w-5xl px-4 py-8">
         <Routes>
           <Route path="/" element={<HomePage />} />
-          <Route path="/players" element={<PlayersPage />} />
           <Route path="/teams" element={<ComingSoonPage title="Teams" />} />
-          <Route path="/stats" element={<ComingSoonPage title="Stats" />} />
+          <Route path="/players" element={<PlayersPage />} />
+          <Route path="/about" element={<ComingSoonPage title="About" />} />
         </Routes>
       </main>
     </div>

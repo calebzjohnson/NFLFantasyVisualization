@@ -1,11 +1,9 @@
 import type { LeaderCategory } from "../data/leaderTypes"
+import Panel from "./Panel"
 
 function LeaderTable({ title, unit, rows }: LeaderCategory) {
   return (
-    <section className="rounded-lg border border-[var(--border)] bg-[var(--surface-1)]">
-      <h2 className="border-b border-[var(--border)] px-4 py-3 text-sm font-semibold tracking-wide text-[var(--text-primary)] uppercase">
-        {title}
-      </h2>
+    <Panel title={title}>
       <table className="w-full text-sm">
         <thead>
           <tr className="text-left text-[var(--text-muted)]">
@@ -28,7 +26,7 @@ function LeaderTable({ title, unit, rows }: LeaderCategory) {
           ))}
         </tbody>
       </table>
-    </section>
+    </Panel>
   )
 }
 

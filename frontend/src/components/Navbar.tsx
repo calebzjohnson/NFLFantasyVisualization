@@ -2,9 +2,9 @@ import { NavLink } from "react-router-dom"
 
 const NAV_TABS = [
   { label: "Home", to: "/" },
-  { label: "Players", to: "/players" },
   { label: "Teams", to: "/teams" },
-  { label: "Stats", to: "/stats" },
+  { label: "Players", to: "/players" },
+  { label: "About", to: "/about" },
 ] as const
 
 function Navbar() {
@@ -12,7 +12,7 @@ function Navbar() {
     <nav className="border-b border-[var(--border)] bg-[var(--surface-1)]">
       <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-4">
         <span className="text-lg font-semibold text-[var(--text-primary)]">
-          NFL Fantasy Visualization
+          Gridiron Telemetry Analytics
         </span>
         <ul className="flex flex-wrap gap-x-6 gap-y-2">
           {NAV_TABS.map(({ label, to }) => (
