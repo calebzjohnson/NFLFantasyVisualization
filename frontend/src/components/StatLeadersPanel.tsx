@@ -1,18 +1,29 @@
 import { useState } from "react"
-import { DETAILED_LEADER_CATEGORIES } from "../data/dummyDetailedLeaders"
+import { LEADER_CATEGORIES, type RawPlayerRow } from "../data/leaderCategories"
+import type { DetailedLeaderRow } from "../data/leaderStatsTypes"
+import { useFetch } from "../lib/useFetch"
 import DetailedLeaderTable from "./DetailedLeaderTable"
 import Panel from "./Panel"
 
 function StatLeadersPanel() {
-  const [activeKey, setActiveKey] = useState(DETAILED_LEADER_CATEGORIES[0].key)
-  const active = DETAILED_LEADER_CATEGORIES.find((category) => category.key === activeKey)!
+  const [activeKey, setActiveKey] = useState(LEADER_CATEGORIES[0].key)
+  const active = LEADER_CATEGORIES.find((category) => category.key === activeKey)!
+  const { data, error, loading } = useFetch<RawPlayerRow[]>(active.path)
+
+  const rows: DetailedLeaderRow[] | null =
+    data?.map((row, index) => ({
+      rank: index + 1,
+      player: String(row.player_display_name),
+      team: String(row.recent_team),
+      stats: active.toStats(row),
+    })) ?? null
 
   return (
     <Panel
       title="Stat Leaders"
       actions={
         <div className="flex gap-1">
-          {DETAILED_LEADER_CATEGORIES.map((category) => (
+          {LEADER_CATEGORIES.map((category) => (
             <button
               key={category.key}
               type="button"
@@ -30,7 +41,9 @@ function StatLeadersPanel() {
         </div>
       }
     >
-      <DetailedLeaderTable columns={active.columns} rows={active.rows} />
+      {loading && <p className="p-4 text-sm text-[var(--text-secondary)]">Loading…</p>}
+      {error && <p className="p-4 text-sm text-red-600">Couldn't load leaders: {error}</p>}
+      {rows && <DetailedLeaderTable columns={active.columns} rows={rows} />}
     </Panel>
   )
 }
