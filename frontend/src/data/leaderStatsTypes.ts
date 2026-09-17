@@ -10,9 +10,3 @@ export interface DetailedLeaderRow {
   stats: Record<string, number>
 }
 
-export interface DetailedLeaderCategory {
-  key: string
-  label: string
-  columns: LeaderColumn[]
-  rows: DetailedLeaderRow[]
-}

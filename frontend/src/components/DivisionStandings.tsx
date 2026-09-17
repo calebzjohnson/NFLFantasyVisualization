@@ -1,15 +1,22 @@
-import { DUMMY_STANDINGS } from "../data/dummyStandings"
+import type { DivisionStanding } from "../data/standings"
+import { useFetch } from "../lib/useFetch"
 import DivisionStandingsTable from "./DivisionStandingsTable"
 import Panel from "./Panel"
 
 function DivisionStandings() {
+  const { data, error, loading } = useFetch<DivisionStanding[]>("/standings")
+
   return (
     <Panel title="Division Standings">
-      <div className="grid grid-cols-1 gap-4 p-4">
-        {DUMMY_STANDINGS.map((division) => (
-          <DivisionStandingsTable key={division.name} {...division} />
-        ))}
-      </div>
+      {loading && <p className="p-4 text-sm text-[var(--text-secondary)]">Loading…</p>}
+      {error && <p className="p-4 text-sm text-red-600">Couldn't load standings: {error}</p>}
+      {data && (
+        <div className="grid grid-cols-1 gap-4 p-4">
+          {data.map((division) => (
+            <DivisionStandingsTable key={division.division} {...division} />
+          ))}
+        </div>
+      )}
     </Panel>
   )
 }
