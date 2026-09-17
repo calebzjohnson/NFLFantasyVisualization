@@ -1,7 +1,107 @@
 import pandas as pd
 import pytest
 
-from app.services.players import get_current_player_stats
+from app.services.players import InvalidQueryError, get_current_player_stats
+
+
+@pytest.fixture
+def sample_leaderboard_stats() -> pd.DataFrame:
+    """Four players spanning positions, with distinct stat values - built for
+    testing sort/limit/fields/position_group, not shared with other tests.
+    """
+    rows = [
+        dict(player_id="Q1", player_display_name="Q One", position="QB", position_group="QB",
+             team="DAL", passing_yards=300, rushing_yards=0),
+        dict(player_id="Q2", player_display_name="Q Two", position="QB", position_group="QB",
+             team="PHI", passing_yards=500, rushing_yards=0),
+        dict(player_id="R1", player_display_name="R One", position="RB", position_group="RB",
+             team="DAL", passing_yards=0, rushing_yards=800),
+        dict(player_id="W1", player_display_name="W One", position="WR", position_group="WR",
+             team="PHI", passing_yards=0, rushing_yards=0),
+    ]
+    return pd.DataFrame(rows)
+
+
+def test_get_current_player_stats_sorts_descending(
+    monkeypatch: pytest.MonkeyPatch, sample_leaderboard_stats: pd.DataFrame
+) -> None:
+    monkeypatch.setattr(
+        "app.data.player_stats.get_season_stats", lambda season: sample_leaderboard_stats
+    )
+
+    records = get_current_player_stats(sort="-passing_yards")
+
+    assert [r["player_id"] for r in records] == ["Q2", "Q1", "R1", "W1"]
+
+
+def test_get_current_player_stats_sorts_ascending_without_prefix(
+    monkeypatch: pytest.MonkeyPatch, sample_leaderboard_stats: pd.DataFrame
+) -> None:
+    monkeypatch.setattr(
+        "app.data.player_stats.get_season_stats", lambda season: sample_leaderboard_stats
+    )
+
+    records = get_current_player_stats(sort="passing_yards")
+
+    assert [r["player_id"] for r in records][:2] == ["R1", "W1"]  # both 0, tied for lowest
+
+
+def test_get_current_player_stats_applies_limit_after_sort(
+    monkeypatch: pytest.MonkeyPatch, sample_leaderboard_stats: pd.DataFrame
+) -> None:
+    monkeypatch.setattr(
+        "app.data.player_stats.get_season_stats", lambda season: sample_leaderboard_stats
+    )
+
+    records = get_current_player_stats(sort="-rushing_yards", limit=1)
+
+    assert [r["player_id"] for r in records] == ["R1"]
+
+
+def test_get_current_player_stats_filters_by_position_group(
+    monkeypatch: pytest.MonkeyPatch, sample_leaderboard_stats: pd.DataFrame
+) -> None:
+    monkeypatch.setattr(
+        "app.data.player_stats.get_season_stats", lambda season: sample_leaderboard_stats
+    )
+
+    records = get_current_player_stats(position_group="QB")
+
+    assert {r["player_id"] for r in records} == {"Q1", "Q2"}
+
+
+def test_get_current_player_stats_projects_requested_fields_only(
+    monkeypatch: pytest.MonkeyPatch, sample_leaderboard_stats: pd.DataFrame
+) -> None:
+    monkeypatch.setattr(
+        "app.data.player_stats.get_season_stats", lambda season: sample_leaderboard_stats
+    )
+
+    records = get_current_player_stats(fields=["player_display_name", "passing_yards"])
+
+    assert all(set(r.keys()) == {"player_display_name", "passing_yards"} for r in records)
+
+
+def test_get_current_player_stats_rejects_unknown_sort_field(
+    monkeypatch: pytest.MonkeyPatch, sample_leaderboard_stats: pd.DataFrame
+) -> None:
+    monkeypatch.setattr(
+        "app.data.player_stats.get_season_stats", lambda season: sample_leaderboard_stats
+    )
+
+    with pytest.raises(InvalidQueryError):
+        get_current_player_stats(sort="not_a_real_field")
+
+
+def test_get_current_player_stats_rejects_unknown_fields(
+    monkeypatch: pytest.MonkeyPatch, sample_leaderboard_stats: pd.DataFrame
+) -> None:
+    monkeypatch.setattr(
+        "app.data.player_stats.get_season_stats", lambda season: sample_leaderboard_stats
+    )
+
+    with pytest.raises(InvalidQueryError):
+        get_current_player_stats(fields=["not_a_real_field"])
 
 
 def test_get_current_player_stats_converts_nan_to_none(

@@ -11,10 +11,10 @@ def sample_season_stats() -> pd.DataFrame:
     attempted a pass), rather than a placeholder like 0.
     """
     rows = [
-        dict(player_id="Q1", player_display_name="Q One", position="QB", team="DAL",
-             completions=200, attempts=300, passing_yards=2500, pacr=1.5),
-        dict(player_id="W1", player_display_name="W One", position="WR", team="DAL",
-             completions=0, attempts=0, passing_yards=0, pacr=np.nan),
+        dict(player_id="Q1", player_display_name="Q One", position="QB", position_group="QB",
+             team="DAL", completions=200, attempts=300, passing_yards=2500, pacr=1.5),
+        dict(player_id="W1", player_display_name="W One", position="WR", position_group="WR",
+             team="DAL", completions=0, attempts=0, passing_yards=0, pacr=np.nan),
     ]
     return pd.DataFrame(rows)
 
@@ -39,16 +39,30 @@ def sample_schedule() -> pd.DataFrame:
 
 @pytest.fixture
 def sample_teams() -> pd.DataFrame:
-    """Small stand-in for teams.get_teams(): two divisions' worth of teams."""
+    """Small stand-in for teams.get_teams(): two divisions' worth of teams,
+    plus a retired franchise code (OAK) that never appears in
+    sample_standings_schedule - mirrors how get_teams() includes historical
+    codes indistinguishable from current ones except by schedule presence.
+    """
     rows = [
-        dict(team_abbr="BUF", team_conf="AFC", team_division="AFC East"),
-        dict(team_abbr="MIA", team_conf="AFC", team_division="AFC East"),
-        dict(team_abbr="NE", team_conf="AFC", team_division="AFC East"),
-        dict(team_abbr="NYJ", team_conf="AFC", team_division="AFC East"),
-        dict(team_abbr="DAL", team_conf="NFC", team_division="NFC East"),
-        dict(team_abbr="NYG", team_conf="NFC", team_division="NFC East"),
-        dict(team_abbr="PHI", team_conf="NFC", team_division="NFC East"),
-        dict(team_abbr="WAS", team_conf="NFC", team_division="NFC East"),
+        dict(team_abbr="BUF", team_name="Buffalo Bills", team_conf="AFC",
+             team_division="AFC East"),
+        dict(team_abbr="MIA", team_name="Miami Dolphins", team_conf="AFC",
+             team_division="AFC East"),
+        dict(team_abbr="NE", team_name="New England Patriots", team_conf="AFC",
+             team_division="AFC East"),
+        dict(team_abbr="NYJ", team_name="New York Jets", team_conf="AFC",
+             team_division="AFC East"),
+        dict(team_abbr="DAL", team_name="Dallas Cowboys", team_conf="NFC",
+             team_division="NFC East"),
+        dict(team_abbr="NYG", team_name="New York Giants", team_conf="NFC",
+             team_division="NFC East"),
+        dict(team_abbr="PHI", team_name="Philadelphia Eagles", team_conf="NFC",
+             team_division="NFC East"),
+        dict(team_abbr="WAS", team_name="Washington Commanders", team_conf="NFC",
+             team_division="NFC East"),
+        dict(team_abbr="OAK", team_name="Oakland Raiders", team_conf="AFC",
+             team_division="AFC West"),
     ]
     return pd.DataFrame(rows)
 
