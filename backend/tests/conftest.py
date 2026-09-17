@@ -35,3 +35,55 @@ def sample_schedule() -> pd.DataFrame:
              away_team="DET", home_team="BUF", away_score=np.nan, home_score=np.nan, temp=65.0),
     ]
     return pd.DataFrame(rows)
+
+
+@pytest.fixture
+def sample_teams() -> pd.DataFrame:
+    """Small stand-in for teams.get_teams(): two divisions' worth of teams."""
+    rows = [
+        dict(team_abbr="BUF", team_conf="AFC", team_division="AFC East"),
+        dict(team_abbr="MIA", team_conf="AFC", team_division="AFC East"),
+        dict(team_abbr="NE", team_conf="AFC", team_division="AFC East"),
+        dict(team_abbr="NYJ", team_conf="AFC", team_division="AFC East"),
+        dict(team_abbr="DAL", team_conf="NFC", team_division="NFC East"),
+        dict(team_abbr="NYG", team_conf="NFC", team_division="NFC East"),
+        dict(team_abbr="PHI", team_conf="NFC", team_division="NFC East"),
+        dict(team_abbr="WAS", team_conf="NFC", team_division="NFC East"),
+    ]
+    return pd.DataFrame(rows)
+
+
+@pytest.fixture
+def sample_standings_schedule() -> pd.DataFrame:
+    """Small stand-in for schedules.get_season_schedule(season), covering:
+    a normal win/loss (BUF beats MIA), a tie (NE/NYJ), a team with two games
+    to test aggregation (BUF also beats NE), and a second division (NFC
+    East) to test division grouping.
+    """
+    rows = [
+        dict(game_type="REG", week=1, away_team="MIA", home_team="BUF",
+             away_score=10.0, home_score=24.0),
+        dict(game_type="REG", week=1, away_team="NYJ", home_team="NE",
+             away_score=17.0, home_score=17.0),
+        dict(game_type="REG", week=2, away_team="NE", home_team="BUF",
+             away_score=15.0, home_score=20.0),
+        dict(game_type="REG", week=1, away_team="NYG", home_team="DAL",
+             away_score=20.0, home_score=28.0),
+        dict(game_type="REG", week=1, away_team="WAS", home_team="PHI",
+             away_score=10.0, home_score=30.0),
+    ]
+    return pd.DataFrame(rows)
+
+
+@pytest.fixture
+def sample_weekly_team_stats() -> pd.DataFrame:
+    """Small stand-in for team_stats.get_weekly_team_stats(season). Empty is
+    fine for scenarios that never reach the net-touchdowns tiebreaker step;
+    it still needs the right columns so net_touchdowns() doesn't KeyError.
+    """
+    return pd.DataFrame(
+        columns=[
+            "game_id", "team", "opponent_team", "passing_tds", "rushing_tds",
+            "special_teams_tds", "def_tds", "fumble_recovery_tds", "pt_return_tds",
+        ]
+    )
