@@ -1,3 +1,5 @@
+// leaderCategories.ts
+// Per-category Stat Leaders config: /players query, columns, and row-to-stats mapping.
 import { passerRating, perAttempt } from "../lib/footballStats"
 import type { LeaderColumn } from "./leaderStatsTypes"
 

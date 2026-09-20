@@ -1,3 +1,5 @@
+// HomePage.tsx
+// Home route: scores, division standings, and stat leaders.
 import DivisionStandings from "../components/DivisionStandings"
 import PreviousWeekScores from "../components/PreviousWeekScores"
 import StatLeadersPanel from "../components/StatLeadersPanel"

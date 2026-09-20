@@ -1,3 +1,5 @@
+// DivisionStandings.tsx
+// Fetches /standings and renders every division's table in one panel.
 import type { DivisionStanding } from "../data/standings"
 import { useFetch } from "../lib/useFetch"
 import DivisionStandingsTable from "./DivisionStandingsTable"

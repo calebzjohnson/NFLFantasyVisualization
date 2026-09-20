@@ -1,3 +1,5 @@
+// PlayersPage.tsx
+// Players route: search bar plus stat leaders.
 import SearchBar from "../components/SearchBar"
 import StatLeadersPanel from "../components/StatLeadersPanel"
 

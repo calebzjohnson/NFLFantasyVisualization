@@ -1,3 +1,5 @@
+// DetailedLeaderTable.tsx
+// Ranked player table with per-category stat columns.
 import type { DetailedLeaderRow, LeaderColumn } from "../data/leaderStatsTypes"
 
 interface DetailedLeaderTableProps {

@@ -1,3 +1,5 @@
+// useFetch.ts
+// React hook that GETs a backend path and exposes data/loading/error.
 import { useEffect, useState } from "react"
 import { fetchJson } from "./api"
 

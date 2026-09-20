@@ -1,3 +1,5 @@
+// PreviousWeekScores.tsx
+// Fetches /scores and lists the last completed week's games chronologically.
 import { byKickoff, formatKickoff, type GameScore } from "../data/scores"
 import { useFetch } from "../lib/useFetch"
 import Panel from "./Panel"

@@ -1,3 +1,5 @@
+// Navbar.tsx
+// Persistent top bar: site title and page tabs.
 import { NavLink } from "react-router-dom"
 
 const NAV_TABS = [

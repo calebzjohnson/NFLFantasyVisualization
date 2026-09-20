@@ -1,3 +1,5 @@
+// SearchBar.tsx
+// Placeholder search input; not wired to search yet.
 interface SearchBarProps {
   placeholder: string
 }

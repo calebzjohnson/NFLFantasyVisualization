@@ -1,3 +1,5 @@
+// Panel.tsx
+// Shared card chrome: titled header with optional actions, wrapping children.
 import type { ReactNode } from "react"
 
 interface PanelProps {

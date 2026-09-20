@@ -1,3 +1,5 @@
+// DivisionStandingsTable.tsx
+// One division's standings table, in the API's tiebreaker order.
 import { type DivisionStanding, formatPct } from "../data/standings"
 import Panel from "./Panel"
 

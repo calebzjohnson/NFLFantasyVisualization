@@ -1,3 +1,5 @@
+// StatLeadersPanel.tsx
+// Passing/Receiving/Rushing leaders panel; fetches /players for the active tab.
 import { useState } from "react"
 import { LEADER_CATEGORIES, type RawPlayerRow } from "../data/leaderCategories"
 import type { DetailedLeaderRow } from "../data/leaderStatsTypes"
