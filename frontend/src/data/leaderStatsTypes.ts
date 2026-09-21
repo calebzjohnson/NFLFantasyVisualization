@@ -3,6 +3,7 @@
 export interface LeaderColumn {
   key: string
   label: string
+  tone?: "positive" | "negative"
 }
 
 export interface DetailedLeaderRow {

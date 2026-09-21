@@ -1,43 +1,30 @@
 @import "tailwindcss";
 
+@theme {
+  --font-display: "Barlow Condensed", ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Dark-only broadcast theme. Text tokens are all >= 4.5:1 on surfaces 0-2. */
 :root {
-  color-scheme: light;
-  --surface-1: #fcfcfb;
-  --surface-2: #f4f3ec;
-  --text-primary: #0b0b0b;
-  --text-secondary: #52514e;
-  --text-muted: #86847c;
-  --border: #e5e4e7;
-  --accent: #2a78d6;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    color-scheme: dark;
-    --surface-1: #16171d;
-    --surface-2: #1f2028;
-    --text-primary: #ffffff;
-    --text-secondary: #c3c2b7;
-    --text-muted: #86847c;
-    --border: #2e303a;
-    --accent: #3987e5;
-  }
-}
-
-:root[data-theme="dark"] {
   color-scheme: dark;
-  --surface-1: #16171d;
-  --surface-2: #1f2028;
-  --text-primary: #ffffff;
-  --text-secondary: #c3c2b7;
-  --text-muted: #86847c;
-  --border: #2e303a;
-  --accent: #3987e5;
+  --surface-0: #0a0f1e;
+  --surface-1: #111a30;
+  --surface-2: #17233f;
+  --border: #25335a;
+  --text-primary: #eef2fb;
+  --text-secondary: #a8b3cf;
+  --text-muted: #8390b0;
+  --accent: #ff5a36;
+  --positive: #3fd08f;
+  --negative: #ff6b81;
 }
 
 body {
   margin: 0;
-  background: var(--surface-1);
+  min-height: 100vh;
+  background:
+    radial-gradient(900px 420px at 50% -80px, #1b2a52 0%, transparent 70%) no-repeat,
+    var(--surface-0);
   color: var(--text-primary);
   font-family: system-ui, "Segoe UI", Roboto, sans-serif;
 }
