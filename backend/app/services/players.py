@@ -44,7 +44,12 @@ def _sorted(stats: pd.DataFrame, sort: str) -> pd.DataFrame:
     column = sort[1:] if descending else sort
     if column not in stats.columns:
         raise InvalidQueryError(f"Unknown sort field: {column}")
-    return stats.sort_values(column, ascending=not descending, na_position="last")
+    # kind="stable" so players tied on the sort field keep a consistent,
+    # deterministic relative order instead of one that can vary between
+    # runs/platforms (the default "quicksort" isn't stable).
+    return stats.sort_values(
+        column, ascending=not descending, na_position="last", kind="stable"
+    )
 
 
 def _with_fields(stats: pd.DataFrame, fields: list[str]) -> pd.DataFrame:
