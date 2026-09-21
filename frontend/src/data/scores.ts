@@ -9,9 +9,10 @@ export interface GameScore {
   weekday: string
   gametime: string
   away_team: string
-  away_score: number
+  away_score: number | null
   home_team: string
-  home_score: number
+  home_score: number | null
+  status: "final" | "scheduled"
 }
 
 export function formatKickoff(game: GameScore): string {
