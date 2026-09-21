@@ -1,3 +1,5 @@
+// leaderCategories.ts
+// Per-category Stat Leaders config: /players query, columns, and row-to-stats mapping.
 import { passerRating, perAttempt } from "../lib/footballStats"
 import type { LeaderColumn } from "./leaderStatsTypes"
 
@@ -38,8 +40,8 @@ export const LEADER_CATEGORIES: LeaderCategoryConfig[] = [
       { key: "cmp", label: "CMP" },
       { key: "att", label: "ATT" },
       { key: "yards", label: "YARDS" },
-      { key: "td", label: "TD" },
-      { key: "int", label: "INT" },
+      { key: "td", label: "TD", tone: "positive" },
+      { key: "int", label: "INT", tone: "negative" },
       { key: "rating", label: "RATING" },
     ],
     toStats: (row) => {
@@ -66,7 +68,7 @@ export const LEADER_CATEGORIES: LeaderCategoryConfig[] = [
       { key: "rec", label: "REC" },
       { key: "tgt", label: "TGT" },
       { key: "yards", label: "YARDS" },
-      { key: "td", label: "TD" },
+      { key: "td", label: "TD", tone: "positive" },
       { key: "ypr", label: "YPR" },
     ],
     toStats: (row) => {
@@ -92,11 +94,11 @@ export const LEADER_CATEGORIES: LeaderCategoryConfig[] = [
     columns: [
       { key: "att", label: "RUSH ATT" },
       { key: "yards", label: "RUSH YDS" },
-      { key: "td", label: "RUSH TD" },
+      { key: "td", label: "RUSH TD", tone: "positive" },
       { key: "ypc", label: "YPC" },
       { key: "rec", label: "REC" },
       { key: "recYards", label: "REC YDS" },
-      { key: "recTd", label: "REC TD" },
+      { key: "recTd", label: "REC TD", tone: "positive" },
     ],
     toStats: (row) => {
       const att = Number(row.carries)

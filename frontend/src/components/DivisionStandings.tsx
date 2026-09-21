@@ -1,3 +1,5 @@
+// DivisionStandings.tsx
+// Fetches /standings and renders every division's table in one panel.
 import type { DivisionStanding } from "../data/standings"
 import { useFetch } from "../lib/useFetch"
 import DivisionStandingsTable from "./DivisionStandingsTable"
@@ -9,7 +11,7 @@ function DivisionStandings() {
   return (
     <Panel title="Division Standings">
       {loading && <p className="p-4 text-sm text-[var(--text-secondary)]">Loading…</p>}
-      {error && <p className="p-4 text-sm text-red-600">Couldn't load standings: {error}</p>}
+      {error && <p className="p-4 text-sm text-[var(--negative)]">Couldn't load standings: {error}</p>}
       {data && (
         <div className="grid grid-cols-1 gap-4 p-4">
           {data.map((division) => (

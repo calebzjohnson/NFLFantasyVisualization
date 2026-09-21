@@ -1,3 +1,5 @@
+// StatLeadersPanel.tsx
+// Passing/Receiving/Rushing leaders panel; fetches /players for the active tab.
 import { useState } from "react"
 import { LEADER_CATEGORIES, type RawPlayerRow } from "../data/leaderCategories"
 import type { DetailedLeaderRow } from "../data/leaderStatsTypes"
@@ -22,18 +24,18 @@ function StatLeadersPanel() {
     <Panel
       title="Stat Leaders"
       actions={
-        <div className="flex gap-1">
+        <div className="flex gap-1 rounded-md border border-[var(--border)] bg-[var(--surface-0)] p-1">
           {LEADER_CATEGORIES.map((category) => (
             <button
               key={category.key}
               type="button"
               onClick={() => setActiveKey(category.key)}
               aria-pressed={category.key === activeKey}
-              className={
+              className={`rounded px-3 py-0.5 font-display text-base tracking-wider uppercase transition-colors ${
                 category.key === activeKey
-                  ? "rounded bg-[var(--accent)] px-3 py-1 text-xs font-medium text-white"
-                  : "rounded px-3 py-1 text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-              }
+                  ? "bg-[var(--accent)] font-bold text-[var(--surface-0)]"
+                  : "font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+              }`}
             >
               {category.label}
             </button>
@@ -42,8 +44,12 @@ function StatLeadersPanel() {
       }
     >
       {loading && <p className="p-4 text-sm text-[var(--text-secondary)]">Loading…</p>}
-      {error && <p className="p-4 text-sm text-red-600">Couldn't load leaders: {error}</p>}
-      {rows && <DetailedLeaderTable columns={active.columns} rows={rows} />}
+      {error && <p className="p-4 text-sm text-[var(--negative)]">Couldn't load leaders: {error}</p>}
+      {rows && (
+        <div className="overflow-x-auto">
+          <DetailedLeaderTable columns={active.columns} rows={rows} />
+        </div>
+      )}
     </Panel>
   )
 }

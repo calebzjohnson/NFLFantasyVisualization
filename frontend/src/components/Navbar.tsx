@@ -1,3 +1,5 @@
+// Navbar.tsx
+// Persistent top bar: site title and page tabs.
 import { NavLink } from "react-router-dom"
 
 const NAV_TABS = [
@@ -9,10 +11,10 @@ const NAV_TABS = [
 
 function Navbar() {
   return (
-    <nav className="border-b border-[var(--border)] bg-[var(--surface-1)]">
-      <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-4">
-        <span className="text-lg font-semibold text-[var(--text-primary)]">
-          Gridiron Telemetry Analytics
+    <nav className="border-b border-[var(--border)] bg-[var(--surface-1)]/90 backdrop-blur">
+      <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-8 gap-y-2 px-4 py-3">
+        <span className="font-display text-2xl font-bold tracking-wide text-[var(--text-primary)] uppercase">
+          Gridiron <span className="text-[var(--accent)]">Telemetry</span> Analytics
         </span>
         <ul className="flex flex-wrap gap-x-6 gap-y-2">
           {NAV_TABS.map(({ label, to }) => (
@@ -21,9 +23,11 @@ function Navbar() {
                 to={to}
                 end={to === "/"}
                 className={({ isActive }) =>
-                  isActive
-                    ? "font-medium text-[var(--text-primary)] border-b-2 border-[var(--accent)] pb-1"
-                    : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] pb-1"
+                  `border-b-2 pb-1 font-display text-lg font-semibold tracking-wider uppercase transition-colors ${
+                    isActive
+                      ? "border-[var(--accent)] text-[var(--text-primary)]"
+                      : "border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                  }`
                 }
               >
                 {label}

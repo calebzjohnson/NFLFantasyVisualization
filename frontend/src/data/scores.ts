@@ -1,3 +1,5 @@
+// scores.ts
+// GameScore type for /scores plus kickoff formatting and sort helpers.
 // The /scores response has many more fields (betting lines, weather, rosters, etc.)
 // than this — only declaring the ones the UI actually reads.
 export interface GameScore {

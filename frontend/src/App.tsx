@@ -1,3 +1,5 @@
+// App.tsx
+// Root layout: navbar plus the route table for every page.
 import { Route, Routes } from "react-router-dom"
 import Navbar from "./components/Navbar"
 import ComingSoonPage from "./pages/ComingSoonPage"

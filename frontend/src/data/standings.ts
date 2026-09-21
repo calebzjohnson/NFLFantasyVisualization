@@ -1,3 +1,5 @@
+// standings.ts
+// Types for /standings plus win-percentage formatting.
 export interface TeamRecord {
   team: string
   wins: number

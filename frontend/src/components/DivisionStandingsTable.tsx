@@ -1,3 +1,5 @@
+// DivisionStandingsTable.tsx
+// One division's standings table, in the API's tiebreaker order.
 import { type DivisionStanding, formatPct } from "../data/standings"
 import Panel from "./Panel"
 
@@ -6,19 +8,25 @@ function DivisionStandingsTable({ division, teams }: DivisionStanding) {
     <Panel title={division}>
       <table className="w-full table-fixed text-sm">
         <thead>
-          <tr className="text-left text-[var(--text-muted)]">
-            <th className="w-6 px-4 py-2 font-normal">#</th>
-            <th className="px-2 py-2 font-normal">Team</th>
-            <th className="w-7 px-2 py-2 text-right font-normal">W</th>
-            <th className="w-7 px-2 py-2 text-right font-normal">L</th>
-            <th className="w-7 px-2 py-2 text-right font-normal">T</th>
-            <th className="w-14 px-4 py-2 text-right font-normal">PCT</th>
+          <tr className="text-left text-xs tracking-wider text-[var(--text-muted)] uppercase">
+            <th className="w-6 px-4 py-2 font-medium">#</th>
+            <th className="px-2 py-2 font-medium">Team</th>
+            <th className="w-7 px-2 py-2 text-right font-medium">W</th>
+            <th className="w-7 px-2 py-2 text-right font-medium">L</th>
+            <th className="w-7 px-2 py-2 text-right font-medium">T</th>
+            <th className="w-16 px-4 py-2 text-right font-medium">PCT</th>
           </tr>
         </thead>
         <tbody>
           {teams.map((record, index) => (
-            <tr key={record.team} className="border-t border-[var(--border)]">
-              <td className="px-4 py-2 align-top text-[var(--text-muted)]">{index + 1}</td>
+            <tr key={record.team} className="border-t border-[var(--border)] hover:bg-[var(--surface-2)]">
+              <td
+                className={`px-4 py-2 align-top font-display text-base ${
+                  index === 0 ? "font-bold text-[var(--accent)]" : "text-[var(--text-muted)]"
+                }`}
+              >
+                {index + 1}
+              </td>
               <td className="px-2 py-2 align-top font-medium text-[var(--text-primary)]">{record.team}</td>
               <td className="px-2 py-2 align-top text-right text-[var(--text-secondary)]">{record.wins}</td>
               <td className="px-2 py-2 align-top text-right text-[var(--text-secondary)]">{record.losses}</td>

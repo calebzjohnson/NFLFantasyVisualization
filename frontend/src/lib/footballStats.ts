@@ -1,3 +1,5 @@
+// footballStats.ts
+// Pure football stat formulas (passer rating, per-attempt averages).
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value))
 }

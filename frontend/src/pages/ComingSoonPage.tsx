@@ -1,3 +1,5 @@
+// ComingSoonPage.tsx
+// Placeholder page for routes not built yet.
 interface ComingSoonPageProps {
   title: string
 }
