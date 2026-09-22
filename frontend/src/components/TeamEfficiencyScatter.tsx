@@ -30,11 +30,14 @@ const chartConfig = {
   defense: { label: "Defense EPA/play allowed" },
 } satisfies ChartConfig
 
-// Each logo sits on a light badge so near-black logos stay readable on the dark
-// theme. The 2px ring in the panel's surface color separates overlapping badges,
-// and the badge (30px+) is the hover target, well above the 24px minimum.
+// Each logo sits on a fixed light badge (not a theme token) - NFL logos are
+// drawn assuming a light background, so the badge has to stay light no matter
+// what the page theme is. The 2px ring in the panel's surface color separates
+// overlapping badges, and the badge (30px+) is the hover target, well above
+// the 24px minimum.
 const BADGE_RADIUS = 15
 const LOGO_SIZE = 22
+const BADGE_FILL = "#f2f2f0"
 
 function paddedDomain(values: number[]): [number, number] {
   const pad = 0.06
@@ -60,7 +63,8 @@ function formatTick(value: number): string {
 function LogoBadge({ logo, size }: { logo: string; size: string }) {
   return (
     <span
-      className={`flex shrink-0 items-center justify-center rounded-full bg-[var(--text-primary)]/90 ${size}`}
+      className={`flex shrink-0 items-center justify-center rounded-full ${size}`}
+      style={{ backgroundColor: BADGE_FILL }}
     >
       <img src={logo} alt="" className="h-[75%] w-[75%] object-contain" />
     </span>
@@ -76,13 +80,12 @@ interface MarkerProps {
 function TeamLogoMarker({ cx, cy, payload }: MarkerProps) {
   if (cx === undefined || cy === undefined || !payload) return null
   return (
-    <g className="origin-center cursor-pointer transition-transform duration-150 [transform-box:fill-box] hover:scale-125 hover:[filter:drop-shadow(0_0_6px_rgba(238,242,251,0.45))]">
+    <g className="origin-center cursor-pointer transition-transform duration-150 [transform-box:fill-box] hover:scale-125 hover:[filter:drop-shadow(0_0_6px_rgba(37,106,191,0.45))]">
       <circle
         cx={cx}
         cy={cy}
         r={BADGE_RADIUS}
-        fill="var(--text-primary)"
-        fillOpacity={0.92}
+        fill={BADGE_FILL}
         stroke="var(--surface-1)"
         strokeWidth={2}
       />

@@ -16,13 +16,6 @@ function HomePage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <div className="flex flex-col gap-6">
-          <PreviousWeekScores />
-          <TeamEfficiencyScatter />
-        </div>
-        <DivisionStandings />
-      </div>
       <StatLeadersPanel
         position={position}
         actions={
@@ -34,6 +27,13 @@ function HomePage() {
           />
         }
       />
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <div className="flex flex-col gap-6">
+          <TeamEfficiencyScatter />
+          <PreviousWeekScores />
+        </div>
+        <DivisionStandings />
+      </div>
     </div>
   )
 }
