@@ -39,8 +39,8 @@ export const LEADER_CATEGORIES: LeaderCategoryConfig[] = [
       "passing_interceptions",
     ]),
     columns: [
-      { key: "cmp", label: "CMP" },
       { key: "att", label: "ATT" },
+      { key: "cmp", label: "CMP" },
       { key: "yards", label: "YARDS" },
       { key: "td", label: "TD", tone: "positive" },
       { key: "int", label: "INT", tone: "negative" },
@@ -68,8 +68,8 @@ export const LEADER_CATEGORIES: LeaderCategoryConfig[] = [
       "receiving_tds",
     ]),
     columns: [
-      { key: "rec", label: "REC" },
       { key: "tgt", label: "TGT" },
+      { key: "rec", label: "REC" },
       { key: "yards", label: "YARDS" },
       { key: "td", label: "TD", tone: "positive" },
       { key: "ypr", label: "YPR" },
