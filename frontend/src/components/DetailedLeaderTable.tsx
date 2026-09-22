@@ -11,9 +11,12 @@ const TONE = {
 interface DetailedLeaderTableProps {
   columns: LeaderColumn[]
   rows: DetailedLeaderRow[]
+  sortKey: string
+  sortDesc: boolean
+  onSort: (key: string) => void
 }
 
-function DetailedLeaderTable({ columns, rows }: DetailedLeaderTableProps) {
+function DetailedLeaderTable({ columns, rows, sortKey, sortDesc, onSort }: DetailedLeaderTableProps) {
   return (
     <table className="w-full text-sm">
       <thead>
@@ -25,7 +28,16 @@ function DetailedLeaderTable({ columns, rows }: DetailedLeaderTableProps) {
               key={column.key}
               className={`py-2 text-right font-medium ${index === columns.length - 1 ? "px-4" : "px-2"}`}
             >
-              {column.label}
+              <button
+                type="button"
+                onClick={() => onSort(column.key)}
+                className="inline-flex items-center gap-0.5 hover:text-[var(--text-primary)]"
+              >
+                {column.label}
+                <span className={sortKey === column.key ? "text-[var(--accent)]" : "text-[var(--text-muted)]/50"}>
+                  {sortKey === column.key ? (sortDesc ? "▼" : "▲") : "▼"}
+                </span>
+              </button>
             </th>
           ))}
         </tr>
