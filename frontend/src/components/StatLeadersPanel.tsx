@@ -1,15 +1,24 @@
 // StatLeadersPanel.tsx
-// Passing/Receiving/Rushing leaders panel; fetches /players for the active tab.
-import { useState } from "react"
-import { LEADER_CATEGORIES, type RawPlayerRow } from "../data/leaderCategories"
+// Stat leaders table for one position group; fetches /players for it.
+// Which position is active is owned by the caller (e.g. a page-level toggle) -
+// pass an optional `actions` (e.g. <PositionGroupToggle />) to render a
+// switcher in the panel header, for a caller that isn't controlling position
+// from elsewhere on the page.
+import type { ReactNode } from "react"
+import { LEADER_CATEGORIES, type PositionGroup, type RawPlayerRow } from "../data/leaderCategories"
 import type { DetailedLeaderRow } from "../data/leaderStatsTypes"
 import { useFetch } from "../lib/useFetch"
 import DetailedLeaderTable from "./DetailedLeaderTable"
 import Panel from "./Panel"
 
-function StatLeadersPanel() {
-  const [activeKey, setActiveKey] = useState(LEADER_CATEGORIES[0].key)
-  const active = LEADER_CATEGORIES.find((category) => category.key === activeKey)!
+function StatLeadersPanel({
+  position,
+  actions,
+}: {
+  position: PositionGroup
+  actions?: ReactNode
+}) {
+  const active = LEADER_CATEGORIES.find((category) => category.position === position)!
   const { data, error, loading } = useFetch<RawPlayerRow[]>(active.path)
 
   const rows: DetailedLeaderRow[] | null =
@@ -21,28 +30,7 @@ function StatLeadersPanel() {
     })) ?? null
 
   return (
-    <Panel
-      title="Stat Leaders"
-      actions={
-        <div className="flex gap-1 rounded-md border border-[var(--border)] bg-[var(--surface-0)] p-1">
-          {LEADER_CATEGORIES.map((category) => (
-            <button
-              key={category.key}
-              type="button"
-              onClick={() => setActiveKey(category.key)}
-              aria-pressed={category.key === activeKey}
-              className={`rounded px-3 py-0.5 font-display text-base tracking-wider uppercase transition-colors ${
-                category.key === activeKey
-                  ? "bg-[var(--accent)] font-bold text-[var(--surface-0)]"
-                  : "font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-              }`}
-            >
-              {category.label}
-            </button>
-          ))}
-        </div>
-      }
-    >
+    <Panel title={`${active.label} Leaders`} actions={actions}>
       {loading && <p className="p-4 text-sm text-[var(--text-secondary)]">Loading…</p>}
       {error && <p className="p-4 text-sm text-[var(--negative)]">Couldn't load leaders: {error}</p>}
       {rows && (

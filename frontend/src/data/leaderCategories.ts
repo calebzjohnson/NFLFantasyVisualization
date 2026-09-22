@@ -10,8 +10,15 @@ export type RawPlayerRow = Record<string, string | number> & {
   recent_team: string
 }
 
+// The position groups the player-groups page toggles between. Extending this
+// list later (TE, DL, LB, CB/S, ...) means adding a matching LEADER_CATEGORIES
+// entry - the toggle and Stat Leaders panel both read from this one list.
+export const POSITION_GROUPS = ["QB", "RB", "WR"] as const
+export type PositionGroup = (typeof POSITION_GROUPS)[number]
+
 export interface LeaderCategoryConfig {
   key: string
+  position: PositionGroup
   label: string
   path: string
   columns: LeaderColumn[]
@@ -26,6 +33,7 @@ function playersPath(sort: string, fields: string[]): string {
 export const LEADER_CATEGORIES: LeaderCategoryConfig[] = [
   {
     key: "passing",
+    position: "QB",
     label: "Passing",
     path: playersPath("-passing_yards", [
       "player_display_name",
@@ -55,6 +63,7 @@ export const LEADER_CATEGORIES: LeaderCategoryConfig[] = [
   },
   {
     key: "receiving",
+    position: "WR",
     label: "Receiving",
     path: playersPath("-receiving_yards", [
       "player_display_name",
@@ -79,6 +88,7 @@ export const LEADER_CATEGORIES: LeaderCategoryConfig[] = [
   },
   {
     key: "rushing",
+    position: "RB",
     label: "Rushing",
     // Includes receiving stats — pass-catching volume is a big part of an RB's fantasy value.
     path: playersPath("-rushing_yards", [
