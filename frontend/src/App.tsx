@@ -4,6 +4,7 @@ import { Route, Routes } from "react-router-dom"
 import Navbar from "./components/Navbar"
 import ComingSoonPage from "./pages/ComingSoonPage"
 import HomePage from "./pages/HomePage"
+import PlayerPage from "./pages/PlayerPage"
 import PlayersPage from "./pages/PlayersPage"
 
 function App() {
@@ -15,6 +16,7 @@ function App() {
           <Route path="/" element={<HomePage />} />
           <Route path="/teams" element={<ComingSoonPage title="Teams" />} />
           <Route path="/players" element={<PlayersPage />} />
+          <Route path="/players/:playerId" element={<PlayerPage />} />
           <Route path="/about" element={<ComingSoonPage title="About" />} />
         </Routes>
       </main>
