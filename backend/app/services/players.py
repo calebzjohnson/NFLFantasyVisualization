@@ -10,6 +10,10 @@ class InvalidQueryError(ValueError):
     """Raised when a query parameter names a field that doesn't exist."""
 
 
+class PlayerNotFoundError(ValueError):
+    """Raised when a player_id has no games in the current (or prior) season."""
+
+
 def get_current_player_stats(
     sort: str | None = None,
     limit: int | None = None,
@@ -36,6 +40,26 @@ def get_current_player_stats(
     # NaN isn't valid JSON; convert missing values (e.g. a WR's passer rating)
     # to None so they serialize as null instead of breaking the response.
     records = stats.astype(object).where(stats.notna(), None).to_dict(orient="records")
+    return cast(list[dict[str, Any]], records)
+
+
+def get_player_game_log(player_id: str) -> list[dict[str, Any]]:
+    """Regular-season game-by-game stats for one player, current season,
+    oldest week first. Falls back to the prior season if the current one
+    hasn't started yet, matching get_current_player_stats.
+    """
+    season = nfl.get_current_season()
+    stats = player_stats.get_week_stats(season)
+    if stats.empty:
+        stats = player_stats.get_week_stats(season - 1)
+
+    games = stats[(stats["player_id"] == player_id) & (stats["season_type"] == "REG")]
+    if games.empty:
+        raise PlayerNotFoundError(f"No games found for player_id: {player_id}")
+
+    games = games.sort_values("week", kind="stable")
+
+    records = games.astype(object).where(games.notna(), None).to_dict(orient="records")
     return cast(list[dict[str, Any]], records)
 
 

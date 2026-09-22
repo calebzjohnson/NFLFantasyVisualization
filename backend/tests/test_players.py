@@ -1,7 +1,12 @@
 import pandas as pd
 import pytest
 
-from app.services.players import InvalidQueryError, get_current_player_stats
+from app.services.players import (
+    InvalidQueryError,
+    PlayerNotFoundError,
+    get_current_player_stats,
+    get_player_game_log,
+)
 
 
 @pytest.fixture
@@ -149,3 +154,48 @@ def test_get_current_player_stats_falls_back_to_prior_season(
     records = get_current_player_stats()
 
     assert len(records) == 2
+
+
+def test_get_player_game_log_filters_by_player_and_regular_season(
+    monkeypatch: pytest.MonkeyPatch, sample_week_stats: pd.DataFrame
+) -> None:
+    monkeypatch.setattr("app.data.player_stats.get_week_stats", lambda season: sample_week_stats)
+
+    records = get_player_game_log("Q1")
+
+    assert [r["week"] for r in records] == [1, 2, 3]  # sorted, POST week 19 excluded
+
+
+def test_get_player_game_log_converts_nan_to_none(
+    monkeypatch: pytest.MonkeyPatch, sample_week_stats: pd.DataFrame
+) -> None:
+    monkeypatch.setattr("app.data.player_stats.get_week_stats", lambda season: sample_week_stats)
+
+    records = get_player_game_log("Q1")
+
+    week_2 = next(r for r in records if r["week"] == 2)
+    assert week_2["pacr"] is None
+
+
+def test_get_player_game_log_raises_for_unknown_player(
+    monkeypatch: pytest.MonkeyPatch, sample_week_stats: pd.DataFrame
+) -> None:
+    monkeypatch.setattr("app.data.player_stats.get_week_stats", lambda season: sample_week_stats)
+
+    with pytest.raises(PlayerNotFoundError):
+        get_player_game_log("not_a_real_player")
+
+
+def test_get_player_game_log_falls_back_to_prior_season(
+    monkeypatch: pytest.MonkeyPatch, sample_week_stats: pd.DataFrame
+) -> None:
+    monkeypatch.setattr("app.services.players.nfl.get_current_season", lambda: 2026)
+
+    def fake_get_week_stats(season: int) -> pd.DataFrame:
+        return pd.DataFrame() if season == 2026 else sample_week_stats
+
+    monkeypatch.setattr("app.data.player_stats.get_week_stats", fake_get_week_stats)
+
+    records = get_player_game_log("Q1")
+
+    assert len(records) == 3

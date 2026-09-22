@@ -23,3 +23,11 @@ def get_players(
         )
     except players.InvalidQueryError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@router.get("/players/{player_id}/games")
+def get_player_games(player_id: str) -> list[dict[str, Any]]:
+    try:
+        return players.get_player_game_log(player_id)
+    except players.PlayerNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e

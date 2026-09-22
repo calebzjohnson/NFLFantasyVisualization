@@ -16,3 +16,13 @@ def get_season_stats(season: int) -> pd.DataFrame:
     """
     season_data = nfl.load_player_stats(seasons=[season], summary_level="reg")
     return cast(pd.DataFrame, season_data.to_pandas())
+
+
+def get_week_stats(season: int) -> pd.DataFrame:
+    """Returns one row per player per game played in the given season.
+
+    nflreadpy caches fetched data in memory (24h by default), so repeated
+    calls for the same season don't re-hit the network.
+    """
+    week_data = nfl.load_player_stats(seasons=[season], summary_level="week")
+    return cast(pd.DataFrame, week_data.to_pandas())
