@@ -49,3 +49,23 @@ def test_get_players_rejects_unknown_field_with_400(
     response = client.get("/players?fields=not_a_real_field")
 
     assert response.status_code == 400
+
+
+def test_get_player_games(monkeypatch: pytest.MonkeyPatch, sample_week_stats: pd.DataFrame) -> None:
+    monkeypatch.setattr("app.data.player_stats.get_week_stats", lambda season: sample_week_stats)
+
+    response = client.get("/players/Q1/games")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert [g["week"] for g in body] == [1, 2, 3]
+
+
+def test_get_player_games_returns_404_for_unknown_player(
+    monkeypatch: pytest.MonkeyPatch, sample_week_stats: pd.DataFrame
+) -> None:
+    monkeypatch.setattr("app.data.player_stats.get_week_stats", lambda season: sample_week_stats)
+
+    response = client.get("/players/not_a_real_player/games")
+
+    assert response.status_code == 404
