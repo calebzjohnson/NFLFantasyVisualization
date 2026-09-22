@@ -4,4 +4,5 @@ export interface TeamInfo {
   team_abbr: string
   team_name: string
   team_logo_espn: string
+  team_color: string
 }

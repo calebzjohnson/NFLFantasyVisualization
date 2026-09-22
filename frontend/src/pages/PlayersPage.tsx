@@ -32,10 +32,8 @@ function PlayersPage() {
         </div>
       </div>
       <StatLeadersPanel position={position} />
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <PlayerComparisonScatter position={position} />
-        <TrendingPlayersPlaceholder position={position} />
-      </div>
+      <PlayerComparisonScatter position={position} />
+      <TrendingPlayersPlaceholder position={position} />
     </div>
   )
 }

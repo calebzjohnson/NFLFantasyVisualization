@@ -1,5 +1,9 @@
 // useFetch.ts
-// React hook that GETs a backend path and exposes data/loading/error.
+// React hook that GETs a backend path and exposes data/loading/error. Caches
+// each successful response in memory, keyed by path, for the life of the
+// page - so switching back to an already-fetched path (e.g. toggling the
+// position-group filter back to one you've already viewed) shows instantly
+// instead of re-fetching and re-loading every image on the page again.
 import { useEffect, useState } from "react"
 import { fetchJson } from "./api"
 
@@ -9,9 +13,17 @@ interface FetchState<T> {
   loading: boolean
 }
 
+const cache = new Map<string, unknown>()
+
+function stateForPath<T>(path: string): FetchState<T> {
+  if (cache.has(path)) {
+    return { data: cache.get(path) as T, error: null, loading: false }
+  }
+  return { data: null, error: null, loading: true }
+}
+
 export function useFetch<T>(path: string): FetchState<T> {
-  const initialState: FetchState<T> = { data: null, error: null, loading: true }
-  const [state, setState] = useState<FetchState<T>>(initialState)
+  const [state, setState] = useState<FetchState<T>>(() => stateForPath<T>(path))
 
   // Reset synchronously during render when `path` changes, rather than in the
   // effect below — this is React's documented pattern for "state that depends
@@ -19,14 +31,17 @@ export function useFetch<T>(path: string): FetchState<T> {
   const [trackedPath, setTrackedPath] = useState(path)
   if (path !== trackedPath) {
     setTrackedPath(path)
-    setState(initialState)
+    setState(stateForPath<T>(path))
   }
 
   useEffect(() => {
+    if (cache.has(path)) return // already have it - nothing to fetch
+
     let cancelled = false
 
     fetchJson<T>(path)
       .then((data) => {
+        cache.set(path, data)
         if (!cancelled) setState({ data, error: null, loading: false })
       })
       .catch((err: unknown) => {

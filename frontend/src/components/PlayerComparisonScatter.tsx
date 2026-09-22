@@ -1,8 +1,12 @@
 // PlayerComparisonScatter.tsx
 // Scatterplot comparing every player in the active position group across two
 // user-selected metrics. Built on the Evil Charts chart/tooltip base (same
-// foundation as the homepage's Team Efficiency chart).
-import { useEffect, useMemo, useState } from "react"
+// foundation as the homepage's Team Efficiency chart). Markers are team-
+// colored dots with the player's initials - real headshots were tried first,
+// but clipping ~170 photos per position was the actual performance
+// bottleneck (confirmed by disabling them), so this trades the photo for
+// something just as identifying at a fraction of the render cost.
+import { memo, useEffect, useMemo, useState } from "react"
 import { CartesianGrid, Scatter, ScatterChart, XAxis, YAxis } from "recharts"
 import type { PositionGroup } from "../data/leaderCategories"
 import {
@@ -11,6 +15,7 @@ import {
   type PlayerMetric,
   type PlayerStatsRow,
 } from "../data/playerMetrics"
+import type { TeamInfo } from "../data/teams"
 import { useFetch } from "../lib/useFetch"
 import AxisSelect from "./AxisSelect"
 import { ChartContainer, type ChartConfig } from "./evilcharts/ui/recharts-chart"
@@ -24,7 +29,9 @@ const chartConfig = {
 interface PlayerPoint {
   id: string
   name: string
+  initials: string
   team: string
+  color: string
   headshot: string | null
   x: number
   y: number
@@ -35,63 +42,90 @@ function formatValue(value: number, unit?: string): string {
   return `${rounded.toLocaleString()}${unit ?? ""}`
 }
 
-const MARKER_SIZE = 22
-
-// A player's headshot clipped to a circle, with a surface-color ring so it
-// stays legible where points overlap - real photos don't need the light
-// badge team logos do, since they're not flat marks that can vanish on a
-// dark background. Falls back to a plain dot for the rare missing photo.
-// The transparent hit circle keeps the hover/focus target >=24px even
-// though the visible mark itself is about that size.
-function PlayerHeadshotDot({ cx, cy, payload }: { cx?: number; cy?: number; payload?: PlayerPoint }) {
-  if (cx === undefined || cy === undefined || !payload) return null
-  const radius = MARKER_SIZE / 2
-
-  if (!payload.headshot) {
-    return (
-      <g className="cursor-pointer">
-        <circle cx={cx} cy={cy} r={12} fill="transparent" />
-        <circle
-          cx={cx}
-          cy={cy}
-          r={5}
-          fill="var(--accent)"
-          fillOpacity={0.85}
-          stroke="var(--surface-1)"
-          strokeWidth={2}
-        />
-      </g>
-    )
-  }
-
-  const clipId = `headshot-clip-${payload.id}`
-  return (
-    <g className="origin-center cursor-pointer transition-transform duration-150 [transform-box:fill-box] hover:scale-125 hover:[filter:drop-shadow(0_0_6px_rgba(238,242,251,0.45))]">
-      <circle cx={cx} cy={cy} r={16} fill="transparent" />
-      <circle cx={cx} cy={cy} r={radius + 1.5} fill="var(--text-primary)" fillOpacity={0.92} />
-      <clipPath id={clipId}>
-        <circle cx={cx} cy={cy} r={radius} />
-      </clipPath>
-      <image
-        href={payload.headshot}
-        x={cx - radius}
-        y={cy - radius}
-        width={MARKER_SIZE}
-        height={MARKER_SIZE}
-        preserveAspectRatio="xMidYMid slice"
-        clipPath={`url(#${clipId})`}
-      />
-    </g>
-  )
+// "Patrick Mahomes" -> "PM". Uses the second word, not the last, so compound
+// surnames read correctly: "Amon-Ra St. Brown" -> "AS", not "AB" from
+// jumping straight to "Brown".
+function initialsFor(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return "?"
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+  return (parts[0][0] + parts[1][0]).toUpperCase()
 }
 
+// Dark text on light team colors, light text on dark ones.
+function readableTextColor(hex: string): string {
+  const value = hex.replace("#", "")
+  if (value.length !== 6) return "var(--text-primary)"
+  const r = Number.parseInt(value.slice(0, 2), 16)
+  const g = Number.parseInt(value.slice(2, 4), 16)
+  const b = Number.parseInt(value.slice(4, 6), 16)
+  const luminance = 0.299 * r + 0.587 * g + 0.114 * b
+  return luminance > 140 ? "var(--surface-0)" : "var(--text-primary)"
+}
+
+const MARKER_RADIUS = 11
+
+// A team-colored dot with the player's initials, with a surface-color ring
+// so it stays legible where points overlap. The transparent hit circle keeps
+// the hover/focus target >=24px even though the visible mark is smaller.
+// Memoized so hovering one marker doesn't force the other ~170 to re-render.
+const PlayerDot = memo(function PlayerDot({
+  cx,
+  cy,
+  payload,
+}: {
+  cx?: number
+  cy?: number
+  payload?: PlayerPoint
+}) {
+  if (cx === undefined || cy === undefined || !payload) return null
+
+  return (
+    <g className="origin-center cursor-pointer transition-transform duration-150 [transform-box:fill-box] hover:scale-125">
+      <circle cx={cx} cy={cy} r={16} fill="transparent" />
+      <circle
+        cx={cx}
+        cy={cy}
+        r={MARKER_RADIUS}
+        fill={payload.color}
+        stroke="var(--surface-1)"
+        strokeWidth={2}
+      />
+      <text
+        x={cx}
+        y={cy}
+        textAnchor="middle"
+        dominantBaseline="central"
+        fontSize={9}
+        fontWeight={700}
+        fill={readableTextColor(payload.color)}
+      >
+        {payload.initials}
+      </text>
+    </g>
+  )
+})
+
+// The scatter markers themselves stay initials-only (rendering ~170 headshot
+// images at once was the actual perf bottleneck), but the tooltip only ever
+// shows one player at a time, so the photo is effectively free here.
 function TooltipHeader({ point }: { point?: PlayerPoint }) {
   if (!point) return null
   return (
     <div className="flex items-center gap-2">
-      {point.headshot && (
-        <span className="h-7 w-7 shrink-0 overflow-hidden rounded-full bg-[var(--text-primary)]/90">
-          <img src={point.headshot} alt="" className="h-full w-full object-cover" />
+      {point.headshot ? (
+        <img
+          src={point.headshot}
+          alt=""
+          className="h-9 w-9 shrink-0 rounded-full object-cover"
+          style={{ backgroundColor: point.color }}
+        />
+      ) : (
+        <span
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[10px] font-bold"
+          style={{ backgroundColor: point.color, color: readableTextColor(point.color) }}
+        >
+          {point.initials}
         </span>
       )}
       <div>
@@ -132,24 +166,27 @@ function PlayerComparisonScatter({ position }: { position: PositionGroup }) {
   const yMetric = metrics.find((metric) => metric.key === yKey) ?? metrics[0]
 
   const { data, error, loading } = useFetch<PlayerStatsRow[]>(playersPathForPosition(position))
+  const teams = useFetch<TeamInfo[]>("/teams")
 
-  const points = useMemo<PlayerPoint[] | null>(
-    () =>
-      data?.map((row) => ({
-        id: row.player_id,
-        name: row.player_display_name,
-        team: row.recent_team,
-        headshot: row.headshot_url,
-        x: xMetric.value(row),
-        y: yMetric.value(row),
-      })) ?? null,
-    [data, xMetric, yMetric],
-  )
+  const points = useMemo<PlayerPoint[] | null>(() => {
+    if (!data) return null
+    const colorByTeam = new Map(teams.data?.map((team) => [team.team_abbr, team.team_color]))
+    return data.map((row) => ({
+      id: row.player_id,
+      name: row.player_display_name,
+      initials: initialsFor(row.player_display_name),
+      team: row.recent_team,
+      color: colorByTeam.get(row.recent_team) ?? "var(--accent)",
+      headshot: row.headshot_url,
+      x: xMetric.value(row),
+      y: yMetric.value(row),
+    }))
+  }, [data, teams.data, xMetric, yMetric])
 
   const optionByLabel = new Map(metrics.map((metric) => [metric.label, metric]))
 
   return (
-    <Panel title="Compare Players" expandable>
+    <Panel title="Compare Players">
       <div className="flex flex-nowrap items-center gap-3 overflow-x-auto border-b border-[var(--border)] px-4 py-3">
         <AxisSelect
           label="X axis"
@@ -173,7 +210,7 @@ function PlayerComparisonScatter({ position }: { position: PositionGroup }) {
       )}
       {points && points.length > 0 && (
         <div className="p-3">
-          <ChartContainer config={chartConfig} className="aspect-square">
+          <ChartContainer config={chartConfig} className="aspect-[3/2]">
             <ScatterChart margin={{ top: 8, right: 16, bottom: 24, left: 4 }}>
               <CartesianGrid stroke="var(--border)" strokeOpacity={0.6} />
               <XAxis
@@ -228,7 +265,7 @@ function PlayerComparisonScatter({ position }: { position: PositionGroup }) {
                   />
                 }
               />
-              <Scatter data={points} shape={<PlayerHeadshotDot />} />
+              <Scatter data={points} shape={<PlayerDot />} isAnimationActive={false} />
             </ScatterChart>
           </ChartContainer>
         </div>
