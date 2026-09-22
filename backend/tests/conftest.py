@@ -20,6 +20,25 @@ def sample_season_stats() -> pd.DataFrame:
 
 
 @pytest.fixture
+def sample_players_roster() -> pd.DataFrame:
+    """Small stand-in for players.get_players(): one drafted player with a
+    mapped status code, and one undrafted player with an unmapped status code
+    (to test the fallback to the raw code) and NaN draft fields.
+    """
+    rows = [
+        dict(gsis_id="Q1", display_name="Q One", position="QB", latest_team="DAL",
+             jersey_number="9", height=74.0, weight=225.0, birth_date="1998-05-02",
+             college_name="Ohio State", status="ACT", draft_year=2020.0, draft_round=1.0,
+             draft_pick=10.0, draft_team="DAL", headshot="https://example.com/q1.png"),
+        dict(gsis_id="W1", display_name="W One", position="WR", latest_team="DAL",
+             jersey_number="80", height=72.0, weight=195.0, birth_date="1999-08-14",
+             college_name="Alabama", status="XYZ", draft_year=np.nan, draft_round=np.nan,
+             draft_pick=np.nan, draft_team=np.nan, headshot="https://example.com/w1.png"),
+    ]
+    return pd.DataFrame(rows)
+
+
+@pytest.fixture
 def sample_week_stats() -> pd.DataFrame:
     """Small stand-in for player_stats.get_week_stats(season): one row per
     player per game. Q1 has three REG games (out of order, to test sorting)

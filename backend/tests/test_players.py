@@ -5,6 +5,7 @@ from app.services.players import (
     InvalidQueryError,
     PlayerNotFoundError,
     get_current_player_stats,
+    get_player_bio,
     get_player_game_log,
 )
 
@@ -199,3 +200,66 @@ def test_get_player_game_log_falls_back_to_prior_season(
     records = get_player_game_log("Q1")
 
     assert len(records) == 3
+
+
+def test_get_player_bio_returns_matching_player(
+    monkeypatch: pytest.MonkeyPatch, sample_players_roster: pd.DataFrame
+) -> None:
+    monkeypatch.setattr(
+        "app.data.players.get_players", lambda: sample_players_roster
+    )
+
+    bio = get_player_bio("Q1")
+
+    assert bio["display_name"] == "Q One"
+    assert bio["team"] == "DAL"
+    assert bio["height_in"] == 74.0
+    assert bio["draft_year"] == 2020.0
+
+
+def test_get_player_bio_maps_known_status_code(
+    monkeypatch: pytest.MonkeyPatch, sample_players_roster: pd.DataFrame
+) -> None:
+    monkeypatch.setattr(
+        "app.data.players.get_players", lambda: sample_players_roster
+    )
+
+    bio = get_player_bio("Q1")
+
+    assert bio["status"] == "Active"  # ACT mapped to a display label
+
+
+def test_get_player_bio_falls_back_to_raw_status_code(
+    monkeypatch: pytest.MonkeyPatch, sample_players_roster: pd.DataFrame
+) -> None:
+    monkeypatch.setattr(
+        "app.data.players.get_players", lambda: sample_players_roster
+    )
+
+    bio = get_player_bio("W1")
+
+    assert bio["status"] == "XYZ"  # unmapped code passed through as-is
+
+
+def test_get_player_bio_converts_nan_draft_fields_to_none(
+    monkeypatch: pytest.MonkeyPatch, sample_players_roster: pd.DataFrame
+) -> None:
+    monkeypatch.setattr(
+        "app.data.players.get_players", lambda: sample_players_roster
+    )
+
+    bio = get_player_bio("W1")
+
+    assert bio["draft_year"] is None
+    assert bio["draft_team"] is None
+
+
+def test_get_player_bio_raises_for_unknown_player(
+    monkeypatch: pytest.MonkeyPatch, sample_players_roster: pd.DataFrame
+) -> None:
+    monkeypatch.setattr(
+        "app.data.players.get_players", lambda: sample_players_roster
+    )
+
+    with pytest.raises(PlayerNotFoundError):
+        get_player_bio("not_a_real_player")
