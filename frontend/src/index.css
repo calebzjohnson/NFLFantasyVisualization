@@ -4,27 +4,27 @@
   --font-display: "Barlow Condensed", ui-sans-serif, system-ui, sans-serif;
 }
 
-/* Dark-only broadcast theme. Text tokens are all >= 4.5:1 on surfaces 0-2. */
+/* Light-only "Film Room" theme: near-white surfaces, near-black text, blue
+   accent. Text tokens are all >= 4.5:1 on surfaces 0-2; accent/positive/
+   negative are colorblind-separation checked (see index.css history). */
 :root {
-  color-scheme: dark;
-  --surface-0: #0a0f1e;
-  --surface-1: #111a30;
-  --surface-2: #17233f;
-  --border: #25335a;
-  --text-primary: #eef2fb;
-  --text-secondary: #a8b3cf;
-  --text-muted: #8390b0;
-  --accent: #ff5a36;
-  --positive: #3fd08f;
-  --negative: #ff6b81;
+  color-scheme: light;
+  --surface-0: #fbfbfa;
+  --surface-1: #ffffff;
+  --surface-2: #f2f2f0;
+  --border: #dcdcd8;
+  --text-primary: #0b0b0b;
+  --text-secondary: #52514e;
+  --text-muted: #898781;
+  --accent: #256abf;
+  --positive: #087a08;
+  --negative: #c22a5e;
 }
 
 body {
   margin: 0;
   min-height: 100vh;
-  background:
-    radial-gradient(900px 420px at 50% -80px, #1b2a52 0%, transparent 70%) no-repeat,
-    var(--surface-0);
+  background: var(--surface-0);
   color: var(--text-primary);
   font-family: system-ui, "Segoe UI", Roboto, sans-serif;
 }
