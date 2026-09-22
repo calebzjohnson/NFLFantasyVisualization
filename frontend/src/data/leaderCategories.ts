@@ -24,10 +24,18 @@ export interface LeaderCategoryConfig {
   path: string
   columns: LeaderColumn[]
   toStats: (row: RawPlayerRow) => Record<string, number>
+  // Stats column key the table is sorted by before the user picks one.
+  defaultSortKey: string
 }
 
+// Leader tables show the top 5, but any column can become the sort key once
+// data reaches the browser (see StatLeadersPanel). Fetch a wider pool sorted
+// by the category's default stat so re-sorting client-side by another stat
+// still has real contenders to pick from, not just the top 5 by yards.
+const LEADER_POOL_SIZE = 40
+
 function playersPath(sort: string, fields: string[]): string {
-  const params = new URLSearchParams({ sort, limit: "5", fields: fields.join(",") })
+  const params = new URLSearchParams({ sort, limit: String(LEADER_POOL_SIZE), fields: fields.join(",") })
   return `/players?${params.toString()}`
 }
 
@@ -54,6 +62,7 @@ export const LEADER_CATEGORIES: LeaderCategoryConfig[] = [
       { key: "int", label: "INT", tone: "negative" },
       { key: "rating", label: "RATING" },
     ],
+    defaultSortKey: "yards",
     toStats: (row) => {
       const cmp = Number(row.completions)
       const att = Number(row.attempts)
@@ -83,6 +92,7 @@ export const LEADER_CATEGORIES: LeaderCategoryConfig[] = [
       { key: "td", label: "TD", tone: "positive" },
       { key: "ypr", label: "YPR" },
     ],
+    defaultSortKey: "yards",
     toStats: (row) => {
       const rec = Number(row.receptions)
       const yards = Number(row.receiving_yards)
@@ -114,6 +124,7 @@ export const LEADER_CATEGORIES: LeaderCategoryConfig[] = [
       { key: "recYards", label: "REC YDS" },
       { key: "recTd", label: "REC TD", tone: "positive" },
     ],
+    defaultSortKey: "yards",
     toStats: (row) => {
       const att = Number(row.carries)
       const yards = Number(row.rushing_yards)
