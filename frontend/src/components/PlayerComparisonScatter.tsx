@@ -8,6 +8,7 @@
 // something just as identifying at a fraction of the render cost.
 import { memo, useEffect, useMemo, useState } from "react"
 import { CartesianGrid, Scatter, ScatterChart, XAxis, YAxis } from "recharts"
+import { useNavigate } from "react-router-dom"
 import type { PositionGroup } from "../data/leaderCategories"
 import {
   PLAYER_METRICS,
@@ -73,15 +74,26 @@ const PlayerDot = memo(function PlayerDot({
   cx,
   cy,
   payload,
+  onSelect,
 }: {
   cx?: number
   cy?: number
   payload?: PlayerPoint
+  onSelect?: (point: PlayerPoint) => void
 }) {
   if (cx === undefined || cy === undefined || !payload) return null
 
   return (
-    <g className="origin-center cursor-pointer transition-transform duration-150 [transform-box:fill-box] hover:scale-125">
+    <g
+      onClick={() => onSelect?.(payload)}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") onSelect?.(payload)
+      }}
+      aria-label={`View ${payload.name}'s player page`}
+      className="origin-center cursor-pointer transition-transform duration-150 [transform-box:fill-box] hover:scale-125"
+    >
       <circle cx={cx} cy={cy} r={16} fill="transparent" />
       <circle
         cx={cx}
@@ -150,6 +162,7 @@ function TooltipRow({ name, value, unit }: { name: string; value: number; unit?:
 }
 
 function PlayerComparisonScatter({ position }: { position: PositionGroup }) {
+  const navigate = useNavigate()
   const metrics = PLAYER_METRICS[position]
   const [xKey, setXKey] = useState(metrics[0].key)
   const [yKey, setYKey] = useState(metrics[1]?.key ?? metrics[0].key)
@@ -184,6 +197,10 @@ function PlayerComparisonScatter({ position }: { position: PositionGroup }) {
   }, [data, teams.data, xMetric, yMetric])
 
   const optionByLabel = new Map(metrics.map((metric) => [metric.label, metric]))
+
+  function goToPlayer(point: PlayerPoint) {
+    navigate(`/players/${point.id}`, { state: { playerName: point.name } })
+  }
 
   return (
     <Panel title="Compare Players">
@@ -265,7 +282,13 @@ function PlayerComparisonScatter({ position }: { position: PositionGroup }) {
                   />
                 }
               />
-              <Scatter data={points} shape={<PlayerDot />} isAnimationActive={false} />
+              <Scatter
+                data={points}
+                shape={(props: { cx?: number; cy?: number; payload?: PlayerPoint }) => (
+                  <PlayerDot {...props} onSelect={goToPlayer} />
+                )}
+                isAnimationActive={false}
+              />
             </ScatterChart>
           </ChartContainer>
         </div>

@@ -19,11 +19,21 @@ export interface TeamPoint {
   defense: number // EPA per play allowed on defense (lower is better)
   offensePlays: number
   defensePlays: number
+  offenseRank: number // 1 = best offense (highest EPA/play)
+  defenseRank: number // 1 = best defense (lowest EPA/play allowed)
 }
 
 export function toTeamPoints(efficiency: TeamEfficiency[], teams: TeamInfo[]): TeamPoint[] {
   const infoByAbbr = new Map(teams.map((team) => [team.team_abbr, team]))
-  const points: TeamPoint[] = []
+  const rows: {
+    team: string
+    name: string
+    logo: string
+    offense: number
+    defense: number
+    offensePlays: number
+    defensePlays: number
+  }[] = []
 
   for (const row of efficiency) {
     const info = infoByAbbr.get(row.team)
@@ -36,7 +46,7 @@ export function toTeamPoints(efficiency: TeamEfficiency[], teams: TeamInfo[]): T
     ) {
       continue
     }
-    points.push({
+    rows.push({
       team: row.team,
       name: info.team_name,
       logo: info.team_logo_espn,
@@ -46,7 +56,35 @@ export function toTeamPoints(efficiency: TeamEfficiency[], teams: TeamInfo[]): T
       defensePlays: row.defensive_plays,
     })
   }
-  return points
+
+  const offenseRank = new Map(
+    [...rows].sort((a, b) => b.offense - a.offense).map((row, index) => [row.team, index + 1]),
+  )
+  const defenseRank = new Map(
+    [...rows].sort((a, b) => a.defense - b.defense).map((row, index) => [row.team, index + 1]),
+  )
+
+  return rows.map((row) => ({
+    ...row,
+    offenseRank: offenseRank.get(row.team)!,
+    defenseRank: defenseRank.get(row.team)!,
+  }))
+}
+
+// 1 -> "1st", 2 -> "2nd", 3 -> "3rd", 11-13 -> "11th"/"12th"/"13th", etc.
+export function ordinal(n: number): string {
+  const remainder100 = n % 100
+  if (remainder100 >= 11 && remainder100 <= 13) return `${n}th`
+  switch (n % 10) {
+    case 1:
+      return `${n}st`
+    case 2:
+      return `${n}nd`
+    case 3:
+      return `${n}rd`
+    default:
+      return `${n}th`
+  }
 }
 
 // League average EPA/play, weighted by play count (each team's plays count in

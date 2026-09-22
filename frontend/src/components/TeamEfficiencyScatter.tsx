@@ -15,6 +15,7 @@ import {
 import {
   formatEpa,
   leagueAverages,
+  ordinal,
   toTeamPoints,
   type TeamEfficiency,
   type TeamPoint,
@@ -105,7 +106,7 @@ function TooltipHeader({ point }: { point?: TeamPoint }) {
       <div>
         <div className="text-sm text-[var(--text-primary)]">{point.name}</div>
         <div className="text-[10px] font-normal tracking-wider text-[var(--text-muted)] uppercase">
-          {point.offensePlays} off · {point.defensePlays} def plays
+          Offense {ordinal(point.offenseRank)} · Defense {ordinal(point.defenseRank)}
         </div>
       </div>
     </div>
