@@ -1,5 +1,6 @@
 // DetailedLeaderTable.tsx
 // Ranked player table with per-category stat columns.
+import { Link } from "react-router-dom"
 import type { DetailedLeaderRow, LeaderColumn } from "../data/leaderStatsTypes"
 
 const TONE = {
@@ -40,7 +41,13 @@ function DetailedLeaderTable({ columns, rows }: DetailedLeaderTableProps) {
               {row.rank}
             </td>
             <td className="px-2 py-2">
-              <div className="font-medium text-[var(--text-primary)]">{row.player}</div>
+              <Link
+                to={`/players/${row.playerId}`}
+                state={{ playerName: row.player }}
+                className="font-medium text-[var(--text-primary)] hover:text-[var(--accent)] hover:underline"
+              >
+                {row.player}
+              </Link>
               <div className="text-xs text-[var(--text-secondary)]">{row.team}</div>
             </td>
             {columns.map((column, index) => (

@@ -6,6 +6,7 @@ import type { LeaderColumn } from "./leaderStatsTypes"
 // One row from /players, restricted via ?fields=... to whatever a category needs
 // plus the two identity fields every category asks for.
 export type RawPlayerRow = Record<string, string | number> & {
+  player_id: string
   player_display_name: string
   recent_team: string
 }
@@ -28,6 +29,7 @@ export const LEADER_CATEGORIES: LeaderCategoryConfig[] = [
     key: "passing",
     label: "Passing",
     path: playersPath("-passing_yards", [
+      "player_id",
       "player_display_name",
       "recent_team",
       "completions",
@@ -57,6 +59,7 @@ export const LEADER_CATEGORIES: LeaderCategoryConfig[] = [
     key: "receiving",
     label: "Receiving",
     path: playersPath("-receiving_yards", [
+      "player_id",
       "player_display_name",
       "recent_team",
       "receptions",
@@ -82,6 +85,7 @@ export const LEADER_CATEGORIES: LeaderCategoryConfig[] = [
     label: "Rushing",
     // Includes receiving stats — pass-catching volume is a big part of an RB's fantasy value.
     path: playersPath("-rushing_yards", [
+      "player_id",
       "player_display_name",
       "recent_team",
       "carries",

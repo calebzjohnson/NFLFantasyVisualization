@@ -8,6 +8,7 @@ export interface LeaderColumn {
 
 export interface DetailedLeaderRow {
   rank: number
+  playerId: string
   player: string
   team: string
   stats: Record<string, number>

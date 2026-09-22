@@ -69,3 +69,26 @@ def test_get_player_games_returns_404_for_unknown_player(
     response = client.get("/players/not_a_real_player/games")
 
     assert response.status_code == 404
+
+
+def test_get_player_bio(
+    monkeypatch: pytest.MonkeyPatch, sample_players_roster: pd.DataFrame
+) -> None:
+    monkeypatch.setattr("app.data.players.get_players", lambda: sample_players_roster)
+
+    response = client.get("/players/Q1/bio")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["display_name"] == "Q One"
+    assert body["status"] == "Active"
+
+
+def test_get_player_bio_returns_404_for_unknown_player(
+    monkeypatch: pytest.MonkeyPatch, sample_players_roster: pd.DataFrame
+) -> None:
+    monkeypatch.setattr("app.data.players.get_players", lambda: sample_players_roster)
+
+    response = client.get("/players/not_a_real_player/bio")
+
+    assert response.status_code == 404

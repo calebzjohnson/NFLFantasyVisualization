@@ -15,6 +15,7 @@ function StatLeadersPanel() {
   const rows: DetailedLeaderRow[] | null =
     data?.map((row, index) => ({
       rank: index + 1,
+      playerId: String(row.player_id),
       player: String(row.player_display_name),
       team: String(row.recent_team),
       stats: active.toStats(row),
