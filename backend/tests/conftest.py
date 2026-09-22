@@ -107,3 +107,24 @@ def sample_weekly_team_stats() -> pd.DataFrame:
             "special_teams_tds", "def_tds", "fumble_recovery_tds", "pt_return_tds",
         ]
     )
+
+
+@pytest.fixture
+def sample_pbp() -> pd.DataFrame:
+    """Small stand-in for pbp.get_season_pbp(season). A's two offensive
+    plays (1.0, -0.5) average to 0.25; B's two plays against A (0.2, 0.4)
+    average to 0.3 - so A's defensive number should also be 0.3, and B's
+    offensive number 0.3 / defensive number 0.25, symmetrically. A punt (not
+    pass/run), a postseason play, and a null-EPA play (e.g. a no-play/penalty)
+    are included specifically to confirm they're excluded.
+    """
+    rows = [
+        dict(season_type="REG", play_type="pass", epa=1.0, posteam="A", defteam="B"),
+        dict(season_type="REG", play_type="run", epa=-0.5, posteam="A", defteam="B"),
+        dict(season_type="REG", play_type="pass", epa=0.2, posteam="B", defteam="A"),
+        dict(season_type="REG", play_type="pass", epa=0.4, posteam="B", defteam="A"),
+        dict(season_type="REG", play_type="punt", epa=-2.0, posteam="B", defteam="A"),
+        dict(season_type="POST", play_type="pass", epa=5.0, posteam="A", defteam="B"),
+        dict(season_type="REG", play_type="pass", epa=np.nan, posteam="A", defteam="B"),
+    ]
+    return pd.DataFrame(rows)
