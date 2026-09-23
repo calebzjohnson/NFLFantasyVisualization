@@ -7,12 +7,14 @@
 // bottleneck (confirmed by disabling them), so this trades the photo for
 // something just as identifying at a fraction of the render cost.
 import { memo, useEffect, useMemo, useState } from "react"
-import { CartesianGrid, Scatter, ScatterChart, XAxis, YAxis } from "recharts"
+import { CartesianGrid, ReferenceLine, Scatter, ScatterChart, XAxis, YAxis } from "recharts"
 import { useNavigate } from "react-router-dom"
 import type { PositionGroup } from "../data/leaderCategories"
 import {
   PLAYER_METRICS,
   playersPathForPosition,
+  qualifiedStats,
+  zScore,
   type PlayerMetric,
   type PlayerStatsRow,
 } from "../data/playerMetrics"
@@ -34,13 +36,33 @@ interface PlayerPoint {
   team: string
   color: string
   headshot: string | null
-  x: number
-  y: number
+  x: number // standard deviations from the qualified-pool mean on xMetric
+  y: number // standard deviations from the qualified-pool mean on yMetric
+  xRaw: number
+  yRaw: number
 }
 
 function formatValue(value: number, unit?: string): string {
   const rounded = Number.isInteger(value) ? value : Math.round(value * 10) / 10
   return `${rounded.toLocaleString()}${unit ?? ""}`
+}
+
+// "+1.4σ" / "−0.8σ" / "0" - axes are standard deviations from league average,
+// not raw units, since the point of this chart is "how far off average is
+// this player," comparable across metrics with wildly different scales.
+function formatSigma(value: number): string {
+  const rounded = Math.round(value * 10) / 10
+  if (rounded === 0) return "0"
+  return `${rounded > 0 ? "+" : "−"}${Math.abs(rounded).toFixed(1)}σ`
+}
+
+// Pad the domain so no marker sits flush against the plot edge, and round
+// outward to whole standard deviations for clean bounds - z-scores are
+// open-ended (unlike EPA's roughly +/-0.5 range), so ticks are left to
+// recharts' own "nice number" axis instead of a hand-rolled step list.
+function zDomain(values: number[]): [number, number] {
+  if (values.length === 0) return [-1, 1]
+  return [Math.floor(Math.min(...values) - 0.5), Math.ceil(Math.max(...values) + 0.5)]
 }
 
 // "Patrick Mahomes" -> "PM". Uses the second word, not the last, so compound
@@ -152,12 +174,23 @@ function TooltipHeader({ point }: { point?: PlayerPoint }) {
   )
 }
 
-function TooltipRow({ name, value, unit }: { name: string; value: number; unit?: string }) {
+function TooltipRow({
+  name,
+  value,
+  unit,
+  sd,
+}: {
+  name: string
+  value: number
+  unit?: string
+  sd: number
+}) {
   return (
     <div className="flex w-full items-baseline justify-between gap-4">
       <span className="text-[var(--text-secondary)]">{name}</span>
       <span className="font-mono font-medium tabular-nums text-[var(--text-primary)]">
-        {formatValue(value, unit)}
+        {formatValue(value, unit)}{" "}
+        <span className="text-[10px] text-[var(--text-muted)]">({formatSigma(sd)})</span>
       </span>
     </div>
   )
@@ -186,6 +219,11 @@ function PlayerComparisonScatter({ position }: { position: PositionGroup }) {
   const points = useMemo<PlayerPoint[] | null>(() => {
     if (!data) return null
     const colorByTeam = new Map(teams.data?.map((team) => [team.team_abbr, team.team_color]))
+    // Center + spread come from players with a real workload in this metric
+    // (see qualifiedStats/PlayerMetric.qualifier) - but every player, qualified
+    // or not, still gets plotted relative to that average.
+    const xStats = qualifiedStats(data, xMetric)
+    const yStats = qualifiedStats(data, yMetric)
     return data.map((row) => ({
       id: row.player_id,
       name: row.player_display_name,
@@ -193,10 +231,15 @@ function PlayerComparisonScatter({ position }: { position: PositionGroup }) {
       team: row.recent_team,
       color: colorByTeam.get(row.recent_team) ?? "var(--accent)",
       headshot: row.headshot_url,
-      x: xMetric.value(row),
-      y: yMetric.value(row),
+      x: zScore(xMetric.value(row), xStats),
+      y: zScore(yMetric.value(row), yStats),
+      xRaw: xMetric.value(row),
+      yRaw: yMetric.value(row),
     }))
   }, [data, teams.data, xMetric, yMetric])
+
+  const xDomain = useMemo(() => zDomain(points?.map((p) => p.x) ?? []), [points])
+  const yDomain = useMemo(() => zDomain(points?.map((p) => p.y) ?? []), [points])
 
   const optionByLabel = new Map(metrics.map((metric) => [metric.label, metric]))
 
@@ -236,35 +279,41 @@ function PlayerComparisonScatter({ position }: { position: PositionGroup }) {
                 type="number"
                 dataKey="x"
                 name={xMetric.label}
-                tickFormatter={(value) => formatValue(Number(value), xMetric.unit)}
+                domain={xDomain}
+                tickFormatter={(value) => formatSigma(Number(value))}
                 tickLine={false}
                 axisLine={{ stroke: "var(--border)" }}
                 label={{
-                  value: xMetric.label,
+                  value: `${xMetric.label} (SD from avg)`,
                   position: "insideBottom",
                   offset: -14,
                   fill: "var(--text-secondary)",
                   fontSize: 11,
+                  fontWeight: 700,
                 }}
               />
               <YAxis
                 type="number"
                 dataKey="y"
                 name={yMetric.label}
-                tickFormatter={(value) => formatValue(Number(value), yMetric.unit)}
+                domain={yDomain}
+                tickFormatter={(value) => formatSigma(Number(value))}
                 tickLine={false}
                 axisLine={{ stroke: "var(--border)" }}
                 width={54}
                 label={{
-                  value: yMetric.label,
+                  value: `${yMetric.label} (SD from avg)`,
                   angle: -90,
                   position: "insideLeft",
                   offset: 4,
                   style: { textAnchor: "middle" },
                   fill: "var(--text-secondary)",
                   fontSize: 11,
+                  fontWeight: 700,
                 }}
               />
+              <ReferenceLine x={0} stroke="var(--text-muted)" strokeOpacity={0.5} />
+              <ReferenceLine y={0} stroke="var(--text-muted)" strokeOpacity={0.5} />
               <ChartTooltip
                 cursor={false}
                 content={
@@ -274,11 +323,18 @@ function PlayerComparisonScatter({ position }: { position: PositionGroup }) {
                     labelFormatter={(_, items) => (
                       <TooltipHeader point={items[0]?.payload as PlayerPoint | undefined} />
                     )}
-                    formatter={(value, name) => {
+                    formatter={(value, name, item) => {
                       const metric: PlayerMetric | undefined =
                         name === xMetric.label ? xMetric : name === yMetric.label ? yMetric : undefined
+                      const point = (item as { payload?: PlayerPoint })?.payload
+                      const raw = name === xMetric.label ? point?.xRaw : point?.yRaw
                       return (
-                        <TooltipRow name={String(name)} value={Number(value)} unit={metric?.unit} />
+                        <TooltipRow
+                          name={String(name)}
+                          value={raw ?? Number(value)}
+                          unit={metric?.unit}
+                          sd={Number(value)}
+                        />
                       )
                     }}
                   />

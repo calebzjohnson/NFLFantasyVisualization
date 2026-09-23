@@ -162,6 +162,7 @@ function EfficiencyChart({ points }: { points: TeamPoint[] }) {
               offset: 0,
               fill: "var(--text-secondary)",
               fontSize: 11,
+              fontWeight: 700,
             }}
           />
           <YAxis
@@ -183,6 +184,7 @@ function EfficiencyChart({ points }: { points: TeamPoint[] }) {
               style: { textAnchor: "middle" },
               fill: "var(--text-secondary)",
               fontSize: 11,
+              fontWeight: 700,
             }}
           />
           <ReferenceArea
