@@ -12,9 +12,9 @@ export type RawPlayerRow = Record<string, string | number> & {
 }
 
 // The position groups the player-groups page toggles between. Extending this
-// list later (TE, DL, LB, CB/S, ...) means adding a matching LEADER_CATEGORIES
+// list later (DL, LB, CB/S, ...) means adding a matching LEADER_CATEGORIES
 // entry - the toggle and Stat Leaders panel both read from this one list.
-export const POSITION_GROUPS = ["QB", "RB", "WR"] as const
+export const POSITION_GROUPS = ["QB", "RB", "WR", "TE"] as const
 export type PositionGroup = (typeof POSITION_GROUPS)[number]
 
 export interface LeaderCategoryConfig {
@@ -34,9 +34,56 @@ export interface LeaderCategoryConfig {
 // still has real contenders to pick from, not just the top 5 by yards.
 const LEADER_POOL_SIZE = 40
 
-function playersPath(sort: string, fields: string[]): string {
+function playersPath(sort: string, fields: string[], positionGroup?: PositionGroup): string {
   const params = new URLSearchParams({ sort, limit: String(LEADER_POOL_SIZE), fields: fields.join(",") })
+  if (positionGroup) params.set("position_group", positionGroup)
   return `/players?${params.toString()}`
+}
+
+// WR and TE leaders are the same shape (targets/receptions/yards/TDs/YPR) -
+// only the position filter differs, so both categories share this factory
+// rather than duplicating the column/toStats definitions.
+function receivingCategory(position: "WR" | "TE"): LeaderCategoryConfig {
+  return {
+    key: `${position.toLowerCase()}-receiving`,
+    position,
+    label: "Receiving",
+    path: playersPath(
+      "-receiving_yards",
+      [
+        "player_id",
+        "player_display_name",
+        "recent_team",
+        "receptions",
+        "targets",
+        "receiving_yards",
+        "receiving_tds",
+        "fumbles_lost_total",
+      ],
+      position,
+    ),
+    columns: [
+      { key: "rec", label: "REC" },
+      { key: "tgt", label: "TGT" },
+      { key: "yards", label: "YARDS" },
+      { key: "td", label: "TD", tone: "positive" },
+      { key: "ypr", label: "YPR" },
+      { key: "fum", label: "FUM", tone: "negative" },
+    ],
+    defaultSortKey: "yards",
+    toStats: (row) => {
+      const rec = Number(row.receptions)
+      const yards = Number(row.receiving_yards)
+      return {
+        rec,
+        tgt: Number(row.targets),
+        yards,
+        td: Number(row.receiving_tds),
+        ypr: perAttempt(yards, rec),
+        fum: Number(row.fumbles_lost_total),
+      }
+    },
+  }
 }
 
 export const LEADER_CATEGORIES: LeaderCategoryConfig[] = [
@@ -53,13 +100,16 @@ export const LEADER_CATEGORIES: LeaderCategoryConfig[] = [
       "passing_yards",
       "passing_tds",
       "passing_interceptions",
+      "fumbles_lost_total",
     ]),
     columns: [
-      { key: "att", label: "ATT" },
       { key: "cmp", label: "CMP" },
+      { key: "att", label: "ATT" },
+      { key: "cmpPct", label: "CMP%" },
       { key: "yards", label: "YARDS" },
       { key: "td", label: "TD", tone: "positive" },
       { key: "int", label: "INT", tone: "negative" },
+      { key: "fum", label: "FUM", tone: "negative" },
       { key: "rating", label: "RATING" },
     ],
     defaultSortKey: "yards",
@@ -69,36 +119,20 @@ export const LEADER_CATEGORIES: LeaderCategoryConfig[] = [
       const yards = Number(row.passing_yards)
       const td = Number(row.passing_tds)
       const int = Number(row.passing_interceptions)
-      return { cmp, att, yards, td, int, rating: passerRating(cmp, att, yards, td, int) }
+      return {
+        cmp,
+        att,
+        cmpPct: perAttempt(cmp * 100, att),
+        yards,
+        td,
+        int,
+        fum: Number(row.fumbles_lost_total),
+        rating: passerRating(cmp, att, yards, td, int),
+      }
     },
   },
-  {
-    key: "receiving",
-    position: "WR",
-    label: "Receiving",
-    path: playersPath("-receiving_yards", [
-      "player_id",
-      "player_display_name",
-      "recent_team",
-      "receptions",
-      "targets",
-      "receiving_yards",
-      "receiving_tds",
-    ]),
-    columns: [
-      { key: "tgt", label: "TGT" },
-      { key: "rec", label: "REC" },
-      { key: "yards", label: "YARDS" },
-      { key: "td", label: "TD", tone: "positive" },
-      { key: "ypr", label: "YPR" },
-    ],
-    defaultSortKey: "yards",
-    toStats: (row) => {
-      const rec = Number(row.receptions)
-      const yards = Number(row.receiving_yards)
-      return { rec, tgt: Number(row.targets), yards, td: Number(row.receiving_tds), ypr: perAttempt(yards, rec) }
-    },
-  },
+  receivingCategory("WR"),
+  receivingCategory("TE"),
   {
     key: "rushing",
     position: "RB",
@@ -114,6 +148,7 @@ export const LEADER_CATEGORIES: LeaderCategoryConfig[] = [
       "receptions",
       "receiving_yards",
       "receiving_tds",
+      "fumbles_lost_total",
     ]),
     columns: [
       { key: "att", label: "RUSH ATT" },
@@ -123,6 +158,7 @@ export const LEADER_CATEGORIES: LeaderCategoryConfig[] = [
       { key: "rec", label: "REC" },
       { key: "recYards", label: "REC YDS" },
       { key: "recTd", label: "REC TD", tone: "positive" },
+      { key: "fum", label: "FUM", tone: "negative" },
     ],
     defaultSortKey: "yards",
     toStats: (row) => {
@@ -136,6 +172,7 @@ export const LEADER_CATEGORIES: LeaderCategoryConfig[] = [
         rec: Number(row.receptions),
         recYards: Number(row.receiving_yards),
         recTd: Number(row.receiving_tds),
+        fum: Number(row.fumbles_lost_total),
       }
     },
   },

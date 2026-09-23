@@ -15,14 +15,18 @@ interface FetchState<T> {
 
 const cache = new Map<string, unknown>()
 
-function stateForPath<T>(path: string): FetchState<T> {
+function stateForPath<T>(path: string | null): FetchState<T> {
+  if (path === null) return { data: null, error: null, loading: true }
   if (cache.has(path)) {
     return { data: cache.get(path) as T, error: null, loading: false }
   }
   return { data: null, error: null, loading: true }
 }
 
-export function useFetch<T>(path: string): FetchState<T> {
+// path may be null for "don't fetch yet" - e.g. a second fetch whose URL
+// depends on a value from a first fetch that hasn't resolved. Stays in a
+// permanent loading state (never errors) until given a real path.
+export function useFetch<T>(path: string | null): FetchState<T> {
   const [state, setState] = useState<FetchState<T>>(() => stateForPath<T>(path))
 
   // Reset synchronously during render when `path` changes, rather than in the
@@ -35,6 +39,7 @@ export function useFetch<T>(path: string): FetchState<T> {
   }
 
   useEffect(() => {
+    if (path === null) return
     if (cache.has(path)) return // already have it - nothing to fetch
 
     let cancelled = false

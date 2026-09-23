@@ -7,10 +7,11 @@
 // bottleneck (confirmed by disabling them), so this trades the photo for
 // something just as identifying at a fraction of the render cost.
 import { memo, useEffect, useMemo, useState } from "react"
-import { CartesianGrid, Scatter, ScatterChart, XAxis, YAxis } from "recharts"
+import { CartesianGrid, ReferenceLine, Scatter, ScatterChart, XAxis, YAxis } from "recharts"
 import { useNavigate } from "react-router-dom"
 import type { PositionGroup } from "../data/leaderCategories"
 import {
+  metricMedian,
   PLAYER_METRICS,
   playersPathForPosition,
   type PlayerMetric,
@@ -35,13 +36,56 @@ interface PlayerPoint {
   team: string
   color: string
   headshot: string | null
-  x: number
-  y: number
+  x: number // xMetric's raw value
+  y: number // yMetric's raw value
 }
 
 function formatValue(value: number, unit?: string): string {
   const rounded = Number.isInteger(value) ? value : Math.round(value * 10) / 10
   return `${rounded.toLocaleString()}${unit ?? ""}`
+}
+
+// "+120" / "−45" / "0" - for the tooltip's "how far from the median player"
+// note, in the metric's own unit rather than a statistical score.
+function formatOffset(value: number, unit?: string): string {
+  const rounded = Number.isInteger(value) ? value : Math.round(value * 10) / 10
+  if (rounded === 0) return `0${unit ?? ""}`
+  return `${rounded > 0 ? "+" : "−"}${Math.abs(rounded).toLocaleString()}${unit ?? ""}`
+}
+
+// Pad the domain so no marker sits flush against the plot edge. Percentage
+// scaled by the data's own range rather than a fixed step, since raw units
+// vary wildly - a few hundred passing yards vs. a handful of TDs vs. a
+// percentage point.
+function valueDomain(values: number[]): [number, number] {
+  if (values.length === 0) return [-1, 1]
+  const min = Math.min(...values)
+  const max = Math.max(...values)
+  const pad = Math.max((max - min) * 0.08, 1)
+  return [min - pad, max + pad]
+}
+
+// "Patrick Mahomes" -> "PM". Uses the second word, not the last, so compound
+// surnames read correctly: "Amon-Ra St. Brown" -> "AS", not "AB" from
+// jumping straight to "Brown".
+function initialsFor(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return "?"
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+  return (parts[0][0] + parts[1][0]).toUpperCase()
+}
+
+// Dark text on light team colors, light text on dark ones. Fixed black/white,
+// not theme tokens - this text sits on an arbitrary team color, not the app's
+// own surface, so it needs to stay legible no matter what the page theme is.
+function readableTextColor(hex: string): string {
+  const value = hex.replace("#", "")
+  if (value.length !== 6) return "#0b0b0b"
+  const r = Number.parseInt(value.slice(0, 2), 16)
+  const g = Number.parseInt(value.slice(2, 4), 16)
+  const b = Number.parseInt(value.slice(4, 6), 16)
+  const luminance = 0.299 * r + 0.587 * g + 0.114 * b
+  return luminance > 140 ? "#0b0b0b" : "#ffffff"
 }
 
 const MARKER_RADIUS = 11
@@ -130,12 +174,25 @@ function TooltipHeader({ point }: { point?: PlayerPoint }) {
   )
 }
 
-function TooltipRow({ name, value, unit }: { name: string; value: number; unit?: string }) {
+function TooltipRow({
+  name,
+  value,
+  unit,
+  offset,
+}: {
+  name: string
+  value: number
+  unit?: string
+  offset: number
+}) {
   return (
     <div className="flex w-full items-baseline justify-between gap-4">
       <span className="text-[var(--text-secondary)]">{name}</span>
       <span className="font-mono font-medium tabular-nums text-[var(--text-primary)]">
-        {formatValue(value, unit)}
+        {formatValue(value, unit)}{" "}
+        <span className="text-[10px] text-[var(--text-muted)]">
+          ({formatOffset(offset, unit)} vs. median)
+        </span>
       </span>
     </div>
   )
@@ -161,6 +218,12 @@ function PlayerComparisonScatter({ position }: { position: PositionGroup }) {
   const { data, error, loading } = useFetch<PlayerStatsRow[]>(playersPathForPosition(position))
   const teams = useFetch<TeamInfo[]>("/teams")
 
+  // The quadrant lines sit at the median, but each axis plots the real stat -
+  // ticks, dot positions, and the tooltip's headline number are all in the
+  // metric's own unit; only the tooltip's small "vs. median" note is a offset.
+  const xMedian = useMemo(() => (data ? metricMedian(data, xMetric) : 0), [data, xMetric])
+  const yMedian = useMemo(() => (data ? metricMedian(data, yMetric) : 0), [data, yMetric])
+
   const points = useMemo<PlayerPoint[] | null>(() => {
     if (!data) return null
     const colorByTeam = new Map(teams.data?.map((team) => [team.team_abbr, team.team_color]))
@@ -175,6 +238,9 @@ function PlayerComparisonScatter({ position }: { position: PositionGroup }) {
       y: yMetric.value(row),
     }))
   }, [data, teams.data, xMetric, yMetric])
+
+  const xDomain = useMemo(() => valueDomain(points?.map((p) => p.x) ?? []), [points])
+  const yDomain = useMemo(() => valueDomain(points?.map((p) => p.y) ?? []), [points])
 
   const optionByLabel = new Map(metrics.map((metric) => [metric.label, metric]))
 
@@ -214,6 +280,7 @@ function PlayerComparisonScatter({ position }: { position: PositionGroup }) {
                 type="number"
                 dataKey="x"
                 name={xMetric.label}
+                domain={xDomain}
                 tickFormatter={(value) => formatValue(Number(value), xMetric.unit)}
                 tickLine={false}
                 axisLine={{ stroke: "var(--border)" }}
@@ -223,12 +290,14 @@ function PlayerComparisonScatter({ position }: { position: PositionGroup }) {
                   offset: -14,
                   fill: "var(--text-secondary)",
                   fontSize: 11,
+                  fontWeight: 700,
                 }}
               />
               <YAxis
                 type="number"
                 dataKey="y"
                 name={yMetric.label}
+                domain={yDomain}
                 tickFormatter={(value) => formatValue(Number(value), yMetric.unit)}
                 tickLine={false}
                 axisLine={{ stroke: "var(--border)" }}
@@ -241,8 +310,11 @@ function PlayerComparisonScatter({ position }: { position: PositionGroup }) {
                   style: { textAnchor: "middle" },
                   fill: "var(--text-secondary)",
                   fontSize: 11,
+                  fontWeight: 700,
                 }}
               />
+              <ReferenceLine x={xMedian} stroke="var(--text-muted)" strokeOpacity={0.5} />
+              <ReferenceLine y={yMedian} stroke="var(--text-muted)" strokeOpacity={0.5} />
               <ChartTooltip
                 cursor={false}
                 content={
@@ -255,8 +327,14 @@ function PlayerComparisonScatter({ position }: { position: PositionGroup }) {
                     formatter={(value, name) => {
                       const metric: PlayerMetric | undefined =
                         name === xMetric.label ? xMetric : name === yMetric.label ? yMetric : undefined
+                      const median = name === xMetric.label ? xMedian : yMedian
                       return (
-                        <TooltipRow name={String(name)} value={Number(value)} unit={metric?.unit} />
+                        <TooltipRow
+                          name={String(name)}
+                          value={Number(value)}
+                          unit={metric?.unit}
+                          offset={Number(value) - median}
+                        />
                       )
                     }}
                   />
@@ -271,6 +349,11 @@ function PlayerComparisonScatter({ position }: { position: PositionGroup }) {
               />
             </ScatterChart>
           </ChartContainer>
+          <p className="pt-2 text-xs text-[var(--text-muted)]">
+            Each dot is a {position}, positioned by the two stats you pick above. The lighter lines
+            mark the median {position} in each stat, splitting the chart into four quadrants - so a
+            player above both lines is beating the middle of the pack on both stats at once.
+          </p>
         </div>
       )}
     </Panel>
