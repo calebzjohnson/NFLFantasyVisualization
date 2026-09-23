@@ -126,6 +126,18 @@ export const PLAYER_METRICS: Record<PositionGroup, PlayerMetric[]> = {
   WR: WR_METRICS,
 }
 
+// The middle value of a metric across every player in the position - no
+// mean/std-dev, so there's no jargon to explain and no need to decide who
+// "qualifies": a handful of zero-carry fullbacks can't drag a median around
+// the way they'd drag an average, since a median only cares about rank order,
+// not how extreme the low (or high) values are.
+export function metricMedian(rows: PlayerStatsRow[], metric: PlayerMetric): number {
+  if (rows.length === 0) return 0
+  const sorted = rows.map(metric.value).sort((a, b) => a - b)
+  const mid = Math.floor(sorted.length / 2)
+  return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid]
+}
+
 // Raw /players fields needed to compute every metric above for a position -
 // separate from the metric list itself, since several metrics (rating, ypc,
 // completion %) are derived from more than one raw field.

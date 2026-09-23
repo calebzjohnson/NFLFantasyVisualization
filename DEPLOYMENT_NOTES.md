@@ -22,3 +22,4 @@ A running list of what needs to be configured or changed when we actually connec
 ## General
 
 - [ ] Neither app's real `.env` is committed (only `.env.example`) — actual values need to be entered directly in the Vercel/Render dashboards, not copied from a file.
+- [ ] **Legal review before go-live.** Go over all potential legal issues before deploying. Known ones: team logos (`TeamEfficiencyScatter`) are NFL trademarks and copyrighted art, and player headshots (`PlayerComparisonScatter` tooltip) are copyrighted photos. Both are hotlinked from ESPN/NFL CDNs. Stats and player names are fine. Decide whether to swap logos for abbreviations in team colors, add a "not affiliated with the NFL" disclaimer, and talk to an IP lawyer if the site will make money.
