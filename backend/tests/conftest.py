@@ -43,20 +43,21 @@ def sample_week_stats() -> pd.DataFrame:
     """Small stand-in for player_stats.get_week_stats(season): one row per
     player per game. Q1 has three REG games (out of order, to test sorting)
     plus one POST game (to test regular-season filtering), and W1 is a
-    different player entirely (to test filtering by player_id). Week 2's
-    `pacr` is NaN, mirroring a real game where the rate stat doesn't apply.
+    different player entirely (to test filtering by player_id and by
+    position_group). Week 2's `pacr` is NaN, mirroring a real game where the
+    rate stat doesn't apply.
     """
     rows = [
-        dict(player_id="Q1", player_display_name="Q One", position="QB", week=3,
-             season_type="REG", passing_yards=250, pacr=1.2),
-        dict(player_id="Q1", player_display_name="Q One", position="QB", week=1,
-             season_type="REG", passing_yards=300, pacr=1.5),
-        dict(player_id="Q1", player_display_name="Q One", position="QB", week=2,
-             season_type="REG", passing_yards=180, pacr=np.nan),
-        dict(player_id="Q1", player_display_name="Q One", position="QB", week=19,
-             season_type="POST", passing_yards=400, pacr=2.0),
-        dict(player_id="W1", player_display_name="W One", position="WR", week=1,
-             season_type="REG", passing_yards=0, pacr=np.nan),
+        dict(player_id="Q1", player_display_name="Q One", position="QB", position_group="QB",
+             week=3, season_type="REG", passing_yards=250, pacr=1.2),
+        dict(player_id="Q1", player_display_name="Q One", position="QB", position_group="QB",
+             week=1, season_type="REG", passing_yards=300, pacr=1.5),
+        dict(player_id="Q1", player_display_name="Q One", position="QB", position_group="QB",
+             week=2, season_type="REG", passing_yards=180, pacr=np.nan),
+        dict(player_id="Q1", player_display_name="Q One", position="QB", position_group="QB",
+             week=19, season_type="POST", passing_yards=400, pacr=2.0),
+        dict(player_id="W1", player_display_name="W One", position="WR", position_group="WR",
+             week=1, season_type="REG", passing_yards=0, pacr=np.nan),
     ]
     return pd.DataFrame(rows)
 

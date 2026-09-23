@@ -51,6 +51,17 @@ def test_get_players_rejects_unknown_field_with_400(
     assert response.status_code == 400
 
 
+def test_get_weekly_players(monkeypatch: pytest.MonkeyPatch, sample_week_stats: pd.DataFrame) -> None:
+    monkeypatch.setattr("app.data.player_stats.get_week_stats", lambda season: sample_week_stats)
+
+    response = client.get("/players/weekly?position_group=QB&fields=player_id,week")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert [r["week"] for r in body] == [1, 2, 3]
+    assert all(r["player_id"] == "Q1" for r in body)
+
+
 def test_get_player_games(monkeypatch: pytest.MonkeyPatch, sample_week_stats: pd.DataFrame) -> None:
     monkeypatch.setattr("app.data.player_stats.get_week_stats", lambda season: sample_week_stats)
 

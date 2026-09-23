@@ -11,7 +11,7 @@ function App() {
   return (
     <div className="min-h-screen">
       <Navbar />
-      <main className="mx-auto max-w-[1300px] px-6 py-8">
+      <main className="mx-auto max-w-[1000px] px-6 py-8">
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/teams" element={<ComingSoonPage title="Teams" />} />

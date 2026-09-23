@@ -7,6 +7,7 @@ from app.services.players import (
     get_current_player_stats,
     get_player_bio,
     get_player_game_log,
+    get_weekly_player_stats,
 )
 
 
@@ -263,3 +264,34 @@ def test_get_player_bio_raises_for_unknown_player(
 
     with pytest.raises(PlayerNotFoundError):
         get_player_bio("not_a_real_player")
+
+
+def test_get_weekly_player_stats_filters_position_and_regular_season(
+    monkeypatch: pytest.MonkeyPatch, sample_week_stats: pd.DataFrame
+) -> None:
+    monkeypatch.setattr("app.data.player_stats.get_week_stats", lambda season: sample_week_stats)
+
+    records = get_weekly_player_stats(position_group="QB")
+
+    # Q1's 3 REG games only - W1 (WR) and the POST week 19 game are excluded.
+    assert [r["week"] for r in records] == [1, 2, 3]
+    assert all(r["player_id"] == "Q1" for r in records)
+
+
+def test_get_weekly_player_stats_includes_every_player_without_a_position_filter(
+    monkeypatch: pytest.MonkeyPatch, sample_week_stats: pd.DataFrame
+) -> None:
+    monkeypatch.setattr("app.data.player_stats.get_week_stats", lambda season: sample_week_stats)
+
+    records = get_weekly_player_stats()
+
+    assert {r["player_id"] for r in records} == {"Q1", "W1"}
+
+
+def test_get_weekly_player_stats_rejects_unknown_field(
+    monkeypatch: pytest.MonkeyPatch, sample_week_stats: pd.DataFrame
+) -> None:
+    monkeypatch.setattr("app.data.player_stats.get_week_stats", lambda season: sample_week_stats)
+
+    with pytest.raises(InvalidQueryError):
+        get_weekly_player_stats(fields=["not_a_real_field"])

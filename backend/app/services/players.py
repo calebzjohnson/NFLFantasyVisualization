@@ -58,6 +58,33 @@ def get_current_player_stats(
     return cast(list[dict[str, Any]], records)
 
 
+def get_weekly_player_stats(
+    position_group: str | None = None,
+    fields: list[str] | None = None,
+) -> list[dict[str, Any]]:
+    """One row per player per regular-season game this season, for every
+    player at a position (not just one) - backs the trending-players chart,
+    which needs to compare week-by-week movement across a whole position.
+    """
+    season = nfl.get_current_season()
+    stats = player_stats.get_week_stats(season)
+    if stats.empty:
+        stats = player_stats.get_week_stats(season - 1)
+
+    stats = stats[stats["season_type"] == "REG"]
+
+    if position_group is not None:
+        stats = stats[stats["position_group"] == position_group]
+
+    stats = stats.sort_values("week", kind="stable")
+
+    if fields is not None:
+        stats = _with_fields(stats, fields)
+
+    records = stats.astype(object).where(stats.notna(), None).to_dict(orient="records")
+    return cast(list[dict[str, Any]], records)
+
+
 def get_player_game_log(player_id: str) -> list[dict[str, Any]]:
     """Regular-season game-by-game stats for one player, current season,
     oldest week first. Falls back to the prior season if the current one

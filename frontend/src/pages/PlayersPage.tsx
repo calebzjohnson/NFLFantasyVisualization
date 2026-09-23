@@ -1,13 +1,13 @@
 // PlayersPage.tsx
 // Players route: search, a page-wide position-group toggle (drives every
-// panel below it), stat leaders, a real player-comparison scatter, and a
-// placeholder trend chart for the active position.
+// panel below it), stat leaders, a player-comparison scatter, and a
+// trending-players line chart for the active position.
 import { useState } from "react"
 import PlayerComparisonScatter from "../components/PlayerComparisonScatter"
 import PositionGroupToggle from "../components/PositionGroupToggle"
 import SearchBar from "../components/SearchBar"
 import StatLeadersPanel from "../components/StatLeadersPanel"
-import TrendingPlayersPlaceholder from "../components/TrendingPlayersPlaceholder"
+import TrendingPlayersChart from "../components/TrendingPlayersChart"
 import { POSITION_GROUPS, type PositionGroup } from "../data/leaderCategories"
 
 function PlayersPage() {
@@ -33,7 +33,7 @@ function PlayersPage() {
       </div>
       <StatLeadersPanel position={position} />
       <PlayerComparisonScatter position={position} />
-      <TrendingPlayersPlaceholder position={position} />
+      <TrendingPlayersChart position={position} />
     </div>
   )
 }

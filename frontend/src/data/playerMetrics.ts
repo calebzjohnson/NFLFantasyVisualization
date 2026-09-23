@@ -16,18 +16,25 @@ export type PlayerStatsRow = Record<string, string | number | null> & {
   headshot_url: string | null
 }
 
+// A metric's `value` only ever does generic field lookups (see `num`/
+// `percent` below) - never touches the identity fields - so it's typed
+// against the plain record shape. That lets the same metric catalog drive
+// both /players rows (PlayerStatsRow) and /players/weekly rows, which carry
+// `team` instead of `recent_team`.
+type StatFields = Record<string, string | number | null>
+
 export interface PlayerMetric {
   key: string
   label: string
   unit?: string // e.g. "%" for share-based metrics; omitted for plain counts
-  value: (row: PlayerStatsRow) => number
+  value: (row: StatFields) => number
 }
 
-function num(row: PlayerStatsRow, field: string): number {
+function num(row: StatFields, field: string): number {
   return Number(row[field] ?? 0)
 }
 
-function percent(row: PlayerStatsRow, field: string): number {
+function percent(row: StatFields, field: string): number {
   return num(row, field) * 100
 }
 
@@ -173,4 +180,14 @@ export function playersPathForPosition(position: PositionGroup): string {
   const fields = [...IDENTITY_FIELDS, ...RAW_FIELDS[position]]
   const params = new URLSearchParams({ position_group: position, fields: fields.join(",") })
   return `/players?${params.toString()}`
+}
+
+// Same field set as playersPathForPosition, but /players/weekly - one row
+// per player per game - for the Trending Players chart. "week" is added on
+// top of the identity fields; "team" (not "recent_team") comes from
+// RAW_FIELDS' sibling endpoint shape, so it's just appended here.
+export function playersWeeklyPathForPosition(position: PositionGroup): string {
+  const fields = ["player_id", "player_display_name", "team", "headshot_url", "week", ...RAW_FIELDS[position]]
+  const params = new URLSearchParams({ position_group: position, fields: fields.join(",") })
+  return `/players/weekly?${params.toString()}`
 }
