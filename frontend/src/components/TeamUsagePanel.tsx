@@ -69,6 +69,25 @@ function restOfLabel(label: string): string {
   return scope ? `Rest of ${scope.toLowerCase()}` : "Rest of team"
 }
 
+// This panel covers 3 different metrics (see USAGE_METRIC_BY_POSITION_GROUP
+// on the backend) behind one generic donut/bar component, so the caption is
+// picked by metric rather than hardcoded for one position.
+function usageCaption(metric: string, weekly: boolean): string {
+  if (metric === "td_involvement") {
+    return weekly
+      ? "Team touchdowns each week this player passed or ran in himself, vs. touchdowns that did not involve this player."
+      : "Share of the team's touchdowns this player passed or ran in himself this season, vs. touchdowns that did not involve this player."
+  }
+  if (metric === "touches") {
+    return weekly
+      ? "Backfield touches (carries + receptions) this player took each week, vs. the rest of the backfield."
+      : "Share of the backfield's touches (carries + receptions) this player has taken this season."
+  }
+  return weekly
+    ? "Targets this player drew each week, vs. the rest of the team."
+    : "Share of the team's targets this player has drawn this season."
+}
+
 // Custom rather than the shared ChartTooltipContent, which assumes one
 // tooltip covers a whole series - here each slice is its own player.
 function UsageTooltip({ active, payload }: { active?: boolean; payload?: { payload: DonutSlice }[] }) {
@@ -105,42 +124,45 @@ function UsageDonut({
   const sharePct = Math.round((usage.player_value / usage.team_value) * 100)
 
   return (
-    <div className="relative p-3">
-      <ChartContainer config={chartConfig} className="aspect-[4/3]">
-        <PieChart>
-          <Tooltip content={<UsageTooltip />} animationDuration={200} />
-          <Pie
-            data={data}
-            dataKey="value"
-            nameKey="name"
-            innerRadius="60%"
-            outerRadius="85%"
-            paddingAngle={2}
-            stroke="var(--surface-1)"
-            strokeWidth={2}
-            isAnimationActive={false}
-            onClick={(sector: { player_id?: string; payload?: DonutSlice }) => {
-              const playerId = sector.player_id ?? sector.payload?.player_id
-              if (playerId) onSelect(playerId)
-            }}
-          >
-            {data.map((slice) => (
-              <Cell
-                key={slice.name}
-                fill={slice.isPlayer ? teamColor : TEAMMATE_FILL}
-                cursor={slice.player_id ? "pointer" : "default"}
-              />
-            ))}
-          </Pie>
-        </PieChart>
-      </ChartContainer>
-      <div className="pointer-events-none absolute inset-3 flex flex-col items-center justify-center">
-        <span className="font-display text-3xl font-bold text-[var(--text-primary)]">{sharePct}%</span>
-        <span className="max-w-[60%] text-center text-[10px] tracking-wider text-[var(--text-muted)] uppercase">
-          {usage.label}
-        </span>
+    <>
+      <div className="relative p-3">
+        <ChartContainer config={chartConfig} className="aspect-[4/3]">
+          <PieChart>
+            <Tooltip content={<UsageTooltip />} animationDuration={200} />
+            <Pie
+              data={data}
+              dataKey="value"
+              nameKey="name"
+              innerRadius="60%"
+              outerRadius="85%"
+              paddingAngle={2}
+              stroke="var(--surface-1)"
+              strokeWidth={2}
+              isAnimationActive={false}
+              onClick={(sector: { player_id?: string; payload?: DonutSlice }) => {
+                const playerId = sector.player_id ?? sector.payload?.player_id
+                if (playerId) onSelect(playerId)
+              }}
+            >
+              {data.map((slice) => (
+                <Cell
+                  key={slice.name}
+                  fill={slice.isPlayer ? teamColor : TEAMMATE_FILL}
+                  cursor={slice.player_id ? "pointer" : "default"}
+                />
+              ))}
+            </Pie>
+          </PieChart>
+        </ChartContainer>
+        <div className="pointer-events-none absolute inset-3 flex flex-col items-center justify-center">
+          <span className="font-display text-3xl font-bold text-[var(--text-primary)]">{sharePct}%</span>
+          <span className="max-w-[60%] text-center text-[10px] tracking-wider text-[var(--text-muted)] uppercase">
+            {usage.label.split(" vs ")[0]}
+          </span>
+        </div>
       </div>
-    </div>
+      <p className="px-3 pb-2 text-xs text-[var(--text-muted)]">{usageCaption(usage.metric, false)}</p>
+    </>
   )
 }
 
@@ -248,6 +270,7 @@ function UsageWeeklyChart({ teamColor, usage }: { teamColor: string; usage: Usag
           />
         </BarChart>
       </ChartContainer>
+      <p className="pt-2 text-xs text-[var(--text-muted)]">{usageCaption(usage.metric, true)}</p>
     </div>
   )
 }
