@@ -25,6 +25,7 @@ const INVOLVEMENT: Record<PositionGroup, (row: WeeklyPlayerRow) => number> = {
   QB: (row) => Number(row.attempts ?? 0),
   RB: (row) => Number(row.carries ?? 0) + Number(row.targets ?? 0),
   WR: (row) => Number(row.targets ?? 0),
+  TE: (row) => Number(row.targets ?? 0),
 }
 
 const TREND_WINDOW_WEEKS = 5
