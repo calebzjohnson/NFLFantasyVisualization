@@ -4,9 +4,8 @@ import nflreadpy as nfl
 import pandas as pd
 
 from app.data import pbp as pbp_data
-from app.data import player_stats
+from app.data import player_stats, snap_counts
 from app.data import players as players_data
-from app.data import snap_counts
 
 REGULAR_SEASON = "REG"
 
@@ -280,7 +279,8 @@ def _usage_weekly(team: str, season: int, player_id: str, metric: str) -> list[d
     week_stats = player_stats.get_week_stats(season)
     if week_stats.empty:
         week_stats = player_stats.get_week_stats(season - 1)
-    week_stats = week_stats[(week_stats["season_type"] == REGULAR_SEASON) & (week_stats["team"] == team)]
+    is_regular_season = week_stats["season_type"] == REGULAR_SEASON
+    week_stats = week_stats[is_regular_season & (week_stats["team"] == team)]
 
     pool = _usage_pool(week_stats, metric)
     pool = pool.assign(usage_amount=_usage_amount(pool, metric))

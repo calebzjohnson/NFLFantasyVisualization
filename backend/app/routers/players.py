@@ -65,7 +65,7 @@ def get_player_usage(player_id: str) -> dict[str, Any]:
 def get_player_radar(player_id: str) -> dict[str, Any]:
     try:
         return radar.get_player_radar(player_id)
-    except radar.PlayerNotFoundError as e:
+    except players.PlayerNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
 
 

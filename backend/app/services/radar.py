@@ -4,7 +4,8 @@ import nflreadpy as nfl
 import numpy as np
 import pandas as pd
 
-from app.data import nextgen_stats, pbp as pbp_data, player_stats, snap_counts
+from app.data import nextgen_stats, player_stats, snap_counts
+from app.data import pbp as pbp_data
 from app.services.players import PlayerNotFoundError
 
 REGULAR_SEASON = "REG"
@@ -106,7 +107,8 @@ def _success_rate(plays: pd.DataFrame, play_type: str, id_column: str) -> pd.Ser
         & plays["epa"].notna()
         & plays[id_column].notna()
     ]
-    return cast(pd.Series, scoped.groupby(id_column)["epa"].apply(lambda epa: (epa > 0).mean()) * 100)
+    success_rate = scoped.groupby(id_column)["epa"].apply(lambda epa: (epa > 0).mean())
+    return success_rate * 100
 
 
 def _clean(series: pd.Series) -> pd.Series:
@@ -179,7 +181,9 @@ def _redzone_touch_share(plays: pd.DataFrame) -> pd.Series:
     player_touches = runs.groupby("rusher_player_id").size().add(
         catches.groupby("receiver_player_id").size(), fill_value=0
     )
-    team_touches = runs.groupby("posteam").size().add(catches.groupby("posteam").size(), fill_value=0)
+    team_touches = runs.groupby("posteam").size().add(
+        catches.groupby("posteam").size(), fill_value=0
+    )
     player_team = (
         pd.concat(
             [
@@ -207,8 +211,9 @@ def _wr_total_offense_snaps(season: int) -> pd.Series:
     total_by_pfr_id = snaps.groupby("pfr_player_id")["offense_snaps"].sum()
 
     total_by_gsis_id = total_by_pfr_id.copy()
-    total_by_gsis_id.index = total_by_gsis_id.index.map(snap_counts.get_pfr_to_gsis_map())
-    return cast(pd.Series, total_by_gsis_id[total_by_gsis_id.index.notna()])
+    pfr_to_gsis = snap_counts.get_pfr_to_gsis_map().to_dict()
+    total_by_gsis_id.index = total_by_gsis_id.index.map(pfr_to_gsis)
+    return total_by_gsis_id[total_by_gsis_id.index.notna()]
 
 
 def _redzone_target_share(plays: pd.DataFrame) -> pd.Series:
@@ -226,7 +231,7 @@ def _redzone_target_share(plays: pd.DataFrame) -> pd.Series:
     team_targets = red_zone.groupby("posteam").size()
     player_team = red_zone.groupby("receiver_player_id")["posteam"].first()
 
-    return cast(pd.Series, player_targets / player_team.map(team_targets) * 100)
+    return player_targets / player_team.map(team_targets) * 100
 
 
 def _receiving_base_metrics(
@@ -238,7 +243,9 @@ def _receiving_base_metrics(
     receivers["yac_per_reception"] = _clean(
         receivers["receiving_yards_after_catch"] / receivers["receptions"]
     )
-    receivers["receiving_epa_per_target"] = _clean(receivers["receiving_epa"] / receivers["targets"])
+    receivers["receiving_epa_per_target"] = _clean(
+        receivers["receiving_epa"] / receivers["targets"]
+    )
 
     ngs = ngs_receiving.set_index("player_gsis_id")
     receivers["avg_separation"] = receivers["player_id"].map(ngs["avg_separation"])
