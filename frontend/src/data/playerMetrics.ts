@@ -21,13 +21,6 @@ export interface PlayerMetric {
   label: string
   unit?: string // e.g. "%" for share-based metrics; omitted for plain counts
   value: (row: PlayerStatsRow) => number
-  // Raw workload stat (attempts/carries/targets/touches) this metric's league-
-  // average reference is qualified by - see qualifiedStats() in
-  // PlayerComparisonScatter. A QB who's thrown 1 pass shouldn't count toward
-  // the completion-% (or interception, or anything else) average just because
-  // the number happens to be a plain count instead of a percentage - a low
-  // count from no opportunity is exactly as distorting as a wild rate is.
-  qualifier: (row: PlayerStatsRow) => number
 }
 
 function num(row: PlayerStatsRow, field: string): number {
@@ -38,28 +31,27 @@ function percent(row: PlayerStatsRow, field: string): number {
   return num(row, field) * 100
 }
 
-const attempts = (row: PlayerStatsRow) => num(row, "attempts")
-const carries = (row: PlayerStatsRow) => num(row, "carries")
-const targets = (row: PlayerStatsRow) => num(row, "targets")
-const touches = (row: PlayerStatsRow) => num(row, "carries") + num(row, "targets")
+const fantasyPointsPpr: PlayerMetric = {
+  key: "fantasy_points_ppr",
+  label: "Fantasy Points (PPR)",
+  value: (row) => num(row, "fantasy_points_ppr"),
+}
 
 const QB_METRICS: PlayerMetric[] = [
-  { key: "passing_yards", label: "Passing Yards", value: (row) => num(row, "passing_yards"), qualifier: attempts },
-  { key: "passing_tds", label: "Passing TDs", value: (row) => num(row, "passing_tds"), qualifier: attempts },
+  { key: "passing_yards", label: "Passing Yards", value: (row) => num(row, "passing_yards") },
+  { key: "passing_tds", label: "Passing TDs", value: (row) => num(row, "passing_tds") },
   {
     key: "passing_interceptions",
     label: "Interceptions",
     value: (row) => num(row, "passing_interceptions"),
-    qualifier: attempts,
   },
-  { key: "completions", label: "Completions", value: (row) => num(row, "completions"), qualifier: attempts },
-  { key: "attempts", label: "Attempts", value: (row) => num(row, "attempts"), qualifier: attempts },
+  { key: "completions", label: "Completions", value: (row) => num(row, "completions") },
+  { key: "attempts", label: "Attempts", value: (row) => num(row, "attempts") },
   {
     key: "completion_pct",
     label: "Completion %",
     unit: "%",
     value: (row) => perAttempt(num(row, "completions") * 100, num(row, "attempts")),
-    qualifier: attempts,
   },
   {
     key: "rating",
@@ -72,108 +64,60 @@ const QB_METRICS: PlayerMetric[] = [
         num(row, "passing_tds"),
         num(row, "passing_interceptions"),
       ),
-    qualifier: attempts,
   },
-  { key: "passing_epa", label: "EPA", value: (row) => num(row, "passing_epa"), qualifier: attempts },
-  { key: "passing_cpoe", label: "CPOE", value: (row) => num(row, "passing_cpoe"), qualifier: attempts },
-  {
-    key: "sacks_suffered",
-    label: "Sacks Taken",
-    value: (row) => num(row, "sacks_suffered"),
-    qualifier: attempts,
-  },
-  {
-    key: "fantasy_points_ppr",
-    label: "Fantasy Points (PPR)",
-    value: (row) => num(row, "fantasy_points_ppr"),
-    qualifier: attempts,
-  },
+  { key: "passing_epa", label: "EPA", value: (row) => num(row, "passing_epa") },
+  { key: "passing_cpoe", label: "CPOE", value: (row) => num(row, "passing_cpoe") },
+  { key: "sacks_suffered", label: "Sacks Taken", value: (row) => num(row, "sacks_suffered") },
+  fantasyPointsPpr,
 ]
 
 const RB_METRICS: PlayerMetric[] = [
-  { key: "carries", label: "Carries", value: (row) => num(row, "carries"), qualifier: carries },
-  {
-    key: "rushing_yards",
-    label: "Rushing Yards",
-    value: (row) => num(row, "rushing_yards"),
-    qualifier: carries,
-  },
-  { key: "rushing_tds", label: "Rushing TDs", value: (row) => num(row, "rushing_tds"), qualifier: carries },
+  { key: "carries", label: "Carries", value: (row) => num(row, "carries") },
+  { key: "rushing_yards", label: "Rushing Yards", value: (row) => num(row, "rushing_yards") },
+  { key: "rushing_tds", label: "Rushing TDs", value: (row) => num(row, "rushing_tds") },
   {
     key: "ypc",
     label: "Yards / Carry",
     value: (row) => perAttempt(num(row, "rushing_yards"), num(row, "carries")),
-    qualifier: carries,
   },
-  { key: "rushing_epa", label: "Rushing EPA", value: (row) => num(row, "rushing_epa"), qualifier: carries },
-  { key: "receptions", label: "Receptions", value: (row) => num(row, "receptions"), qualifier: targets },
-  { key: "targets", label: "Targets", value: (row) => num(row, "targets"), qualifier: targets },
+  { key: "rushing_epa", label: "Rushing EPA", value: (row) => num(row, "rushing_epa") },
+  { key: "receptions", label: "Receptions", value: (row) => num(row, "receptions") },
+  { key: "targets", label: "Targets", value: (row) => num(row, "targets") },
   {
     key: "receiving_yards",
     label: "Receiving Yards",
     value: (row) => num(row, "receiving_yards"),
-    qualifier: targets,
   },
-  {
-    key: "target_share",
-    label: "Target Share",
-    unit: "%",
-    value: (row) => percent(row, "target_share"),
-    qualifier: targets,
-  },
-  { key: "wopr", label: "WOPR", value: (row) => num(row, "wopr"), qualifier: targets },
-  {
-    key: "fantasy_points_ppr",
-    label: "Fantasy Points (PPR)",
-    value: (row) => num(row, "fantasy_points_ppr"),
-    qualifier: touches,
-  },
+  { key: "target_share", label: "Target Share", unit: "%", value: (row) => percent(row, "target_share") },
+  { key: "wopr", label: "WOPR", value: (row) => num(row, "wopr") },
+  fantasyPointsPpr,
 ]
 
 const WR_METRICS: PlayerMetric[] = [
-  { key: "receptions", label: "Receptions", value: (row) => num(row, "receptions"), qualifier: targets },
-  { key: "targets", label: "Targets", value: (row) => num(row, "targets"), qualifier: targets },
+  { key: "receptions", label: "Receptions", value: (row) => num(row, "receptions") },
+  { key: "targets", label: "Targets", value: (row) => num(row, "targets") },
   {
     key: "receiving_yards",
     label: "Receiving Yards",
     value: (row) => num(row, "receiving_yards"),
-    qualifier: targets,
   },
-  {
-    key: "receiving_tds",
-    label: "Receiving TDs",
-    value: (row) => num(row, "receiving_tds"),
-    qualifier: targets,
-  },
+  { key: "receiving_tds", label: "Receiving TDs", value: (row) => num(row, "receiving_tds") },
   {
     key: "ypr",
     label: "Yards / Reception",
     value: (row) => perAttempt(num(row, "receiving_yards"), num(row, "receptions")),
-    qualifier: targets,
   },
-  { key: "receiving_epa", label: "EPA", value: (row) => num(row, "receiving_epa"), qualifier: targets },
-  {
-    key: "target_share",
-    label: "Target Share",
-    unit: "%",
-    value: (row) => percent(row, "target_share"),
-    qualifier: targets,
-  },
+  { key: "receiving_epa", label: "EPA", value: (row) => num(row, "receiving_epa") },
+  { key: "target_share", label: "Target Share", unit: "%", value: (row) => percent(row, "target_share") },
   {
     key: "air_yards_share",
     label: "Air Yards Share",
     unit: "%",
     value: (row) => percent(row, "air_yards_share"),
-    qualifier: targets,
   },
-  { key: "racr", label: "RACR", value: (row) => num(row, "racr"), qualifier: targets },
-  { key: "wopr", label: "WOPR", value: (row) => num(row, "wopr"), qualifier: targets },
-  {
-    key: "fantasy_points_ppr",
-    label: "Fantasy Points (PPR)",
-    value: (row) => num(row, "fantasy_points_ppr"),
-    qualifier: targets,
-  },
+  { key: "racr", label: "RACR", value: (row) => num(row, "racr") },
+  { key: "wopr", label: "WOPR", value: (row) => num(row, "wopr") },
+  fantasyPointsPpr,
 ]
 
 export const PLAYER_METRICS: Record<PositionGroup, PlayerMetric[]> = {
@@ -182,35 +126,16 @@ export const PLAYER_METRICS: Record<PositionGroup, PlayerMetric[]> = {
   WR: WR_METRICS,
 }
 
-// A player needs at least this fraction of the position's current workload
-// leader (in the metric's own `qualifier` stat) to count toward the average
-// the chart centers on.
-const QUALIFYING_FRACTION = 0.2
-
-export interface MetricStats {
-  mean: number
-  stddev: number
-}
-
-// The league-average reference a metric's chart axis is centered on. See the
-// `qualifier` field on PlayerMetric for why this excludes small-sample noise
-// (a backup QB's one pass) rather than just averaging every row.
-export function qualifiedStats(rows: PlayerStatsRow[], metric: PlayerMetric): MetricStats {
-  if (rows.length === 0) return { mean: 0, stddev: 1 }
-  const maxQualifier = Math.max(0, ...rows.map(metric.qualifier))
-  const threshold = Math.round(maxQualifier * QUALIFYING_FRACTION)
-  const qualified = rows.filter((row) => metric.qualifier(row) >= threshold)
-  const pool = qualified.length > 0 ? qualified : rows
-  const values = pool.map(metric.value)
-  const mean = values.reduce((sum, v) => sum + v, 0) / values.length
-  const variance = values.reduce((sum, v) => sum + (v - mean) ** 2, 0) / values.length
-  // Guard against a zero-spread pool (e.g. only one qualifier) collapsing every z-score to +/-Infinity.
-  return { mean, stddev: Math.sqrt(variance) || 1 }
-}
-
-// How many standard deviations `value` sits from the qualified-pool mean.
-export function zScore(value: number, stats: MetricStats): number {
-  return (value - stats.mean) / stats.stddev
+// The middle value of a metric across every player in the position - no
+// mean/std-dev, so there's no jargon to explain and no need to decide who
+// "qualifies": a handful of zero-carry fullbacks can't drag a median around
+// the way they'd drag an average, since a median only cares about rank order,
+// not how extreme the low (or high) values are.
+export function metricMedian(rows: PlayerStatsRow[], metric: PlayerMetric): number {
+  if (rows.length === 0) return 0
+  const sorted = rows.map(metric.value).sort((a, b) => a - b)
+  const mid = Math.floor(sorted.length / 2)
+  return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid]
 }
 
 // Raw /players fields needed to compute every metric above for a position -
