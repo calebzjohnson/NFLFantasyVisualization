@@ -25,6 +25,18 @@ def get_players(
         raise HTTPException(status_code=400, detail=str(e)) from e
 
 
+@router.get("/players/weekly")
+def get_weekly_players(
+    fields: str | None = Query(None, description="Comma-separated column names to include"),
+    position_group: str | None = Query(None),
+) -> list[dict[str, Any]]:
+    field_list = fields.split(",") if fields else None
+    try:
+        return players.get_weekly_player_stats(position_group=position_group, fields=field_list)
+    except players.InvalidQueryError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
 @router.get("/players/{player_id}/games")
 def get_player_games(player_id: str) -> list[dict[str, Any]]:
     try:

@@ -18,6 +18,7 @@ import {
   type PlayerStatsRow,
 } from "../data/playerMetrics"
 import type { TeamInfo } from "../data/teams"
+import { initialsFor, readableTextColor } from "../lib/playerVisuals"
 import { useFetch } from "../lib/useFetch"
 import AxisSelect from "./AxisSelect"
 import { ChartContainer, type ChartConfig } from "./evilcharts/ui/recharts-chart"
