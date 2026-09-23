@@ -2,7 +2,7 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
 
-from app.services import players
+from app.services import players, radar
 
 router = APIRouter(tags=["players"])
 
@@ -39,3 +39,27 @@ def get_player_bio(player_id: str) -> dict[str, Any]:
         return players.get_player_bio(player_id)
     except players.PlayerNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
+
+
+@router.get("/players/{player_id}/usage")
+def get_player_usage(player_id: str) -> dict[str, Any]:
+    try:
+        return players.get_player_usage_share(player_id)
+    except players.PlayerNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+
+
+@router.get("/players/{player_id}/radar")
+def get_player_radar(player_id: str) -> dict[str, Any]:
+    try:
+        return radar.get_player_radar(player_id)
+    except radar.PlayerNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+
+
+@router.get("/players/radar-pool")
+def get_players_radar_pool(position: str = Query(...)) -> dict[str, Any]:
+    try:
+        return radar.get_position_radar_pool(position)
+    except radar.InvalidPositionError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
