@@ -38,13 +38,6 @@ const fantasyPointsPpr: PlayerMetric = {
 }
 
 const QB_METRICS: PlayerMetric[] = [
-  { key: "passing_yards", label: "Passing Yards", value: (row) => num(row, "passing_yards") },
-  { key: "passing_tds", label: "Passing TDs", value: (row) => num(row, "passing_tds") },
-  {
-    key: "passing_interceptions",
-    label: "Interceptions",
-    value: (row) => num(row, "passing_interceptions"),
-  },
   { key: "completions", label: "Completions", value: (row) => num(row, "completions") },
   { key: "attempts", label: "Attempts", value: (row) => num(row, "attempts") },
   {
@@ -52,6 +45,13 @@ const QB_METRICS: PlayerMetric[] = [
     label: "Completion %",
     unit: "%",
     value: (row) => perAttempt(num(row, "completions") * 100, num(row, "attempts")),
+  },
+  { key: "passing_yards", label: "Passing Yards", value: (row) => num(row, "passing_yards") },
+  { key: "passing_tds", label: "Passing TDs", value: (row) => num(row, "passing_tds") },
+  {
+    key: "passing_interceptions",
+    label: "Interceptions",
+    value: (row) => num(row, "passing_interceptions"),
   },
   {
     key: "rating",
@@ -124,6 +124,8 @@ export const PLAYER_METRICS: Record<PositionGroup, PlayerMetric[]> = {
   QB: QB_METRICS,
   RB: RB_METRICS,
   WR: WR_METRICS,
+  // TEs are receivers first - same metric catalog as WR.
+  TE: WR_METRICS,
 }
 
 // Raw /players fields needed to compute every metric above for a position -
@@ -156,6 +158,18 @@ const RAW_FIELDS: Record<PositionGroup, string[]> = {
     "fantasy_points_ppr",
   ],
   WR: [
+    "receptions",
+    "targets",
+    "receiving_yards",
+    "receiving_tds",
+    "receiving_epa",
+    "target_share",
+    "air_yards_share",
+    "racr",
+    "wopr",
+    "fantasy_points_ppr",
+  ],
+  TE: [
     "receptions",
     "targets",
     "receiving_yards",

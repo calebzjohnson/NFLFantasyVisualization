@@ -29,6 +29,42 @@ function sum(rows: GameStatsRow[], field: string): number {
   return rows.reduce((total, row) => total + num(row, field), 0)
 }
 
+// Shared by WR and TE - both are receivers with the same game log shape.
+const receivingConfig: GameLogConfig = {
+  columns: [
+    { key: "rec", label: "REC" },
+    { key: "tgt", label: "TGT" },
+    { key: "yards", label: "YARDS" },
+    { key: "td", label: "TD", tone: "positive" },
+    { key: "ypr", label: "YPR" },
+    { key: "fum", label: "FUM", tone: "negative" },
+  ],
+  toStats: (row) => {
+    const rec = num(row, "receptions")
+    const yards = num(row, "receiving_yards")
+    return {
+      tgt: num(row, "targets"),
+      rec,
+      yards,
+      td: num(row, "receiving_tds"),
+      ypr: perAttempt(yards, rec),
+      fum: num(row, "fumbles_lost_total"),
+    }
+  },
+  toTotals: (rows) => {
+    const rec = sum(rows, "receptions")
+    const yards = sum(rows, "receiving_yards")
+    return {
+      tgt: sum(rows, "targets"),
+      rec,
+      yards,
+      td: sum(rows, "receiving_tds"),
+      ypr: perAttempt(yards, rec),
+      fum: sum(rows, "fumbles_lost_total"),
+    }
+  },
+}
+
 const GAME_LOG_CONFIGS: Record<PositionGroup, GameLogConfig> = {
   QB: {
     columns: [
@@ -128,50 +164,19 @@ const GAME_LOG_CONFIGS: Record<PositionGroup, GameLogConfig> = {
       }
     },
   },
-  WR: {
-    columns: [
-      { key: "tgt", label: "TGT" },
-      { key: "rec", label: "REC" },
-      { key: "yards", label: "YARDS" },
-      { key: "td", label: "TD", tone: "positive" },
-      { key: "ypr", label: "YPR" },
-      { key: "fum", label: "FUM", tone: "negative" },
-    ],
-    toStats: (row) => {
-      const rec = num(row, "receptions")
-      const yards = num(row, "receiving_yards")
-      return {
-        tgt: num(row, "targets"),
-        rec,
-        yards,
-        td: num(row, "receiving_tds"),
-        ypr: perAttempt(yards, rec),
-        fum: num(row, "fumbles_lost_total"),
-      }
-    },
-    toTotals: (rows) => {
-      const rec = sum(rows, "receptions")
-      const yards = sum(rows, "receiving_yards")
-      return {
-        tgt: sum(rows, "targets"),
-        rec,
-        yards,
-        td: sum(rows, "receiving_tds"),
-        ypr: perAttempt(yards, rec),
-        fum: sum(rows, "fumbles_lost_total"),
-      }
-    },
-  },
+  // TEs are receivers first - same game log shape as WR.
+  WR: receivingConfig,
+  TE: receivingConfig,
 }
 
-// Roster positions vary more than the site's QB/RB/WR toggle (TE, FB, ...) -
+// Roster positions vary more than the site's QB/RB/WR/TE toggle (FB, ...) -
 // bucket each into whichever game log shape fits its stats best.
 const POSITION_BUCKET: Record<string, PositionGroup> = {
   QB: "QB",
   RB: "RB",
   FB: "RB",
   WR: "WR",
-  TE: "WR",
+  TE: "TE",
 }
 
 export function gameLogConfigForPosition(position: string | null): GameLogConfig | null {
