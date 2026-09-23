@@ -6,6 +6,7 @@ import pandas as pd
 from app.data import pbp as pbp_data
 from app.data import player_stats
 from app.data import players as players_data
+from app.data import snap_counts
 
 REGULAR_SEASON = "REG"
 
@@ -61,23 +62,62 @@ def get_current_player_stats(
     return cast(list[dict[str, Any]], records)
 
 
+def _snap_weeks(player_id: str, season: int) -> pd.DataFrame:
+    """This player's weekly snap-count rows (team, opponent), indexed by
+    week - confirms which weeks he actually played. nflverse's stat pipeline
+    only emits a row for a player-week when he had some statistical event (a
+    target, a carry, ...), silently dropping weeks where he played but
+    recorded nothing; snap counts are participation-based, so they still
+    have a row for those weeks.
+    """
+    snaps = snap_counts.get_season_snap_counts(season)
+    snaps = snaps[snaps["game_type"] == REGULAR_SEASON]
+    snaps = snaps.assign(gsis_id=snaps["pfr_player_id"].map(snap_counts.get_pfr_to_gsis_map()))
+    mine = snaps[(snaps["gsis_id"] == player_id) & (snaps["offense_snaps"] > 0)]
+    return mine.set_index("week")[["team", "opponent"]]
+
+
 def get_player_game_log(player_id: str) -> list[dict[str, Any]]:
     """Regular-season game-by-game stats for one player, current season,
     oldest week first. Falls back to the prior season if the current one
     hasn't started yet, matching get_current_player_stats.
+
+    Includes a zero-stat row for any week he's confirmed to have played
+    (via snap counts) but recorded no statistical events - without this, a
+    scoreless week would just be missing from the table entirely rather than
+    showing as a real, played-but-quiet week.
     """
     season = nfl.get_current_season()
     stats = player_stats.get_week_stats(season)
     if stats.empty:
-        stats = player_stats.get_week_stats(season - 1)
+        season -= 1
+        stats = player_stats.get_week_stats(season)
 
     games = stats[(stats["player_id"] == player_id) & (stats["season_type"] == "REG")]
-    if games.empty:
+    stat_weeks = {int(week) for week in games["week"]}
+
+    snap_rows = _snap_weeks(player_id, season)
+    missing_weeks = [week for week in snap_rows.index if int(week) not in stat_weeks]
+
+    if games.empty and not missing_weeks:
         raise PlayerNotFoundError(f"No games found for player_id: {player_id}")
 
     games = games.sort_values("week", kind="stable")
-
     records = games.astype(object).where(games.notna(), None).to_dict(orient="records")
+
+    for week in missing_weeks:
+        row = snap_rows.loc[week]
+        records.append(
+            {
+                "player_id": player_id,
+                "week": int(week),
+                "season_type": "REG",
+                "team": row["team"],
+                "opponent_team": row["opponent"],
+            }
+        )
+    records.sort(key=lambda record: record["week"])
+
     return cast(list[dict[str, Any]], records)
 
 
@@ -178,10 +218,19 @@ def _qb_td_involvement(player_id: str, team: str, season: int) -> dict[str, Any]
 
     # Who actually scored the touchdowns this QB wasn't involved in - the
     # receiver on a pass TD, the ball-carrier on a rush TD.
-    scorers = not_involved["receiver_player_name"].where(
+    scorer_ids = not_involved["receiver_player_id"].where(
+        not_involved["pass_touchdown"] == 1, not_involved["rusher_player_id"]
+    )
+    scorer_names = not_involved["receiver_player_name"].where(
         not_involved["pass_touchdown"] == 1, not_involved["rusher_player_name"]
     )
-    breakdown = scorers.value_counts()
+    breakdown = (
+        pd.DataFrame({"player_id": scorer_ids, "name": scorer_names})
+        .groupby(["player_id", "name"])
+        .size()
+        .reset_index(name="count")
+        .sort_values("count", ascending=False, kind="stable")
+    )
 
     weekly = _weekly_breakdown(
         touchdowns[involved].groupby("week").size(), touchdowns.groupby("week").size()
@@ -194,7 +243,10 @@ def _qb_td_involvement(player_id: str, team: str, season: int) -> dict[str, Any]
         "label": "TD Involvement",
         "player_value": int(involved.sum()),
         "team_value": int(len(touchdowns)),
-        "teammates": [{"name": name, "value": int(count)} for name, count in breakdown.items()],
+        "teammates": [
+            {"player_id": row["player_id"], "name": row["name"], "value": int(row["count"])}
+            for _, row in breakdown.iterrows()
+        ],
         "weekly": weekly,
     }
 
@@ -254,7 +306,11 @@ def get_player_usage_share(player_id: str) -> dict[str, Any]:
         "player_value": int(_usage_amount(player_rows, metric).iloc[0]),
         "team_value": int(pool["usage_amount"].sum()),
         "teammates": [
-            {"name": row["player_display_name"], "value": int(row["usage_amount"])}
+            {
+                "player_id": row["player_id"],
+                "name": row["player_display_name"],
+                "value": int(row["usage_amount"]),
+            }
             for _, row in teammates.iterrows()
         ],
         "weekly": _usage_weekly(player["recent_team"], season, player_id, metric),

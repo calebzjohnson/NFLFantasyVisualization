@@ -5,6 +5,7 @@
 // player-vs-rest-of-team split, so a trend (workload growing/shrinking) is
 // visible alongside the season total.
 import { useState } from "react"
+import { useNavigate } from "react-router-dom"
 import {
   Bar,
   BarChart,
@@ -22,6 +23,7 @@ import Panel from "./Panel"
 import PositionGroupToggle from "./PositionGroupToggle"
 
 interface Teammate {
+  player_id: string
   name: string
   value: number
 }
@@ -44,6 +46,7 @@ interface UsageShare {
 }
 
 interface DonutSlice {
+  player_id?: string
   name: string
   value: number
   isPlayer: boolean
@@ -88,10 +91,12 @@ function UsageDonut({
   playerName,
   teamColor,
   usage,
+  onSelect,
 }: {
   playerName: string
   teamColor: string
   usage: UsageShare
+  onSelect: (playerId: string) => void
 }) {
   const data: DonutSlice[] = [
     { name: playerName, value: usage.player_value, isPlayer: true },
@@ -114,9 +119,17 @@ function UsageDonut({
             stroke="var(--surface-1)"
             strokeWidth={2}
             isAnimationActive={false}
+            onClick={(sector: { player_id?: string; payload?: DonutSlice }) => {
+              const playerId = sector.player_id ?? sector.payload?.player_id
+              if (playerId) onSelect(playerId)
+            }}
           >
             {data.map((slice) => (
-              <Cell key={slice.name} fill={slice.isPlayer ? teamColor : TEAMMATE_FILL} />
+              <Cell
+                key={slice.name}
+                fill={slice.isPlayer ? teamColor : TEAMMATE_FILL}
+                cursor={slice.player_id ? "pointer" : "default"}
+              />
             ))}
           </Pie>
         </PieChart>
@@ -240,6 +253,7 @@ function UsageWeeklyChart({ teamColor, usage }: { teamColor: string; usage: Usag
 }
 
 function TeamUsagePanel({ playerId, playerName }: { playerId: string; playerName: string }) {
+  const navigate = useNavigate()
   const usage = useFetch<UsageShare>(`/players/${playerId}/usage`)
   const teams = useFetch<TeamInfo[]>("/teams")
   const [view, setView] = useState<View>("season")
@@ -248,6 +262,10 @@ function TeamUsagePanel({ playerId, playerName }: { playerId: string; playerName
   const error = usage.error ?? teams.error
   const teamColor =
     teams.data?.find((team) => team.team_abbr === usage.data?.team)?.team_color ?? "var(--accent)"
+
+  function goToPlayer(id: string) {
+    navigate(`/players/${id}`)
+  }
 
   return (
     <Panel
@@ -260,7 +278,12 @@ function TeamUsagePanel({ playerId, playerName }: { playerId: string; playerName
       {error && <p className="p-4 text-sm text-[var(--negative)]">Couldn't load usage: {error}</p>}
       {usage.data &&
         (view === "season" ? (
-          <UsageDonut playerName={playerName} teamColor={teamColor} usage={usage.data} />
+          <UsageDonut
+            playerName={playerName}
+            teamColor={teamColor}
+            usage={usage.data}
+            onSelect={goToPlayer}
+          />
         ) : (
           <UsageWeeklyChart teamColor={teamColor} usage={usage.data} />
         ))}

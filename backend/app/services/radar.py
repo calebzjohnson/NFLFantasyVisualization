@@ -9,11 +9,29 @@ from app.services.players import PlayerNotFoundError
 
 REGULAR_SEASON = "REG"
 
-# Minimum season volume (pass attempts / carries / targets) to qualify for a
-# radar profile at all, and to enter the percentile pool other players are
-# compared against - keeps a two-target cameo from swinging the scale, or
-# showing up as a wildly noisy small-sample profile itself.
-MIN_SAMPLE = {"QB": 10, "RB": 5, "WR": 5, "TE": 5}
+# Minimum volume (pass attempts / carries / targets) *per week played so
+# far* to qualify for a radar profile at all, and to enter the percentile
+# pool other players are compared against - keeps a two-target cameo from
+# swinging the scale, or showing up as a wildly noisy small-sample profile
+# itself. Scaled by the season's current week (attempts/touches/targets
+# needed = rate * current_week) rather than a flat season-long number: a
+# flat floor low enough to not leave the radar empty in Week 1 becomes far
+# too lenient by Week 12 (a QB with 10 career attempts back in Week 1 would
+# still "qualify" at midseason), while a flat floor strict enough for
+# midseason would leave every chart blank for the first month.
+MIN_SAMPLE_PER_WEEK = {"QB": 6.25, "RB": 3.0, "WR": 2.0, "TE": 1.25}
+
+
+def _min_sample(bucket: str, current_week: int) -> float:
+    return MIN_SAMPLE_PER_WEEK[bucket] * current_week
+
+
+def _current_week(season: int) -> int:
+    """The latest regular-season week with any played games in the data -
+    how far into the season we are, for scaling the volume floor above."""
+    week_stats = player_stats.get_week_stats(season)
+    reg = week_stats[week_stats["season_type"] == REGULAR_SEASON]
+    return int(reg["week"].max()) if not reg.empty else 1
 
 # (raw column, display label), in the order the radar's axes should appear.
 RADAR_AXES: dict[str, list[tuple[str, str]]] = {
@@ -95,9 +113,9 @@ def _clean(series: pd.Series) -> pd.Series:
     return series.replace([np.inf, -np.inf], np.nan)
 
 
-def _qb_metrics(stats: pd.DataFrame, plays: pd.DataFrame) -> pd.DataFrame:
+def _qb_metrics(stats: pd.DataFrame, plays: pd.DataFrame, current_week: int) -> pd.DataFrame:
     qb = stats[stats["position_group"] == "QB"].copy()
-    qb = qb[qb["attempts"] >= MIN_SAMPLE["QB"]]
+    qb = qb[qb["attempts"] >= _min_sample("QB", current_week)]
 
     dropbacks = qb["attempts"] + qb["sacks_suffered"]
     qb["epa_per_dropback"] = _clean(qb["passing_epa"] / dropbacks)
@@ -122,9 +140,11 @@ def _qb_metrics(stats: pd.DataFrame, plays: pd.DataFrame) -> pd.DataFrame:
     return qb
 
 
-def _rb_metrics(stats: pd.DataFrame, ngs_rushing: pd.DataFrame, plays: pd.DataFrame) -> pd.DataFrame:
+def _rb_metrics(
+    stats: pd.DataFrame, ngs_rushing: pd.DataFrame, plays: pd.DataFrame, current_week: int
+) -> pd.DataFrame:
     rb = stats[stats["position_group"].isin(["RB", "FB"])].copy()
-    rb = rb[rb["carries"] >= MIN_SAMPLE["RB"]]
+    rb = rb[rb["carries"] >= _min_sample("RB", current_week)]
 
     rb["rushing_epa_per_play"] = _clean(rb["rushing_epa"] / rb["carries"])
     rb["yards_per_carry"] = _clean(rb["rushing_yards"] / rb["carries"])
@@ -186,18 +206,8 @@ def _wr_total_offense_snaps(season: int) -> pd.Series:
     snaps = snaps[snaps["game_type"] == REGULAR_SEASON]
     total_by_pfr_id = snaps.groupby("pfr_player_id")["offense_snaps"].sum()
 
-    # keep="first" - a handful of pfr_id entries in the crosswalk are
-    # duplicated, which would otherwise make the pfr_id -> gsis_id mapping
-    # ambiguous.
-    crosswalk = snap_counts.get_player_id_crosswalk()
-    pfr_to_gsis = (
-        crosswalk.dropna(subset=["pfr_id", "gsis_id"])
-        .drop_duplicates(subset=["pfr_id"], keep="first")
-        .set_index("pfr_id")["gsis_id"]
-    )
-
     total_by_gsis_id = total_by_pfr_id.copy()
-    total_by_gsis_id.index = total_by_gsis_id.index.map(pfr_to_gsis)
+    total_by_gsis_id.index = total_by_gsis_id.index.map(snap_counts.get_pfr_to_gsis_map())
     return cast(pd.Series, total_by_gsis_id[total_by_gsis_id.index.notna()])
 
 
@@ -239,10 +249,14 @@ def _receiving_base_metrics(
 
 
 def _wr_metrics(
-    stats: pd.DataFrame, ngs_receiving: pd.DataFrame, total_snaps: pd.Series, plays: pd.DataFrame
+    stats: pd.DataFrame,
+    ngs_receiving: pd.DataFrame,
+    total_snaps: pd.Series,
+    plays: pd.DataFrame,
+    current_week: int,
 ) -> pd.DataFrame:
     wr = stats[stats["position_group"] == "WR"].copy()
-    wr = wr[wr["targets"] >= MIN_SAMPLE["WR"]]
+    wr = wr[wr["targets"] >= _min_sample("WR", current_week)]
     wr = _receiving_base_metrics(wr, ngs_receiving, _redzone_target_share(plays))
 
     snaps = wr["player_id"].map(total_snaps)
@@ -251,9 +265,11 @@ def _wr_metrics(
     return wr
 
 
-def _te_metrics(stats: pd.DataFrame, ngs_receiving: pd.DataFrame, plays: pd.DataFrame) -> pd.DataFrame:
+def _te_metrics(
+    stats: pd.DataFrame, ngs_receiving: pd.DataFrame, plays: pd.DataFrame, current_week: int
+) -> pd.DataFrame:
     te = stats[stats["position_group"] == "TE"].copy()
-    te = te[te["targets"] >= MIN_SAMPLE["TE"]]
+    te = te[te["targets"] >= _min_sample("TE", current_week)]
     te = _receiving_base_metrics(te, ngs_receiving, _redzone_target_share(plays))
 
     te["yards_per_target"] = _clean(te["receiving_yards"] / te["targets"])
@@ -268,16 +284,52 @@ def _with_percentiles(pool: pd.DataFrame, axes: list[tuple[str, str]]) -> pd.Dat
     return pool
 
 
-def get_player_radar(player_id: str) -> dict[str, Any]:
-    """This player's 6 position-specific efficiency axes, each as a raw value
-    plus a percentile rank against every other qualifying player at their
-    position this season - the data behind the player page's radar chart.
-    """
+class InvalidPositionError(ValueError):
+    """Raised when a position string isn't one of RADAR_AXES' buckets."""
+
+
+def _load_season_stats() -> tuple[pd.DataFrame, int]:
     season = nfl.get_current_season()
     stats = player_stats.get_season_stats(season)
     if stats.empty:
         season -= 1
         stats = player_stats.get_season_stats(season)
+    return stats, season
+
+
+def _build_pool(bucket: str, stats: pd.DataFrame, season: int) -> pd.DataFrame:
+    """Every qualifying player at this position, with their 6 radar axes and
+    percentile ranks - the shared computation behind both a single player's
+    radar chart and the full-league beeswarm.
+    """
+    current_week = _current_week(season)
+
+    if bucket == "QB":
+        plays = pbp_data.get_season_pbp(season)
+        pool = _qb_metrics(stats, plays, current_week)
+    elif bucket == "RB":
+        plays = pbp_data.get_season_pbp(season)
+        ngs_rushing = nextgen_stats.get_season_nextgen_stats(season, "rushing")
+        pool = _rb_metrics(stats, ngs_rushing, plays, current_week)
+    elif bucket == "WR":
+        plays = pbp_data.get_season_pbp(season)
+        ngs_receiving = nextgen_stats.get_season_nextgen_stats(season, "receiving")
+        total_snaps = _wr_total_offense_snaps(season)
+        pool = _wr_metrics(stats, ngs_receiving, total_snaps, plays, current_week)
+    else:
+        plays = pbp_data.get_season_pbp(season)
+        ngs_receiving = nextgen_stats.get_season_nextgen_stats(season, "receiving")
+        pool = _te_metrics(stats, ngs_receiving, plays, current_week)
+
+    return _with_percentiles(pool, RADAR_AXES[bucket])
+
+
+def get_player_radar(player_id: str) -> dict[str, Any]:
+    """This player's 6 position-specific efficiency axes, each as a raw value
+    plus a percentile rank against every other qualifying player at their
+    position this season - the data behind the player page's radar chart.
+    """
+    stats, season = _load_season_stats()
 
     player_rows = stats[stats["player_id"] == player_id]
     if player_rows.empty:
@@ -288,25 +340,7 @@ def get_player_radar(player_id: str) -> dict[str, Any]:
         raise PlayerNotFoundError(f"No radar profile for player_id: {player_id}")
     axes = RADAR_AXES[bucket]
 
-    if bucket == "QB":
-        plays = pbp_data.get_season_pbp(season)
-        pool = _qb_metrics(stats, plays)
-    elif bucket == "RB":
-        plays = pbp_data.get_season_pbp(season)
-        ngs_rushing = nextgen_stats.get_season_nextgen_stats(season, "rushing")
-        pool = _rb_metrics(stats, ngs_rushing, plays)
-    elif bucket == "WR":
-        plays = pbp_data.get_season_pbp(season)
-        ngs_receiving = nextgen_stats.get_season_nextgen_stats(season, "receiving")
-        total_snaps = _wr_total_offense_snaps(season)
-        pool = _wr_metrics(stats, ngs_receiving, total_snaps, plays)
-    else:
-        plays = pbp_data.get_season_pbp(season)
-        ngs_receiving = nextgen_stats.get_season_nextgen_stats(season, "receiving")
-        pool = _te_metrics(stats, ngs_receiving, plays)
-
-    pool = _with_percentiles(pool, axes)
-    pool = pool.set_index("player_id")
+    pool = _build_pool(bucket, stats, season).set_index("player_id")
     if player_id not in pool.index:
         raise PlayerNotFoundError(
             f"Not enough season volume for a radar profile: {player_id}"
@@ -327,4 +361,43 @@ def get_player_radar(player_id: str) -> dict[str, Any]:
             }
             for key, label in axes
         ],
+    }
+
+
+def get_position_radar_pool(position: str) -> dict[str, Any]:
+    """Every qualifying player at this position with their 6 radar axes -
+    the data behind the player page's league-comparison beeswarm, where
+    every player at the position gets a dot on each axis.
+    """
+    bucket = _position_bucket(position)
+    if bucket is None:
+        raise InvalidPositionError(f"No radar profile for position: {position}")
+    axes = RADAR_AXES[bucket]
+
+    stats, season = _load_season_stats()
+    pool = _build_pool(bucket, stats, season)
+
+    players = []
+    for _, row in pool.iterrows():
+        players.append(
+            {
+                "player_id": row["player_id"],
+                "name": row["player_display_name"],
+                "team": row["recent_team"],
+                "axes": [
+                    {
+                        "key": key,
+                        "percentile": None
+                        if pd.isna(row[f"{key}_percentile"])
+                        else round(float(row[f"{key}_percentile"]), 1),
+                    }
+                    for key, _ in axes
+                ],
+            }
+        )
+
+    return {
+        "position": bucket,
+        "axes": [{"key": key, "label": label} for key, label in axes],
+        "players": players,
     }

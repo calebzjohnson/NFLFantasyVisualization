@@ -21,3 +21,19 @@ def get_player_id_crosswalk() -> pd.DataFrame:
     """
     ids = nfl.load_ff_playerids()
     return cast(pd.DataFrame, ids.to_pandas())
+
+
+def get_pfr_to_gsis_map() -> "pd.Series[str]":
+    """pfr_id -> gsis_id, for joining PFR-keyed data (like snap counts) onto
+    the gsis_id used everywhere else in this app.
+
+    keep="first" - a handful of pfr_id entries in the crosswalk are
+    duplicated, which would otherwise make the mapping ambiguous.
+    """
+    crosswalk = get_player_id_crosswalk()
+    return cast(
+        "pd.Series[str]",
+        crosswalk.dropna(subset=["pfr_id", "gsis_id"])
+        .drop_duplicates(subset=["pfr_id"], keep="first")
+        .set_index("pfr_id")["gsis_id"],
+    )

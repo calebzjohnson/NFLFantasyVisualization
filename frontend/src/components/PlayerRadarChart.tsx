@@ -54,11 +54,23 @@ function AxisTooltip({ active, payload }: { active?: boolean; payload?: { payloa
 
 function PlayerRadarChart({ playerId, teamColor }: { playerId: string; teamColor: string }) {
   const { data, error, loading } = useFetch<PlayerRadar>(`/players/${playerId}/radar`)
+  // A 404 here means the player hasn't hit the minimum season volume for a
+  // radar profile (kept intentionally low-volume/backup players out of the
+  // percentile pool) - a normal, expected state for those players, not an
+  // error.
+  const notEnoughVolume = error?.includes("(404)") ?? false
 
   return (
     <Panel title="Player Breakdown">
       {loading && <p className="p-4 text-sm text-[var(--text-secondary)]">Loading…</p>}
-      {error && <p className="p-4 text-sm text-[var(--negative)]">Couldn't load radar: {error}</p>}
+      {notEnoughVolume && (
+        <p className="p-4 text-sm text-[var(--text-secondary)]">
+          Not enough season volume yet for a radar profile.
+        </p>
+      )}
+      {error && !notEnoughVolume && (
+        <p className="p-4 text-sm text-[var(--negative)]">Couldn't load radar: {error}</p>
+      )}
       {data && (
         <div className="p-3">
           <ChartContainer config={chartConfig} className="aspect-[4/3]">
