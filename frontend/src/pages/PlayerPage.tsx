@@ -1,11 +1,13 @@
 // PlayerPage.tsx
 // Individual player route: ESPN-style bio header, then vs-league-average
-// charts (radar, team usage, beeswarm - all placeholders for now), then the
-// real game log table.
+// charts (radar and team usage are real; beeswarm is still a placeholder),
+// then the real game log table.
 import { useParams } from "react-router-dom"
 import ChartPlaceholder from "../components/ChartPlaceholder"
 import GameLogPanel from "../components/GameLogPanel"
 import PlayerBioBar from "../components/PlayerBioBar"
+import PlayerRadarChart from "../components/PlayerRadarChart"
+import TeamUsagePanel from "../components/TeamUsagePanel"
 import type { PlayerBio } from "../data/playerBio"
 import type { TeamInfo } from "../data/teams"
 import { useFetch } from "../lib/useFetch"
@@ -27,14 +29,8 @@ function PlayerPage() {
       {bio.data && playerId && (
         <>
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <ChartPlaceholder
-              title="Vs. League Average"
-              description="Radar chart comparing this player's key stats to the league average at their position."
-            />
-            <ChartPlaceholder
-              title="Team Usage"
-              description="Donut chart of this player's share of their team's snaps or touches."
-            />
+            <PlayerRadarChart playerId={playerId} teamColor={team?.team_color ?? "var(--accent)"} />
+            <TeamUsagePanel playerId={playerId} playerName={bio.data.display_name} />
           </div>
           <ChartPlaceholder
             title="League Comparison"

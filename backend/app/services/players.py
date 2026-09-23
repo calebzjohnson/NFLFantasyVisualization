@@ -3,8 +3,11 @@ from typing import Any, cast
 import nflreadpy as nfl
 import pandas as pd
 
+from app.data import pbp as pbp_data
 from app.data import player_stats
 from app.data import players as players_data
+
+REGULAR_SEASON = "REG"
 
 
 class InvalidQueryError(ValueError):
@@ -106,6 +109,155 @@ def get_player_bio(player_id: str) -> dict[str, Any]:
         "draft_pick": player["draft_pick"],
         "draft_team": player["draft_team"],
         "headshot_url": player["headshot"],
+    }
+
+
+# position_group -> which "share" a market-share donut should show.
+# Targets are framed as this player vs. the rest of the whole team (not just
+# their position group), since offensive snaps overlap across positions -
+# e.g. three WRs can be on the field at once, so shares within a position
+# group don't sum to a clean 100%. Touches don't have that problem within the
+# backfield specifically (one ball-carrier at a time), so those are pooled
+# across just the team's RBs/FBs instead. QBs get a different shape entirely
+# (see get_player_usage_share) - not a share of one stat, but every team
+# touchdown split into "this QB was involved" vs. not.
+USAGE_METRIC_BY_POSITION_GROUP = {
+    "RB": ("touches", "Touch Share vs Backfield"),
+    "FB": ("touches", "Touch Share vs Backfield"),
+    "WR": ("targets", "Target Share"),
+    "TE": ("targets", "Target Share"),
+}
+
+
+def _usage_amount(stats: pd.DataFrame, metric: str) -> pd.Series:
+    if metric == "touches":
+        return stats["carries"] + stats["receptions"]
+    return stats["targets"]
+
+
+def _usage_pool(team_stats: pd.DataFrame, metric: str) -> pd.DataFrame:
+    if metric == "touches":
+        return team_stats[team_stats["position_group"].isin(["RB", "FB"])]
+    return team_stats
+
+
+def _weekly_breakdown(player_by_week: pd.Series, team_by_week: pd.Series) -> list[dict[str, Any]]:
+    weeks = sorted(team_by_week.index)
+    return [
+        {
+            "week": int(week),
+            "player_value": int(player_by_week.get(week, 0)),
+            "team_value": int(team_by_week.get(week, 0)),
+        }
+        for week in weeks
+    ]
+
+
+def _qb_td_involvement(player_id: str, team: str, season: int) -> dict[str, Any]:
+    """Every one of the team's touchdowns this season, split into "this QB
+    threw or ran it in" vs. not - determined play-by-play (who was the passer
+    or rusher on each scoring play), not by summing season stat columns. A
+    season total can't tell "his passing TDs" apart from "TDs the team's
+    receivers happened to catch," since those are the same scores counted two
+    different ways; only the play-level passer/rusher IDs can.
+    """
+    plays = pbp_data.get_season_pbp(season)
+    if plays.empty:
+        plays = pbp_data.get_season_pbp(season - 1)
+
+    touchdowns = plays[
+        (plays["season_type"] == REGULAR_SEASON)
+        & (plays["posteam"] == team)
+        & ((plays["pass_touchdown"] == 1) | (plays["rush_touchdown"] == 1))
+    ]
+
+    involved = (touchdowns["passer_player_id"] == player_id) | (
+        touchdowns["rusher_player_id"] == player_id
+    )
+    not_involved = touchdowns[~involved]
+
+    # Who actually scored the touchdowns this QB wasn't involved in - the
+    # receiver on a pass TD, the ball-carrier on a rush TD.
+    scorers = not_involved["receiver_player_name"].where(
+        not_involved["pass_touchdown"] == 1, not_involved["rusher_player_name"]
+    )
+    breakdown = scorers.value_counts()
+
+    weekly = _weekly_breakdown(
+        touchdowns[involved].groupby("week").size(), touchdowns.groupby("week").size()
+    )
+
+    return {
+        "player_id": player_id,
+        "team": team,
+        "metric": "td_involvement",
+        "label": "TD Involvement",
+        "player_value": int(involved.sum()),
+        "team_value": int(len(touchdowns)),
+        "teammates": [{"name": name, "value": int(count)} for name, count in breakdown.items()],
+        "weekly": weekly,
+    }
+
+
+def _usage_weekly(team: str, season: int, player_id: str, metric: str) -> list[dict[str, Any]]:
+    week_stats = player_stats.get_week_stats(season)
+    if week_stats.empty:
+        week_stats = player_stats.get_week_stats(season - 1)
+    week_stats = week_stats[(week_stats["season_type"] == REGULAR_SEASON) & (week_stats["team"] == team)]
+
+    pool = _usage_pool(week_stats, metric)
+    pool = pool.assign(usage_amount=_usage_amount(pool, metric))
+
+    player_by_week = pool[pool["player_id"] == player_id].groupby("week")["usage_amount"].sum()
+    team_by_week = pool.groupby("week")["usage_amount"].sum()
+    return _weekly_breakdown(player_by_week, team_by_week)
+
+
+def get_player_usage_share(player_id: str) -> dict[str, Any]:
+    """This player's share of touches/targets (whichever applies to their
+    position) vs. the rest of the relevant pool, or - for a QB - their
+    involvement in the team's touchdowns. For a market-share donut on the
+    player page.
+    """
+    season = nfl.get_current_season()
+    stats = player_stats.get_season_stats(season)
+    if stats.empty:
+        season -= 1
+        stats = player_stats.get_season_stats(season)
+
+    player_rows = stats[stats["player_id"] == player_id]
+    if player_rows.empty:
+        raise PlayerNotFoundError(f"No stats found for player_id: {player_id}")
+    player = player_rows.iloc[0]
+
+    if player["position_group"] == "QB":
+        return _qb_td_involvement(player_id, player["recent_team"], season)
+
+    metric, label = USAGE_METRIC_BY_POSITION_GROUP.get(
+        player["position_group"], ("touches", "Touch Share")
+    )
+    team_stats = stats[stats["recent_team"] == player["recent_team"]]
+    pool = _usage_pool(team_stats, metric)
+    pool = pool.assign(usage_amount=_usage_amount(pool, metric))
+
+    # Everyone else in the pool with a non-zero amount, largest first - the
+    # breakdown shown when hovering the "rest of team" donut slice.
+    teammates = pool[(pool["player_id"] != player_id) & (pool["usage_amount"] > 0)].sort_values(
+        "usage_amount", ascending=False, kind="stable"
+    )
+
+    return {
+        "player_id": player_id,
+        "team": player["recent_team"],
+        "metric": metric,
+        "label": label,
+        "player_value": int(_usage_amount(player_rows, metric).iloc[0]),
+        "team_value": int(pool["usage_amount"].sum()),
+        "teammates": [
+            {"name": row["player_display_name"], "value": int(row["usage_amount"])}
+            for _, row in teammates.iterrows()
+        ],
+        "weekly": _usage_weekly(player["recent_team"], season, player_id, metric),
     }
 
 
