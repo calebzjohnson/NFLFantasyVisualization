@@ -28,12 +28,12 @@ function PlayerPage() {
       {bio.data && <PlayerBioBar bio={bio.data} team={team} />}
       {bio.data && playerId && (
         <>
+          <GameLogPanel playerId={playerId} position={bio.data.position} />
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             <PlayerRadarChart playerId={playerId} teamColor={team?.team_color ?? "var(--accent)"} />
             <TeamUsagePanel playerId={playerId} playerName={bio.data.display_name} />
           </div>
           <LeagueComparisonBeeswarm playerId={playerId} teamColor={team?.team_color ?? "var(--accent)"} />
-          <GameLogPanel playerId={playerId} position={bio.data.position} />
         </>
       )}
     </div>

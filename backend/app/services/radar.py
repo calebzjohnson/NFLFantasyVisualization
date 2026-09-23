@@ -53,8 +53,8 @@ RADAR_AXES: dict[str, list[tuple[str, str]]] = {
         ("success_rate", "Success Rate"),
         ("yards_per_carry", "Yards / Carry"),
         ("rush_yards_over_expected", "Rush Yards Over Expected"),
-        ("receiving_epa_per_target", "Receiving EPA / Target"),
-        ("redzone_touch_share", "Red Zone Touch Share"),
+        ("receiving_epa_per_target", "EPA / TGT"),
+        ("redzone_touch_share", "RZ Touch Share"),
     ],
     # Target share was dropped in favor of red zone target share - WOPR
     # already leans heavily on target share (1.5x weight in its own
@@ -63,11 +63,11 @@ RADAR_AXES: dict[str, list[tuple[str, str]]] = {
     # instead, a dimension none of the other 5 axes touch.
     "WR": [
         ("wopr", "WOPR"),
-        ("yac_per_reception", "YAC / Reception"),
-        ("receiving_epa_per_target", "Receiving EPA / Target"),
+        ("yac_per_reception", "YAC / REC"),
+        ("receiving_epa_per_target", "EPA / TGT"),
         ("avg_separation", "Avg. Separation"),
         ("yards_per_snap", "Yards / Snap"),
-        ("redzone_target_share", "Red Zone Target Share"),
+        ("redzone_target_share", "RZ TGT Share"),
     ],
     # TEs split heavy blocking duties with route-running, so a snap-based
     # rate (yards_per_snap) would penalize a blocking-heavy TE for plays he
@@ -75,11 +75,11 @@ RADAR_AXES: dict[str, list[tuple[str, str]]] = {
     # scoped to plays where he was actually thrown to.
     "TE": [
         ("wopr", "WOPR"),
-        ("yac_per_reception", "YAC / Reception"),
-        ("receiving_epa_per_target", "Receiving EPA / Target"),
+        ("yac_per_reception", "YAC / REC"),
+        ("receiving_epa_per_target", "EPA / TGT"),
         ("avg_separation", "Avg. Separation"),
-        ("yards_per_target", "Yards / Target"),
-        ("redzone_target_share", "Red Zone Target Share"),
+        ("yards_per_target", "Yards / TGT"),
+        ("redzone_target_share", "RZ TGT Share"),
     ],
 }
 

@@ -24,6 +24,29 @@ interface PlayerRadar {
   axes: RadarAxis[]
 }
 
+// Plain-language explanations for the footnote, keyed by axis key (labels
+// come from the backend and are abbreviated to fit the chart).
+const AXIS_GLOSSARY: Record<string, string> = {
+  epa_per_dropback:
+    "Expected Points Added per dropback - how much each pass play improved the team's chances of scoring.",
+  success_rate: "How often a play moved the team closer to scoring rather than setting it back.",
+  any_a: "Adjusted Net Yards per Attempt - passing yards per throw, with bonus credit for touchdowns and penalties for interceptions and sacks.",
+  passing_cpoe: "Completion % Over Expected - how many more passes he completes than an average QB would on the same throws.",
+  yards_per_pass: "Average passing yards gained per throw.",
+  adot: "Average Depth of Target - how far downfield his passes travel on average.",
+  rushing_epa_per_play: "Expected Points Added per carry - how much each run improved the team's chances of scoring.",
+  yards_per_carry: "Average rushing yards gained per carry.",
+  rush_yards_over_expected: "Rushing yards gained beyond what an average back would get given the blocking and defenders in front of him.",
+  receiving_epa_per_target: "Expected Points Added each time he's thrown to (TGT = target).",
+  redzone_touch_share: "His share of the team's carries and catches inside the opponent's 20-yard line (RZ = red zone), where most touchdowns are scored.",
+  wopr: "Weighted Opportunity Rating - blends his share of the team's targets and of its passing yardage downfield into one measure of how involved he is.",
+  yac_per_reception: "Yards After Catch per reception (REC) - how much he gains running with the ball once he's caught it.",
+  avg_separation: "Average distance, in yards, from the nearest defender when the ball arrives.",
+  yards_per_snap: "Receiving yards per play he's on the field.",
+  yards_per_target: "Receiving yards each time he's thrown to (TGT = target).",
+  redzone_target_share: "His share of the team's targets (TGT) inside the opponent's 20-yard line (RZ = red zone), where most touchdowns are scored.",
+}
+
 const chartConfig = {
   percentile: { label: "Percentile" },
 } satisfies ChartConfig
@@ -116,6 +139,17 @@ function PlayerRadarChart({ playerId, teamColor }: { playerId: string; teamColor
             Each axis is this player's percentile rank at their position this season; the dashed
             ring marks the 50th percentile, or league average.
           </p>
+          <details className="px-3 pb-1 pt-2 text-xs text-[var(--text-muted)]">
+            <summary className="cursor-pointer text-[var(--text-secondary)]">What do these stats mean?</summary>
+            <dl className="mt-2 grid gap-1.5">
+              {data.axes.map((axis) => (
+                <div key={axis.key}>
+                  <dt className="inline font-medium text-[var(--text-secondary)]">{axis.label}: </dt>
+                  <dd className="inline">{AXIS_GLOSSARY[axis.key] ?? "—"}</dd>
+                </div>
+              ))}
+            </dl>
+          </details>
         </div>
       )}
     </Panel>
