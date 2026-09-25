@@ -49,10 +49,6 @@ const chartConfig = {
   percentile: { label: "Percentile" },
 } satisfies ChartConfig
 
-// Axes sourced from NFL Next Gen Stats rather than play-by-play - see the
-// matching note in PlayerRadarChart.tsx.
-const NGS_AXES = new Set(["avg_separation", "rush_yards_over_expected"])
-
 // Adaptive clustering, not fixed bins: walk players in percentile order and
 // start a new cluster whenever the gap to the next player exceeds the
 // threshold, then jitter each cluster's dots alternating left/right of the
@@ -191,8 +187,6 @@ function LeagueComparisonBeeswarm({ playerId, teamColor }: { playerId: string; t
   // not an error. Without his own profile we can't tell which position's
   // pool to show him against, so the comparison just isn't available yet.
   const notEnoughVolume = playerRadar.error?.includes("(404)") ?? false
-  const ngsAxisLabels =
-    pool.data?.axes.filter((axis) => NGS_AXES.has(axis.key)).map((axis) => axis.label) ?? []
 
   function goToPlayer(id: string) {
     navigate(`/players/${id}`)
@@ -251,8 +245,6 @@ function LeagueComparisonBeeswarm({ playerId, teamColor }: { playerId: string; t
           <p className="px-3 pb-1 text-xs text-[var(--text-muted)]">
             Every qualifying player at the position this season, positioned by percentile rank on each
             axis - click a dot to view that player.
-            {ngsAxisLabels.length > 0 &&
-              ` ${ngsAxisLabels.join(" and ")} ${ngsAxisLabels.length > 1 ? "are" : "is"} sourced from NFL Next Gen Stats, which can take time to update or require higher minimum touches to appear, so those columns may have fewer dots.`}
           </p>
         </div>
       )}
