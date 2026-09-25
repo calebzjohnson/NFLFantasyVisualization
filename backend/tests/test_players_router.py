@@ -52,9 +52,14 @@ def test_get_players_rejects_unknown_field_with_400(
 
 
 def test_get_weekly_players(
-    monkeypatch: pytest.MonkeyPatch, sample_week_stats: pd.DataFrame
+    monkeypatch: pytest.MonkeyPatch,
+    sample_week_stats: pd.DataFrame,
+    sample_week_schedule: pd.DataFrame,
 ) -> None:
     monkeypatch.setattr("app.data.player_stats.get_week_stats", lambda season: sample_week_stats)
+    monkeypatch.setattr(
+        "app.data.schedules.get_season_schedule", lambda season: sample_week_schedule
+    )
 
     response = client.get("/players/weekly?position_group=QB&fields=player_id,week")
 

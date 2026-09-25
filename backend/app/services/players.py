@@ -4,7 +4,7 @@ import nflreadpy as nfl
 import pandas as pd
 
 from app.data import pbp as pbp_data
-from app.data import player_stats, snap_counts
+from app.data import player_stats, schedules, snap_counts
 from app.data import players as players_data
 
 REGULAR_SEASON = "REG"
@@ -61,6 +61,25 @@ def get_current_player_stats(
     return cast(list[dict[str, Any]], records)
 
 
+def _last_complete_week(stats: pd.DataFrame, schedule: pd.DataFrame) -> int:
+    """The latest regular-season week whose stats are fully in: every team
+    scheduled that week has rows in `stats`. nflverse loads a week's stats
+    one game day at a time (Thursday, then Sunday, then Monday), so the
+    newest week is often partial. Weeks before the newest one are always
+    treated as complete, since a later week having stats means they're over
+    (and canceled games are removed from nflverse's schedule, so they can't
+    hold a week open). Teams on bye aren't on that week's schedule, so they
+    aren't required.
+    """
+    if stats.empty:
+        return 0
+    latest = int(stats["week"].max())
+    games = schedule[(schedule["game_type"] == REGULAR_SEASON) & (schedule["week"] == latest)]
+    scheduled = set(games["home_team"]) | set(games["away_team"])
+    reported = set(stats.loc[stats["week"] == latest, "team"])
+    return latest if scheduled <= reported else latest - 1
+
+
 def get_weekly_player_stats(
     position_group: str | None = None,
     fields: list[str] | None = None,
@@ -68,13 +87,21 @@ def get_weekly_player_stats(
     """One row per player per regular-season game this season, for every
     player at a position (not just one) - backs the trending-players chart,
     which needs to compare week-by-week movement across a whole position.
+
+    Only completed weeks are returned (see _last_complete_week), so players
+    whose teams already played this week (e.g. on Thursday night) aren't
+    compared against players whose games haven't happened yet.
     """
     season = nfl.get_current_season()
     stats = player_stats.get_week_stats(season)
     if stats.empty:
-        stats = player_stats.get_week_stats(season - 1)
+        season -= 1
+        stats = player_stats.get_week_stats(season)
 
     stats = stats[stats["season_type"] == "REG"]
+    # Before the position filter: completeness is judged across every team.
+    schedule = schedules.get_season_schedule(season)
+    stats = stats[stats["week"] <= _last_complete_week(stats, schedule)]
 
     if position_group is not None:
         stats = stats[stats["position_group"] == position_group]

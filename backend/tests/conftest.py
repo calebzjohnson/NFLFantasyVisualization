@@ -44,22 +44,35 @@ def sample_week_stats() -> pd.DataFrame:
     player per game. Q1 has three REG games (out of order, to test sorting)
     plus one POST game (to test regular-season filtering), and W1 is a
     different player entirely (to test filtering by player_id and by
-    position_group). Week 2's `pacr` is NaN, mirroring a real game where the
-    rate stat doesn't apply.
+    position_group) on the opposing team, NYG. Week 2's `pacr` is NaN,
+    mirroring a real game where the rate stat doesn't apply. Pairs with
+    sample_week_schedule, where every week here is complete.
     """
     rows = [
         dict(player_id="Q1", player_display_name="Q One", position="QB", position_group="QB",
-             week=3, season_type="REG", passing_yards=250, pacr=1.2),
+             team="DAL", week=3, season_type="REG", passing_yards=250, pacr=1.2),
         dict(player_id="Q1", player_display_name="Q One", position="QB", position_group="QB",
-             week=1, season_type="REG", passing_yards=300, pacr=1.5),
+             team="DAL", week=1, season_type="REG", passing_yards=300, pacr=1.5),
         dict(player_id="Q1", player_display_name="Q One", position="QB", position_group="QB",
-             week=2, season_type="REG", passing_yards=180, pacr=np.nan),
+             team="DAL", week=2, season_type="REG", passing_yards=180, pacr=np.nan),
         dict(player_id="Q1", player_display_name="Q One", position="QB", position_group="QB",
-             week=19, season_type="POST", passing_yards=400, pacr=2.0),
+             team="DAL", week=19, season_type="POST", passing_yards=400, pacr=2.0),
         dict(player_id="W1", player_display_name="W One", position="WR", position_group="WR",
-             week=1, season_type="REG", passing_yards=0, pacr=np.nan),
+             team="NYG", week=1, season_type="REG", passing_yards=0, pacr=np.nan),
+        dict(player_id="W1", player_display_name="W One", position="WR", position_group="WR",
+             team="NYG", week=3, season_type="REG", passing_yards=0, pacr=np.nan),
     ]
     return pd.DataFrame(rows)
+
+
+@pytest.fixture
+def sample_week_schedule() -> pd.DataFrame:
+    """Schedule matching sample_week_stats: DAL at NYG in weeks 1-3, so both
+    teams have stats in the newest week (3) and it counts as complete.
+    """
+    return pd.DataFrame(
+        [dict(game_type="REG", week=w, away_team="DAL", home_team="NYG") for w in (1, 2, 3)]
+    )
 
 
 @pytest.fixture
