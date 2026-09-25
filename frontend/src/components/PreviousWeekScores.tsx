@@ -19,6 +19,7 @@ import {
 import { logoByTeam, type TeamInfo } from "../data/teams"
 import { useFetch } from "../lib/useFetch"
 import Panel from "./Panel"
+import TeamLink from "./TeamLink"
 
 const MIN_WEEK = 1
 const MAX_WEEK = 18
@@ -37,12 +38,12 @@ function TeamLine({
   const tone = won ? "font-semibold text-[var(--text-primary)]" : "text-[var(--text-secondary)]"
   return (
     <div className="flex items-center justify-between gap-4">
-      <span className={`flex items-center gap-2 ${tone}`}>
+      <TeamLink team={team} className={`flex items-center gap-2 ${tone}`}>
         {logo && (
           <img src={logo} alt="" width={20} height={20} loading="lazy" className="h-5 w-5 shrink-0 object-contain" />
         )}
         {team}
-      </span>
+      </TeamLink>
       <span className={`font-display text-xl tabular-nums ${tone}`}>{score ?? "–"}</span>
     </div>
   )
@@ -142,18 +143,20 @@ function PreviousWeekScores() {
               </div>
               <ul>
                 {byes.map((team) => (
-                  <li key={team} className="flex min-h-7 items-center gap-2 text-[var(--text-secondary)]">
-                    {logos.has(team) && (
-                      <img
-                        src={logos.get(team)}
-                        alt=""
-                        width={20}
-                        height={20}
-                        loading="lazy"
-                        className="h-5 w-5 shrink-0 object-contain"
-                      />
-                    )}
-                    {team}
+                  <li key={team} className="flex min-h-7 items-center text-[var(--text-secondary)]">
+                    <TeamLink team={team} className="flex items-center gap-2">
+                      {logos.has(team) && (
+                        <img
+                          src={logos.get(team)}
+                          alt=""
+                          width={20}
+                          height={20}
+                          loading="lazy"
+                          className="h-5 w-5 shrink-0 object-contain"
+                        />
+                      )}
+                      {team}
+                    </TeamLink>
                   </li>
                 ))}
               </ul>

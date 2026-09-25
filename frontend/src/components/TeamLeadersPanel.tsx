@@ -8,6 +8,7 @@ import { TEAM_METRICS, TEAM_SIDES, type TeamSeasonRow, type TeamSide } from "../
 import DetailedLeaderTable from "./DetailedLeaderTable"
 import Panel from "./Panel"
 import PositionGroupToggle from "./PositionGroupToggle"
+import TeamLink from "./TeamLink"
 import { TeamLogoBadge } from "./TeamLogo"
 
 const LEADER_ROWS_SHOWN = 5
@@ -23,7 +24,9 @@ function TeamCell({ row }: { row: TeamLeaderRow }) {
     <div className="flex items-center gap-3">
       <TeamLogoBadge logo={row.logo} size="h-8 w-8" />
       <div>
-        <div className="font-medium text-[var(--text-primary)]">{row.name}</div>
+        <TeamLink team={row.team} className="font-medium text-[var(--text-primary)]">
+          {row.name}
+        </TeamLink>
         <div className="text-xs text-[var(--text-secondary)]">{row.team}</div>
       </div>
     </div>
