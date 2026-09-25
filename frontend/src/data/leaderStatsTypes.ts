@@ -11,6 +11,8 @@ export interface DetailedLeaderRow {
   playerId: string
   player: string
   team: string
+  headshot: string | null
+  teamColor: string
   stats: Record<string, number>
 }
 

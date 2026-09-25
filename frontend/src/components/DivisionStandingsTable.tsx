@@ -3,7 +3,8 @@
 import { type DivisionStanding, formatPct } from "../data/standings"
 import Panel from "./Panel"
 
-function DivisionStandingsTable({ division, teams }: DivisionStanding) {
+// Team abbreviation -> logo URL (see logoByTeam). A team missing from it just shows its abbreviation.
+function DivisionStandingsTable({ division, teams, logos }: DivisionStanding & { logos: Map<string, string> }) {
   return (
     <Panel title={division}>
       <table className="w-full table-fixed text-sm">
@@ -27,7 +28,21 @@ function DivisionStandingsTable({ division, teams }: DivisionStanding) {
               >
                 {index + 1}
               </td>
-              <td className="px-2 py-2 align-top font-medium text-[var(--text-primary)]">{record.team}</td>
+              <td className="px-2 py-2 align-top font-medium text-[var(--text-primary)]">
+                <span className="flex items-center gap-2">
+                  {logos.has(record.team) && (
+                    <img
+                      src={logos.get(record.team)}
+                      alt=""
+                      width={20}
+                      height={20}
+                      loading="lazy"
+                      className="h-5 w-5 shrink-0 object-contain"
+                    />
+                  )}
+                  {record.team}
+                </span>
+              </td>
               <td className="px-2 py-2 align-top text-right text-[var(--text-secondary)]">{record.wins}</td>
               <td className="px-2 py-2 align-top text-right text-[var(--text-secondary)]">{record.losses}</td>
               <td className="px-2 py-2 align-top text-right text-[var(--text-secondary)]">{record.ties}</td>

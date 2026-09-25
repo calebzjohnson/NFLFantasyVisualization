@@ -1,11 +1,11 @@
 // PlayerComparisonScatter.tsx
 // Scatterplot comparing every player in the active position group across two
 // user-selected metrics. Built on the Evil Charts chart/tooltip base (same
-// foundation as the homepage's Team Efficiency chart). Markers are team-
-// colored dots with the player's initials - real headshots were tried first,
-// but clipping ~170 photos per position was the actual performance
-// bottleneck (confirmed by disabling them), so this trades the photo for
-// something just as identifying at a fraction of the render cost.
+// foundation as the homepage's Team Efficiency chart). Markers are player
+// headshots in a team-colored ring (initials when there's no photo). An
+// earlier headshot version was slow because it drew ~170 full-size (~630 KB,
+// 3400px) photos, each with its own clipPath; these are 128px, pre-cropped
+// round by the CDN (~7 KB each), so there's nothing to clip.
 import { memo, useEffect, useMemo, useState } from "react"
 import { CartesianGrid, ReferenceLine, Scatter, ScatterChart, XAxis, YAxis } from "recharts"
 import { useNavigate } from "react-router-dom"
@@ -18,12 +18,14 @@ import {
   type PlayerStatsRow,
 } from "../data/playerMetrics"
 import type { TeamInfo } from "../data/teams"
+import { headshotUrl } from "../lib/imageUrls"
 import { initialsFor, readableTextColor } from "../lib/playerVisuals"
 import { useFetch } from "../lib/useFetch"
 import AxisSelect from "./AxisSelect"
 import { ChartContainer, type ChartConfig } from "./evilcharts/ui/recharts-chart"
 import { ChartTooltip, ChartTooltipContent } from "./evilcharts/ui/recharts-tooltip"
 import Panel from "./Panel"
+import PlayerAvatar from "./PlayerAvatar"
 
 const chartConfig = {
   player: { label: "Player" },
@@ -66,10 +68,15 @@ function valueDomain(values: number[]): [number, number] {
 }
 
 const MARKER_RADIUS = 11
+// Team-color ring width around a headshot.
+const RING = 2
+// ~6x the photo's on-screen size, the ratio that looked sharp for leader avatars.
+const MARKER_PHOTO_PX = 128
 
-// A team-colored dot with the player's initials, with a surface-color ring
-// so it stays legible where points overlap. The transparent hit circle keeps
-// the hover/focus target >=24px even though the visible mark is smaller.
+// A team-colored dot showing the player's headshot (or initials, with no
+// photo), with a surface-color ring so it stays legible where points overlap.
+// The transparent hit circle keeps the hover/focus target >=24px even though
+// the visible mark is smaller.
 // Memoized so hovering one marker doesn't force the other ~170 to re-render.
 const PlayerDot = memo(function PlayerDot({
   cx,
@@ -104,43 +111,37 @@ const PlayerDot = memo(function PlayerDot({
         stroke="var(--surface-1)"
         strokeWidth={2}
       />
-      <text
-        x={cx}
-        y={cy}
-        textAnchor="middle"
-        dominantBaseline="central"
-        fontSize={9}
-        fontWeight={700}
-        fill={readableTextColor(payload.color)}
-      >
-        {payload.initials}
-      </text>
+      {payload.headshot ? (
+        <image
+          href={headshotUrl(payload.headshot, MARKER_PHOTO_PX, true)}
+          x={cx - MARKER_RADIUS + RING}
+          y={cy - MARKER_RADIUS + RING}
+          width={(MARKER_RADIUS - RING) * 2}
+          height={(MARKER_RADIUS - RING) * 2}
+        />
+      ) : (
+        <text
+          x={cx}
+          y={cy}
+          textAnchor="middle"
+          dominantBaseline="central"
+          fontSize={9}
+          fontWeight={700}
+          fill={readableTextColor(payload.color)}
+        >
+          {payload.initials}
+        </text>
+      )}
     </g>
   )
 })
 
-// The scatter markers themselves stay initials-only (rendering ~170 headshot
-// images at once was the actual perf bottleneck), but the tooltip only ever
-// shows one player at a time, so the photo is effectively free here.
+// Tooltip header: a bigger (non-round, 192px) headshot beside the name and team.
 function TooltipHeader({ point }: { point?: PlayerPoint }) {
   if (!point) return null
   return (
     <div className="flex items-center gap-2">
-      {point.headshot ? (
-        <img
-          src={point.headshot}
-          alt=""
-          className="h-9 w-9 shrink-0 rounded-full object-cover"
-          style={{ backgroundColor: point.color }}
-        />
-      ) : (
-        <span
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[10px] font-bold"
-          style={{ backgroundColor: point.color, color: readableTextColor(point.color) }}
-        >
-          {point.initials}
-        </span>
-      )}
+      <PlayerAvatar name={point.name} headshot={point.headshot} color={point.color} size="h-9 w-9" />
       <div>
         <div className="text-sm text-[var(--text-primary)]">{point.name}</div>
         <div className="text-[10px] font-normal tracking-wider text-[var(--text-muted)] uppercase">

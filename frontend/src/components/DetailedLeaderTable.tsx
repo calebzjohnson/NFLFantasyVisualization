@@ -1,7 +1,8 @@
 // DetailedLeaderTable.tsx
-// Ranked player table with per-category stat columns.
+// Ranked player table with per-category stat columns and a headshot per player.
 import { Link } from "react-router-dom"
 import type { DetailedLeaderRow, LeaderColumn } from "../data/leaderStatsTypes"
+import PlayerAvatar from "./PlayerAvatar"
 
 const TONE = {
   positive: "text-[var(--positive)]",
@@ -53,14 +54,19 @@ function DetailedLeaderTable({ columns, rows, sortKey, sortDesc, onSort }: Detai
               {row.rank}
             </td>
             <td className="px-2 py-2">
-              <Link
-                to={`/players/${row.playerId}`}
-                state={{ playerName: row.player }}
-                className="font-medium text-[var(--text-primary)] hover:text-[var(--accent)] hover:underline"
-              >
-                {row.player}
-              </Link>
-              <div className="text-xs text-[var(--text-secondary)]">{row.team}</div>
+              <div className="flex items-center gap-3">
+                <PlayerAvatar name={row.player} headshot={row.headshot} color={row.teamColor} size="h-8 w-8" />
+                <div>
+                  <Link
+                    to={`/players/${row.playerId}`}
+                    state={{ playerName: row.player }}
+                    className="font-medium text-[var(--text-primary)] hover:text-[var(--accent)] hover:underline"
+                  >
+                    {row.player}
+                  </Link>
+                  <div className="text-xs text-[var(--text-secondary)]">{row.team}</div>
+                </div>
+              </div>
             </td>
             {columns.map((column, index) => (
               <td

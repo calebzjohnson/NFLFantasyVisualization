@@ -1,8 +1,15 @@
 // teams.ts
-// Type for /teams. Only the fields the UI reads are declared.
+// Type for /teams (only the fields the UI reads), plus a team -> resized logo lookup.
+import { teamLogoUrl } from "../lib/imageUrls"
+
 export interface TeamInfo {
   team_abbr: string
   team_name: string
   team_logo_espn: string
   team_color: string
+}
+
+// Abbreviation -> CDN-resized logo URL, for panels that only have a team's abbreviation.
+export function logoByTeam(teams: TeamInfo[] | null): Map<string, string> {
+  return new Map(teams?.map((team) => [team.team_abbr, teamLogoUrl(team.team_logo_espn)]))
 }

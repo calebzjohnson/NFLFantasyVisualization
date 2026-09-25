@@ -16,7 +16,7 @@ import {
   SLATE_ROWS,
   type GameScore,
 } from "../data/scores"
-import type { TeamInfo } from "../data/teams"
+import { logoByTeam, type TeamInfo } from "../data/teams"
 import { useFetch } from "../lib/useFetch"
 import Panel from "./Panel"
 
@@ -25,17 +25,24 @@ const MAX_WEEK = 18
 
 function TeamLine({
   team,
+  logo,
   score,
   won,
 }: {
   team: string
+  logo: string | undefined
   score: number | null
   won: boolean
 }) {
   const tone = won ? "font-semibold text-[var(--text-primary)]" : "text-[var(--text-secondary)]"
   return (
     <div className="flex items-center justify-between gap-4">
-      <span className={tone}>{team}</span>
+      <span className={`flex items-center gap-2 ${tone}`}>
+        {logo && (
+          <img src={logo} alt="" width={20} height={20} loading="lazy" className="h-5 w-5 shrink-0 object-contain" />
+        )}
+        {team}
+      </span>
       <span className={`font-display text-xl tabular-nums ${tone}`}>{score ?? "–"}</span>
     </div>
   )
@@ -46,6 +53,7 @@ function PreviousWeekScores() {
   const path = week === null ? "/scores" : `/scores?week=${week}`
   const { data, error, loading } = useFetch<GameScore[]>(path)
   const teams = useFetch<TeamInfo[]>("/teams")
+  const logos = logoByTeam(teams.data)
 
   // Keep showing the previous week's slate (dimmed) while the next one loads, so
   // the panel holds its height instead of collapsing and reflowing the page on
@@ -105,6 +113,7 @@ function PreviousWeekScores() {
               </div>
               <TeamLine
                 team={game.away_team}
+                logo={logos.get(game.away_team)}
                 score={game.away_score}
                 won={
                   game.status === "final" &&
@@ -115,6 +124,7 @@ function PreviousWeekScores() {
               />
               <TeamLine
                 team={game.home_team}
+                logo={logos.get(game.home_team)}
                 score={game.home_score}
                 won={
                   game.status === "final" &&
@@ -132,7 +142,17 @@ function PreviousWeekScores() {
               </div>
               <ul>
                 {byes.map((team) => (
-                  <li key={team} className="flex min-h-7 items-center text-[var(--text-secondary)]">
+                  <li key={team} className="flex min-h-7 items-center gap-2 text-[var(--text-secondary)]">
+                    {logos.has(team) && (
+                      <img
+                        src={logos.get(team)}
+                        alt=""
+                        width={20}
+                        height={20}
+                        loading="lazy"
+                        className="h-5 w-5 shrink-0 object-contain"
+                      />
+                    )}
                     {team}
                   </li>
                 ))}
