@@ -267,9 +267,14 @@ def test_get_player_bio_raises_for_unknown_player(
 
 
 def test_get_weekly_player_stats_filters_position_and_regular_season(
-    monkeypatch: pytest.MonkeyPatch, sample_week_stats: pd.DataFrame
+    monkeypatch: pytest.MonkeyPatch,
+    sample_week_stats: pd.DataFrame,
+    sample_week_schedule: pd.DataFrame,
 ) -> None:
     monkeypatch.setattr("app.data.player_stats.get_week_stats", lambda season: sample_week_stats)
+    monkeypatch.setattr(
+        "app.data.schedules.get_season_schedule", lambda season: sample_week_schedule
+    )
 
     records = get_weekly_player_stats(position_group="QB")
 
@@ -279,9 +284,14 @@ def test_get_weekly_player_stats_filters_position_and_regular_season(
 
 
 def test_get_weekly_player_stats_includes_every_player_without_a_position_filter(
-    monkeypatch: pytest.MonkeyPatch, sample_week_stats: pd.DataFrame
+    monkeypatch: pytest.MonkeyPatch,
+    sample_week_stats: pd.DataFrame,
+    sample_week_schedule: pd.DataFrame,
 ) -> None:
     monkeypatch.setattr("app.data.player_stats.get_week_stats", lambda season: sample_week_stats)
+    monkeypatch.setattr(
+        "app.data.schedules.get_season_schedule", lambda season: sample_week_schedule
+    )
 
     records = get_weekly_player_stats()
 
@@ -289,9 +299,41 @@ def test_get_weekly_player_stats_includes_every_player_without_a_position_filter
 
 
 def test_get_weekly_player_stats_rejects_unknown_field(
-    monkeypatch: pytest.MonkeyPatch, sample_week_stats: pd.DataFrame
+    monkeypatch: pytest.MonkeyPatch,
+    sample_week_stats: pd.DataFrame,
+    sample_week_schedule: pd.DataFrame,
 ) -> None:
     monkeypatch.setattr("app.data.player_stats.get_week_stats", lambda season: sample_week_stats)
+    monkeypatch.setattr(
+        "app.data.schedules.get_season_schedule", lambda season: sample_week_schedule
+    )
 
     with pytest.raises(InvalidQueryError):
         get_weekly_player_stats(fields=["not_a_real_field"])
+
+
+def test_get_weekly_player_stats_hides_partially_played_week(
+    monkeypatch: pytest.MonkeyPatch,
+    sample_week_stats: pd.DataFrame,
+    sample_week_schedule: pd.DataFrame,
+) -> None:
+    # Week 4 after Thursday night: DAL (the Thursday team) has stats, but
+    # PHI/WAS haven't played yet, so week 4 is left out for everyone.
+    thursday = sample_week_stats.iloc[[0]].assign(week=4, team="DAL")
+    stats = pd.concat([sample_week_stats, thursday], ignore_index=True)
+    schedule = pd.concat(
+        [
+            sample_week_schedule,
+            pd.DataFrame([
+                dict(game_type="REG", week=4, away_team="DAL", home_team="NYG"),
+                dict(game_type="REG", week=4, away_team="PHI", home_team="WAS"),
+            ]),
+        ],
+        ignore_index=True,
+    )
+    monkeypatch.setattr("app.data.player_stats.get_week_stats", lambda season: stats)
+    monkeypatch.setattr("app.data.schedules.get_season_schedule", lambda season: schedule)
+
+    records = get_weekly_player_stats(position_group="QB")
+
+    assert [r["week"] for r in records] == [1, 2, 3]
