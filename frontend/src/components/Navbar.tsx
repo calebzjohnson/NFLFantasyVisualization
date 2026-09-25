@@ -1,6 +1,7 @@
 // Navbar.tsx
-// Persistent top bar: site title and page tabs.
+// Persistent top bar: site title, page tabs, and a teams + players search.
 import { Link, NavLink } from "react-router-dom"
+import SearchBar from "./SearchBar"
 
 const NAV_TABS = [
   { label: "Home", to: "/" },
@@ -10,8 +11,10 @@ const NAV_TABS = [
 ] as const
 
 function Navbar() {
+  // relative z-20: backdrop-blur puts the nav on its own layer, so without a
+  // z-index the search dropdown would render underneath later page content.
   return (
-    <nav className="border-b border-[var(--border)] bg-[var(--surface-1)]/90 backdrop-blur">
+    <nav className="relative z-20 border-b border-[var(--border)] bg-[var(--surface-1)]/90 backdrop-blur">
       <div className="mx-auto flex max-w-[1300px] flex-wrap items-center gap-x-8 gap-y-2 px-6 py-3">
         <Link
           to="/"
@@ -38,6 +41,9 @@ function Navbar() {
             </li>
           ))}
         </ul>
+        <div className="ml-auto w-64">
+          <SearchBar placeholder="Search teams & players..." scope="all" />
+        </div>
       </div>
     </nav>
   )

@@ -1,10 +1,11 @@
 // TeamsPage.tsx
-// Teams route: team leaders, a pick-your-axes team scatter, and trending
+// Teams route: team search, team leaders, a pick-your-axes team scatter, and trending
 // teams - all built from one /teams/weekly fetch. Clicking a team anywhere
 // opens its team page.
 import { useCallback, useMemo } from "react"
 import { useNavigate } from "react-router-dom"
 import MetricScatter from "../components/MetricScatter"
+import SearchBar from "../components/SearchBar"
 import TeamLeadersPanel from "../components/TeamLeadersPanel"
 import { TeamLogoBadge, TeamLogoMarker } from "../components/TeamLogo"
 import TrendChart from "../components/TrendChart"
@@ -33,7 +34,12 @@ function TeamsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="font-display text-3xl font-bold tracking-wide text-[var(--text-primary)] uppercase">Teams</h1>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <h1 className="font-display text-3xl font-bold tracking-wide text-[var(--text-primary)] uppercase">Teams</h1>
+        <div className="w-56">
+          <SearchBar placeholder="Search teams..." scope="teams" />
+        </div>
+      </div>
       <TeamLeadersPanel rows={seasonRows} loading={loading} error={error} />
       <MetricScatter
         title="Compare Teams"
