@@ -6,6 +6,7 @@ import ComingSoonPage from "./pages/ComingSoonPage"
 import HomePage from "./pages/HomePage"
 import PlayerPage from "./pages/PlayerPage"
 import PlayersPage from "./pages/PlayersPage"
+import TeamsPage from "./pages/TeamsPage"
 
 function App() {
   return (
@@ -14,7 +15,7 @@ function App() {
       <main className="mx-auto max-w-[1000px] px-6 py-8">
         <Routes>
           <Route path="/" element={<HomePage />} />
-          <Route path="/teams" element={<ComingSoonPage title="Teams" />} />
+          <Route path="/teams" element={<TeamsPage />} />
           <Route path="/players" element={<PlayersPage />} />
           <Route path="/players/:playerId" element={<PlayerPage />} />
           <Route path="/about" element={<ComingSoonPage title="About" />} />
