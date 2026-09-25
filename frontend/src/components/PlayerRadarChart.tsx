@@ -47,6 +47,11 @@ const AXIS_GLOSSARY: Record<string, string> = {
   redzone_target_share: "His share of the team's targets (TGT) inside the opponent's 20-yard line (RZ = red zone), where most touchdowns are scored.",
 }
 
+// Axes sourced from NFL Next Gen Stats rather than play-by-play - NGS lags
+// behind and imposes its own minimum-volume thresholds, so these can go
+// blank for a player even after the rest of their radar is populated.
+const NGS_AXES = new Set(["avg_separation", "rush_yards_over_expected"])
+
 const chartConfig = {
   percentile: { label: "Percentile" },
 } satisfies ChartConfig
@@ -82,6 +87,7 @@ function PlayerRadarChart({ playerId, teamColor }: { playerId: string; teamColor
   // percentile pool) - a normal, expected state for those players, not an
   // error.
   const notEnoughVolume = error?.includes("(404)") ?? false
+  const ngsAxisLabels = data?.axes.filter((axis) => NGS_AXES.has(axis.key)).map((axis) => axis.label) ?? []
 
   return (
     <Panel title="Player Breakdown">
@@ -149,6 +155,13 @@ function PlayerRadarChart({ playerId, teamColor }: { playerId: string; teamColor
                 </div>
               ))}
             </dl>
+            {ngsAxisLabels.length > 0 && (
+              <p className="mt-2 border-t border-[var(--border)] pt-2">
+                {ngsAxisLabels.join(" and ")} {ngsAxisLabels.length > 1 ? "are" : "is"} sourced from
+                NFL Next Gen Stats, which can take time to update or require higher minimum touches
+                to appear.
+              </p>
+            )}
           </details>
         </div>
       )}
