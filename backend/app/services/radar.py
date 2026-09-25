@@ -159,7 +159,10 @@ def _rb_metrics(
     rb["rush_yards_over_expected"] = rb["player_id"].map(ngs["rush_yards_over_expected"])
 
     touch_share = _redzone_touch_share(plays)
-    rb["redzone_touch_share"] = rb["player_id"].map(touch_share)
+    # A player with zero red zone touches doesn't appear in touch_share at
+    # all (it's built from a groupby over red zone plays), so a plain .map()
+    # would wrongly read as "no data" (null) instead of a real, known 0%.
+    rb["redzone_touch_share"] = rb["player_id"].map(touch_share).fillna(0)
 
     return rb
 
@@ -250,7 +253,10 @@ def _receiving_base_metrics(
     ngs = ngs_receiving.set_index("player_gsis_id")
     receivers["avg_separation"] = receivers["player_id"].map(ngs["avg_separation"])
 
-    receivers["redzone_target_share"] = receivers["player_id"].map(redzone_share)
+    # A player with zero red zone targets doesn't appear in redzone_share at
+    # all (it's built from a groupby over red zone plays), so a plain .map()
+    # would wrongly read as "no data" (null) instead of a real, known 0%.
+    receivers["redzone_target_share"] = receivers["player_id"].map(redzone_share).fillna(0)
 
     return receivers
 
