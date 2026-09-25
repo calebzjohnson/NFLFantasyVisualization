@@ -4,11 +4,12 @@ import { passerRating, perAttempt } from "../lib/footballStats"
 import type { LeaderColumn } from "./leaderStatsTypes"
 
 // One row from /players, restricted via ?fields=... to whatever a category needs
-// plus the two identity fields every category asks for.
-export type RawPlayerRow = Record<string, string | number> & {
+// plus the identity fields every category asks for.
+export type RawPlayerRow = Record<string, string | number | null> & {
   player_id: string
   player_display_name: string
   recent_team: string
+  headshot_url: string | null
 }
 
 // The position groups the player-groups page toggles between. Extending this
@@ -54,6 +55,7 @@ function receivingCategory(position: "WR" | "TE"): LeaderCategoryConfig {
         "player_id",
         "player_display_name",
         "recent_team",
+        "headshot_url",
         "receptions",
         "targets",
         "receiving_yards",
@@ -95,6 +97,7 @@ export const LEADER_CATEGORIES: LeaderCategoryConfig[] = [
       "player_id",
       "player_display_name",
       "recent_team",
+      "headshot_url",
       "completions",
       "attempts",
       "passing_yards",
@@ -142,6 +145,7 @@ export const LEADER_CATEGORIES: LeaderCategoryConfig[] = [
       "player_id",
       "player_display_name",
       "recent_team",
+      "headshot_url",
       "carries",
       "rushing_yards",
       "rushing_tds",

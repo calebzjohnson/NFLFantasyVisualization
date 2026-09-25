@@ -7,6 +7,7 @@
 import { type ReactNode, useState } from "react"
 import { LEADER_CATEGORIES, type PositionGroup, type RawPlayerRow } from "../data/leaderCategories"
 import type { DetailedLeaderRow } from "../data/leaderStatsTypes"
+import type { TeamInfo } from "../data/teams"
 import { useFetch } from "../lib/useFetch"
 import DetailedLeaderTable from "./DetailedLeaderTable"
 import Panel from "./Panel"
@@ -22,6 +23,8 @@ function StatLeadersPanel({
 }) {
   const active = LEADER_CATEGORIES.find((category) => category.position === position)!
   const { data, error, loading } = useFetch<RawPlayerRow[]>(active.path)
+  const teams = useFetch<TeamInfo[]>("/teams")
+  const colorByTeam = new Map(teams.data?.map((team) => [team.team_abbr, team.team_color]))
 
   const [sortedPosition, setSortedPosition] = useState(position)
   const [sortKey, setSortKey] = useState(active.defaultSortKey)
@@ -50,6 +53,8 @@ function StatLeadersPanel({
         playerId: String(row.player_id),
         player: String(row.player_display_name),
         team: String(row.recent_team),
+        headshot: row.headshot_url,
+        teamColor: colorByTeam.get(String(row.recent_team)) ?? "var(--accent)",
         stats: active.toStats(row),
       }))
       .sort((a, b) => (sortDesc ? b.stats[sortKey] - a.stats[sortKey] : a.stats[sortKey] - b.stats[sortKey]))

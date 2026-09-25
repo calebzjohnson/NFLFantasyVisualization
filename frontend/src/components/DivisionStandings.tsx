@@ -1,12 +1,15 @@
 // DivisionStandings.tsx
-// Fetches /standings and renders every division's table in one panel.
+// Fetches /standings (plus /teams for logos) and renders every division's table in one panel.
 import type { DivisionStanding } from "../data/standings"
+import { logoByTeam, type TeamInfo } from "../data/teams"
 import { useFetch } from "../lib/useFetch"
 import DivisionStandingsTable from "./DivisionStandingsTable"
 import Panel from "./Panel"
 
 function DivisionStandings() {
   const { data, error, loading } = useFetch<DivisionStanding[]>("/standings")
+  const teams = useFetch<TeamInfo[]>("/teams")
+  const logos = logoByTeam(teams.data)
 
   return (
     <Panel title="Division Standings">
@@ -15,7 +18,7 @@ function DivisionStandings() {
       {data && (
         <div className="grid grid-cols-1 gap-4 p-4">
           {data.map((division) => (
-            <DivisionStandingsTable key={division.division} {...division} />
+            <DivisionStandingsTable key={division.division} {...division} logos={logos} />
           ))}
         </div>
       )}

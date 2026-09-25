@@ -1,6 +1,7 @@
 // efficiency.ts
 // Type for /teams/efficiency, plus the join with /teams and the math the
 // offense-vs-defense scatter needs.
+import { teamLogoUrl } from "../lib/imageUrls"
 import type { TeamInfo } from "./teams"
 
 export interface TeamEfficiency {
@@ -49,7 +50,7 @@ export function toTeamPoints(efficiency: TeamEfficiency[], teams: TeamInfo[]): T
     rows.push({
       team: row.team,
       name: info.team_name,
-      logo: info.team_logo_espn,
+      logo: teamLogoUrl(info.team_logo_espn),
       offense: row.offensive_epa_per_play,
       defense: row.defensive_epa_per_play,
       offensePlays: row.offensive_plays,
