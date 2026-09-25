@@ -28,7 +28,7 @@ function PlayersPage() {
           />
         </div>
         <div className="w-56">
-          <SearchBar placeholder="Search players..." />
+          <SearchBar placeholder="Search players..." scope="players" />
         </div>
       </div>
       <StatLeadersPanel position={position} />
