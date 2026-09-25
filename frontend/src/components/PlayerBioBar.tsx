@@ -9,6 +9,7 @@ import {
 } from "../data/playerBio"
 import type { TeamInfo } from "../data/teams"
 import { headshotUrl, teamLogoUrl } from "../lib/imageUrls"
+import TeamLink from "./TeamLink"
 
 interface PlayerBioBarProps {
   bio: PlayerBio
@@ -47,8 +48,14 @@ function PlayerBioBar({ bio, team }: PlayerBioBarProps) {
             {bio.display_name}
           </h1>
           <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-[var(--text-secondary)]">
-            {team && <img src={teamLogoUrl(team.team_logo_espn)} alt="" className="h-5 w-5 object-contain" />}
-            <span>{team?.team_name ?? bio.team ?? "Free Agent"}</span>
+            {team ? (
+              <TeamLink team={team.team_abbr} className="flex items-center gap-2">
+                <img src={teamLogoUrl(team.team_logo_espn)} alt="" className="h-5 w-5 object-contain" />
+                {team.team_name}
+              </TeamLink>
+            ) : (
+              <span>{bio.team ?? "Free Agent"}</span>
+            )}
             {bio.jersey_number && <span>· #{bio.jersey_number}</span>}
             {bio.position && <span>· {bio.position}</span>}
           </div>

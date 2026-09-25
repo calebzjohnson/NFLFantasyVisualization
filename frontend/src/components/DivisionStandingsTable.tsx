@@ -2,6 +2,7 @@
 // One division's standings table, in the API's tiebreaker order.
 import { type DivisionStanding, formatPct } from "../data/standings"
 import Panel from "./Panel"
+import TeamLink from "./TeamLink"
 
 // Team abbreviation -> logo URL (see logoByTeam). A team missing from it just shows its abbreviation.
 function DivisionStandingsTable({ division, teams, logos }: DivisionStanding & { logos: Map<string, string> }) {
@@ -29,7 +30,7 @@ function DivisionStandingsTable({ division, teams, logos }: DivisionStanding & {
                 {index + 1}
               </td>
               <td className="px-2 py-2 align-top font-medium text-[var(--text-primary)]">
-                <span className="flex items-center gap-2">
+                <TeamLink team={record.team} className="flex items-center gap-2">
                   {logos.has(record.team) && (
                     <img
                       src={logos.get(record.team)}
@@ -41,7 +42,7 @@ function DivisionStandingsTable({ division, teams, logos }: DivisionStanding & {
                     />
                   )}
                   {record.team}
-                </span>
+                </TeamLink>
               </td>
               <td className="px-2 py-2 align-top text-right text-[var(--text-secondary)]">{record.wins}</td>
               <td className="px-2 py-2 align-top text-right text-[var(--text-secondary)]">{record.losses}</td>

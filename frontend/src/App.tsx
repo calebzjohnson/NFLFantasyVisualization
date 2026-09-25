@@ -6,6 +6,7 @@ import ComingSoonPage from "./pages/ComingSoonPage"
 import HomePage from "./pages/HomePage"
 import PlayerPage from "./pages/PlayerPage"
 import PlayersPage from "./pages/PlayersPage"
+import TeamPage from "./pages/TeamPage"
 import TeamsPage from "./pages/TeamsPage"
 
 function App() {
@@ -16,6 +17,7 @@ function App() {
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/teams" element={<TeamsPage />} />
+          <Route path="/teams/:teamAbbr" element={<TeamPage />} />
           <Route path="/players" element={<PlayersPage />} />
           <Route path="/players/:playerId" element={<PlayerPage />} />
           <Route path="/about" element={<ComingSoonPage title="About" />} />

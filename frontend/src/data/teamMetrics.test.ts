@@ -2,7 +2,7 @@
 // Tests for team season totals, per-game team metrics, and trending teams.
 import { describe, expect, it } from "vitest"
 import { teamInfo } from "../test/fixtures"
-import { TEAM_METRICS, teamSeasonRows, trendingTeams, type TeamGameRow } from "./teamMetrics"
+import { TEAM_METRICS, teamGameLog, teamSeasonRows, trendingTeams, type TeamGameRow } from "./teamMetrics"
 
 function game(team: string, weekNumber: number, stats: Record<string, number> = {}): TeamGameRow {
   return { team, week: weekNumber, game_id: `g${weekNumber}`, opponent_team: "OPP", ...stats }
@@ -97,5 +97,30 @@ describe("trendingTeams", () => {
     const { up, down } = trendingTeams(games, metric("points"), [])
     expect(up).toEqual([])
     expect(down.map((l) => l.id)).toEqual(["MIA"])
+  })
+})
+
+describe("teamGameLog", () => {
+  const games = [
+    game("BUF", 2, { points_for: 20, points_against: 17, passing_yards: 200, def_sacks: 1.5 }),
+    game("MIA", 1, { points_for: 99 }),
+    game("BUF", 1, { points_for: 24, points_against: 10, passing_yards: 300, def_sacks: 2 }),
+  ]
+
+  it("lists only that team's games, oldest first, with the opponent", () => {
+    const { rows } = teamGameLog(games, "BUF")
+    expect(rows.map((row) => row.week)).toEqual([1, 2])
+    expect(rows[0].opponent).toBe("OPP")
+    expect(rows[0].stats).toMatchObject({ points: 24, points_allowed: 10, pass_yards: 300 })
+  })
+
+  it("totals every column across the season", () => {
+    expect(teamGameLog(games, "BUF").totals).toMatchObject({ points: 44, points_allowed: 27, sacks: 3.5 })
+  })
+
+  it("only uses columns that add up across games", () => {
+    const keys = teamGameLog(games, "BUF").columns.map((column) => column.key)
+    expect(keys).not.toContain("ypc")
+    expect(keys).not.toContain("completion_pct")
   })
 })

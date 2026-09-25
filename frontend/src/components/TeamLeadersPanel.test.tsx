@@ -1,8 +1,9 @@
 // TeamLeadersPanel.test.tsx
 // Tests for Team Leaders: top-5 cutoff, default sort, Offense/Defense toggle, and re-sorting.
-import { fireEvent, render, screen, within } from "@testing-library/react"
+import { fireEvent, screen, within } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import type { TeamSeasonRow } from "../data/teamMetrics"
+import { renderWithRouter } from "../test/render"
 import TeamLeadersPanel from "./TeamLeadersPanel"
 
 // Six teams: points scored 10..60, points allowed 60..10 (one game each).
@@ -24,12 +25,12 @@ function teamNamesInOrder(): string[] {
 
 describe("TeamLeadersPanel", () => {
   it("shows the top 5 offenses by points per game", () => {
-    render(<TeamLeadersPanel rows={rows} loading={false} error={null} />)
+    renderWithRouter(<TeamLeadersPanel rows={rows} loading={false} error={null} />)
     expect(teamNamesInOrder()).toEqual(["Team 6", "Team 5", "Team 4", "Team 3", "Team 2"])
   })
 
   it("switches to defense, sorted fewest points allowed first", () => {
-    render(<TeamLeadersPanel rows={rows} loading={false} error={null} />)
+    renderWithRouter(<TeamLeadersPanel rows={rows} loading={false} error={null} />)
     fireEvent.click(screen.getByRole("button", { name: "Defense" }))
 
     expect(screen.getByRole("button", { name: "Defense" })).toHaveAttribute("aria-pressed", "true")
@@ -37,16 +38,23 @@ describe("TeamLeadersPanel", () => {
   })
 
   it("flips the order when the active column is clicked again", () => {
-    render(<TeamLeadersPanel rows={rows} loading={false} error={null} />)
+    renderWithRouter(<TeamLeadersPanel rows={rows} loading={false} error={null} />)
     fireEvent.click(screen.getByRole("button", { name: /^PTS/ }))
     expect(teamNamesInOrder()).toEqual(["Team 1", "Team 2", "Team 3", "Team 4", "Team 5"])
   })
 
-  it("shows loading and error states", () => {
-    const { rerender } = render(<TeamLeadersPanel rows={null} loading error={null} />)
-    expect(screen.getByText("Loading…")).toBeInTheDocument()
+  it("links each team name to its team page", () => {
+    renderWithRouter(<TeamLeadersPanel rows={rows} loading={false} error={null} />)
+    expect(screen.getByRole("link", { name: "Team 6" })).toHaveAttribute("href", "/teams/T6")
+  })
 
-    rerender(<TeamLeadersPanel rows={null} loading={false} error="boom" />)
+  it("shows the loading state", () => {
+    renderWithRouter(<TeamLeadersPanel rows={null} loading error={null} />)
+    expect(screen.getByText("Loading…")).toBeInTheDocument()
+  })
+
+  it("shows the error state", () => {
+    renderWithRouter(<TeamLeadersPanel rows={null} loading={false} error="boom" />)
     expect(screen.getByText("Couldn't load team leaders: boom")).toBeInTheDocument()
   })
 })

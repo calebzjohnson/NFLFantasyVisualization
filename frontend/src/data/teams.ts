@@ -1,5 +1,5 @@
 // teams.ts
-// Type for /teams (only the fields the UI reads), plus a team -> resized logo lookup.
+// Type for /teams (only the fields the UI reads), a team -> resized logo lookup, and team page URLs.
 import { teamLogoUrl } from "../lib/imageUrls"
 
 export interface TeamInfo {
@@ -7,6 +7,10 @@ export interface TeamInfo {
   team_name: string
   team_logo_espn: string
   team_color: string
+}
+
+export function teamPath(abbr: string): string {
+  return `/teams/${encodeURIComponent(abbr)}`
 }
 
 // Abbreviation -> CDN-resized logo URL, for panels that only have a team's abbreviation.

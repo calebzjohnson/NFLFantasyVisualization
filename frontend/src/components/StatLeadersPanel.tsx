@@ -13,6 +13,7 @@ import { useFetch } from "../lib/useFetch"
 import DetailedLeaderTable from "./DetailedLeaderTable"
 import Panel from "./Panel"
 import PlayerAvatar from "./PlayerAvatar"
+import TeamLink from "./TeamLink"
 
 const LEADER_ROWS_SHOWN = 5
 
@@ -28,7 +29,9 @@ function PlayerCell({ row }: { row: DetailedLeaderRow }) {
         >
           {row.player}
         </Link>
-        <div className="text-xs text-[var(--text-secondary)]">{row.team}</div>
+        <TeamLink team={row.team} className="block text-xs text-[var(--text-secondary)]">
+          {row.team}
+        </TeamLink>
       </div>
     </div>
   )

@@ -52,7 +52,9 @@ cd frontend && npm test          # or `npm run test:watch` while working
 Frontend tests use Vitest, plus React Testing Library for components. Each
 test sits next to the file it covers (`teamMetrics.ts` → `teamMetrics.test.ts`),
 so add a new test to that file's existing test file, or create one alongside it. Shared
-test data builders live in `frontend/src/test/fixtures.ts`. Charts are tested
+test data builders live in `frontend/src/test/fixtures.ts`; `frontend/src/test/render.tsx`
+has `renderWithRouter` (for anything with links or URL params) and `mockApi`
+(answers API requests by path). Charts are tested
 through their states and controls, not their rendered SVG, because jsdom
 doesn't calculate layout.
 

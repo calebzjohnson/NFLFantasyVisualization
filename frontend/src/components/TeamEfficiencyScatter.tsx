@@ -1,8 +1,9 @@
 // TeamEfficiencyScatter.tsx
 // Offense vs defense EPA-per-play scatter: one team logo per point, with
-// league-average lines and quadrant labels. Built on the Evil Charts chart and
+// league-average lines and quadrant labels. Clicking a logo opens that team's page. Built on the Evil Charts chart and
 // tooltip base.
 import { useMemo } from "react"
+import { useNavigate } from "react-router-dom"
 import {
   CartesianGrid,
   ReferenceArea,
@@ -20,7 +21,7 @@ import {
   type TeamEfficiency,
   type TeamPoint,
 } from "../data/efficiency"
-import type { TeamInfo } from "../data/teams"
+import { teamPath, type TeamInfo } from "../data/teams"
 import { useFetch } from "../lib/useFetch"
 import { ChartContainer, type ChartConfig } from "./evilcharts/ui/recharts-chart"
 import { ChartTooltip, ChartTooltipContent } from "./evilcharts/ui/recharts-tooltip"
@@ -82,6 +83,7 @@ function TooltipRow({ name, value }: { name: string; value: number }) {
 const QUADRANT_LABEL = { fill: "var(--text-muted)", fontSize: 10, letterSpacing: 2 } as const
 
 function EfficiencyChart({ points }: { points: TeamPoint[] }) {
+  const navigate = useNavigate()
   const average = leagueAverages(points)
   const xDomain = paddedDomain(points.map((p) => p.offense))
   const yDomain = paddedDomain(points.map((p) => p.defense))
@@ -186,7 +188,12 @@ function EfficiencyChart({ points }: { points: TeamPoint[] }) {
               />
             }
           />
-          <Scatter data={points} shape={<TeamLogoMarker />} />
+          <Scatter
+            data={points}
+            shape={(props: { cx?: number; cy?: number; payload?: TeamPoint }) => (
+              <TeamLogoMarker {...props} onSelect={() => props.payload && navigate(teamPath(props.payload.team))} />
+            )}
+          />
         </ScatterChart>
       </ChartContainer>
       <p className="pt-2 text-xs text-[var(--text-muted)]">

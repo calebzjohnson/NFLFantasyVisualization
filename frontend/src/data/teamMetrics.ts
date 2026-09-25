@@ -1,7 +1,9 @@
 // teamMetrics.ts
 // Team stat catalog (offense and defense, per game) for the Teams page, plus
-// season rows and trending-team lines built from /teams/weekly.
+// season rows, trending-team lines, and the team page's game log, all built
+// from /teams/weekly.
 import { perAttempt } from "../lib/footballStats"
+import type { LeaderColumn } from "./leaderStatsTypes"
 import { teamLogoUrl } from "../lib/imageUrls"
 import { num, type PlayerMetric, type StatFields } from "./playerMetrics"
 import type { TeamInfo } from "./teams"
@@ -201,4 +203,36 @@ export function trendingTeams(
     })
   }
   return topTrends(lines)
+}
+
+// Team page game log columns: only stats that add up across games, so the
+// Total row can just sum them (no rate stats like Yards / Carry).
+const GAME_LOG_COLUMNS: LeaderColumn[] = [
+  { key: "points", label: "PTS" },
+  { key: "points_allowed", label: "OPP PTS" },
+  { key: "yards", label: "YDS" },
+  { key: "pass_yards", label: "PASS YDS" },
+  { key: "rush_yards", label: "RUSH YDS" },
+  { key: "turnovers", label: "TO", tone: "negative" },
+  { key: "yards_allowed", label: "YDS ALLOWED" },
+  { key: "sacks", label: "SCK" },
+  { key: "takeaways", label: "TKWY", tone: "positive" },
+]
+
+export function teamGameLog(games: TeamGameRow[], team: string) {
+  const metricByKey = new Map(TEAM_METRICS.map((metric) => [metric.key, metric]))
+  const rows = games
+    .filter((game) => game.team === team)
+    .sort((a, b) => a.week - b.week)
+    .map((game) => ({
+      week: game.week,
+      opponent: String(game.opponent_team),
+      stats: Object.fromEntries(
+        GAME_LOG_COLUMNS.map((column) => [column.key, metricByKey.get(column.key)!.value(game)]),
+      ),
+    }))
+  const totals = Object.fromEntries(
+    GAME_LOG_COLUMNS.map((column) => [column.key, rows.reduce((sum, row) => sum + row.stats[column.key], 0)]),
+  )
+  return { columns: GAME_LOG_COLUMNS, rows, totals }
 }

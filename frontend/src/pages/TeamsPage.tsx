@@ -1,17 +1,20 @@
 // TeamsPage.tsx
 // Teams route: team leaders, a pick-your-axes team scatter, and trending
-// teams - all built from one /teams/weekly fetch.
+// teams - all built from one /teams/weekly fetch. Clicking a team anywhere
+// opens its team page.
 import { useCallback, useMemo } from "react"
+import { useNavigate } from "react-router-dom"
 import MetricScatter from "../components/MetricScatter"
 import TeamLeadersPanel from "../components/TeamLeadersPanel"
 import { TeamLogoBadge, TeamLogoMarker } from "../components/TeamLogo"
 import TrendChart from "../components/TrendChart"
 import type { PlayerMetric } from "../data/playerMetrics"
 import { TEAM_METRICS, teamSeasonRows, trendingTeams, type TeamGameRow } from "../data/teamMetrics"
-import type { TeamInfo } from "../data/teams"
+import { teamPath, type TeamInfo } from "../data/teams"
 import { useFetch } from "../lib/useFetch"
 
 function TeamsPage() {
+  const navigate = useNavigate()
   const games = useFetch<TeamGameRow[]>("/teams/weekly")
   const teams = useFetch<TeamInfo[]>("/teams")
   const loading = games.loading || teams.loading
@@ -42,7 +45,7 @@ function TeamsPage() {
         error={error}
         noun="teams"
         emptyText="No games played yet."
-        Dot={TeamLogoMarker}
+        Dot={(props) => <TeamLogoMarker {...props} onSelect={() => props.payload && navigate(teamPath(props.payload.team))} />}
         renderTooltipHeader={(row) => (
           <div className="flex items-center gap-2">
             <TeamLogoBadge logo={row.logo} size="h-7 w-7" />
@@ -65,6 +68,7 @@ function TeamsPage() {
         loading={loading}
         error={error}
         trends={trends}
+        onSelect={(line) => navigate(teamPath(line.id))}
       />
     </div>
   )
