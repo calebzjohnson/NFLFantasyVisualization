@@ -1,29 +1,38 @@
 // DetailedLeaderTable.tsx
-// Ranked player table with per-category stat columns and a headshot per player.
-import { Link } from "react-router-dom"
-import type { DetailedLeaderRow, LeaderColumn } from "../data/leaderStatsTypes"
-import PlayerAvatar from "./PlayerAvatar"
+// Ranked, sortable stat table; the caller renders each row's name cell (player, team, ...).
+import type { ReactNode } from "react"
+import type { LeaderColumn, LeaderRow } from "../data/leaderStatsTypes"
 
 const TONE = {
   positive: "text-[var(--positive)]",
   negative: "text-[var(--negative)]",
 }
 
-interface DetailedLeaderTableProps {
+interface DetailedLeaderTableProps<Row extends LeaderRow> {
+  entityLabel: string
+  renderEntity: (row: Row) => ReactNode
   columns: LeaderColumn[]
-  rows: DetailedLeaderRow[]
+  rows: Row[]
   sortKey: string
   sortDesc: boolean
   onSort: (key: string) => void
 }
 
-function DetailedLeaderTable({ columns, rows, sortKey, sortDesc, onSort }: DetailedLeaderTableProps) {
+function DetailedLeaderTable<Row extends LeaderRow>({
+  entityLabel,
+  renderEntity,
+  columns,
+  rows,
+  sortKey,
+  sortDesc,
+  onSort,
+}: DetailedLeaderTableProps<Row>) {
   return (
     <table className="w-full text-sm">
       <thead>
         <tr className="text-left text-xs tracking-wider text-[var(--text-muted)] uppercase">
           <th className="w-8 px-4 py-2 font-medium">#</th>
-          <th className="px-2 py-2 font-medium">Player</th>
+          <th className="px-2 py-2 font-medium">{entityLabel}</th>
           {columns.map((column, index) => (
             <th
               key={column.key}
@@ -53,21 +62,7 @@ function DetailedLeaderTable({ columns, rows, sortKey, sortDesc, onSort }: Detai
             >
               {row.rank}
             </td>
-            <td className="px-2 py-2">
-              <div className="flex items-center gap-3">
-                <PlayerAvatar name={row.player} headshot={row.headshot} color={row.teamColor} size="h-8 w-8" />
-                <div>
-                  <Link
-                    to={`/players/${row.playerId}`}
-                    state={{ playerName: row.player }}
-                    className="font-medium text-[var(--text-primary)] hover:text-[var(--accent)] hover:underline"
-                  >
-                    {row.player}
-                  </Link>
-                  <div className="text-xs text-[var(--text-secondary)]">{row.team}</div>
-                </div>
-              </div>
-            </td>
+            <td className="px-2 py-2">{renderEntity(row)}</td>
             {columns.map((column, index) => (
               <td
                 key={column.key}

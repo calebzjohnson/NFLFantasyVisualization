@@ -1,5 +1,6 @@
 // playerMetrics.ts
-// The metric catalog for the Compare Players scatterplot: a deliberately
+// The metric catalog for the Compare Players scatterplot (and the metric
+// type/helpers the team catalog reuses): a deliberately
 // wider set than the compact Stat Leaders table, since here the point is
 // open-ended comparison across every player in a position, not a top-5 list.
 // Verified against the real /players response (season 2026) before picking
@@ -21,7 +22,7 @@ export type PlayerStatsRow = Record<string, string | number | null> & {
 // against the plain record shape. That lets the same metric catalog drive
 // both /players rows (PlayerStatsRow) and /players/weekly rows, which carry
 // `team` instead of `recent_team`.
-type StatFields = Record<string, string | number | null>
+export type StatFields = Record<string, string | number | null>
 
 export interface PlayerMetric {
   key: string
@@ -30,7 +31,7 @@ export interface PlayerMetric {
   value: (row: StatFields) => number
 }
 
-function num(row: StatFields, field: string): number {
+export function num(row: StatFields, field: string): number {
   return Number(row[field] ?? 0)
 }
 
@@ -140,7 +141,7 @@ export const PLAYER_METRICS: Record<PositionGroup, PlayerMetric[]> = {
 // "qualifies": a handful of zero-carry fullbacks can't drag a median around
 // the way they'd drag an average, since a median only cares about rank order,
 // not how extreme the low (or high) values are.
-export function metricMedian(rows: PlayerStatsRow[], metric: PlayerMetric): number {
+export function metricMedian(rows: StatFields[], metric: PlayerMetric): number {
   if (rows.length === 0) return 0
   const sorted = rows.map(metric.value).sort((a, b) => a - b)
   const mid = Math.floor(sorted.length / 2)

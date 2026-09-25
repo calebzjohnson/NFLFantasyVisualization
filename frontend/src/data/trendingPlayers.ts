@@ -41,6 +41,7 @@ export interface TrendLine {
   name: string
   team: string
   headshot: string | null
+  logo?: string // teams get a logo badge instead of initials
   slope: number
   games: { week: number; value: number }[]
 }
@@ -49,7 +50,7 @@ export interface TrendLine {
 // "last week minus first week" so a bye week (a gap in week numbers, not in
 // the data) doesn't distort the trend, and so it settles down as more weeks
 // of data come in rather than reading as two endpoints forever.
-function slope(points: { x: number; y: number }[]): number {
+export function slope(points: { x: number; y: number }[]): number {
   const n = points.length
   const meanX = points.reduce((sum, p) => sum + p.x, 0) / n
   const meanY = points.reduce((sum, p) => sum + p.y, 0) / n
@@ -100,14 +101,18 @@ export function trendingPlayers(
     })
   }
 
-  const up = [...lines]
+  return topTrends(lines)
+}
+
+// The steepest MAX_LINES_PER_DIRECTION lines each way; flat lines are neither.
+export function topTrends(lines: TrendLine[]): { up: TrendLine[]; down: TrendLine[] } {
+  const up = lines
     .filter((line) => line.slope > 0)
     .sort((a, b) => b.slope - a.slope)
     .slice(0, MAX_LINES_PER_DIRECTION)
-  const down = [...lines]
+  const down = lines
     .filter((line) => line.slope < 0)
     .sort((a, b) => a.slope - b.slope)
     .slice(0, MAX_LINES_PER_DIRECTION)
-
   return { up, down }
 }

@@ -15,3 +15,8 @@ def get_teams() -> list[dict[str, Any]]:
 @router.get("/teams/efficiency")
 def get_team_efficiency() -> list[dict[str, Any]]:
     return team_efficiency.get_current_team_efficiency()
+
+
+@router.get("/teams/weekly")
+def get_team_game_stats() -> list[dict[str, Any]]:
+    return teams.get_team_game_stats()

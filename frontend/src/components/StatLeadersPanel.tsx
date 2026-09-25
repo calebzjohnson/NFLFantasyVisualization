@@ -5,14 +5,34 @@
 // switcher in the panel header, for a caller that isn't controlling position
 // from elsewhere on the page.
 import { type ReactNode, useState } from "react"
+import { Link } from "react-router-dom"
 import { LEADER_CATEGORIES, type PositionGroup, type RawPlayerRow } from "../data/leaderCategories"
 import type { DetailedLeaderRow } from "../data/leaderStatsTypes"
 import type { TeamInfo } from "../data/teams"
 import { useFetch } from "../lib/useFetch"
 import DetailedLeaderTable from "./DetailedLeaderTable"
 import Panel from "./Panel"
+import PlayerAvatar from "./PlayerAvatar"
 
 const LEADER_ROWS_SHOWN = 5
+
+function PlayerCell({ row }: { row: DetailedLeaderRow }) {
+  return (
+    <div className="flex items-center gap-3">
+      <PlayerAvatar name={row.player} headshot={row.headshot} color={row.teamColor} size="h-8 w-8" />
+      <div>
+        <Link
+          to={`/players/${row.playerId}`}
+          state={{ playerName: row.player }}
+          className="font-medium text-[var(--text-primary)] hover:text-[var(--accent)] hover:underline"
+        >
+          {row.player}
+        </Link>
+        <div className="text-xs text-[var(--text-secondary)]">{row.team}</div>
+      </div>
+    </div>
+  )
+}
 
 function StatLeadersPanel({
   position,
@@ -68,6 +88,8 @@ function StatLeadersPanel({
       {rows && (
         <div className="overflow-x-auto">
           <DetailedLeaderTable
+            entityLabel="Player"
+            renderEntity={(row) => <PlayerCell row={row} />}
             columns={active.columns}
             rows={rows}
             sortKey={sortKey}
