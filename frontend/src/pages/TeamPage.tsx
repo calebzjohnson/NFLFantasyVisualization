@@ -5,6 +5,9 @@ import { useParams } from "react-router-dom"
 import GameLogTable from "../components/GameLogTable"
 import Panel from "../components/Panel"
 import TeamHeaderBar from "../components/TeamHeaderBar"
+import TeamLeagueComparisonBeeswarm from "../components/TeamLeagueComparisonBeeswarm"
+import TeamRadarChart from "../components/TeamRadarChart"
+import TeamScoringComposition from "../components/TeamScoringComposition"
 import { findTeamStanding, type DivisionStanding } from "../data/standings"
 import { teamGameLog, type TeamGameRow } from "../data/teamMetrics"
 import type { TeamInfo } from "../data/teams"
@@ -27,6 +30,13 @@ function TeamPage() {
       {teams.error && <p className="text-sm text-[var(--negative)]">Couldn't load team: {teams.error}</p>}
       {teams.data && !team && <p className="text-sm text-[var(--text-secondary)]">No team found for “{teamAbbr}”.</p>}
       {team && <TeamHeaderBar team={team} standing={standing} />}
+      {team && (
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <TeamRadarChart teamAbbr={team.team_abbr} teamColor={team.team_color} />
+          <TeamScoringComposition />
+        </div>
+      )}
+      {team && <TeamLeagueComparisonBeeswarm />}
       {team && (
         <Panel title="Game Log">
           {games.loading && <p className="p-4 text-sm text-[var(--text-secondary)]">Loading…</p>}
