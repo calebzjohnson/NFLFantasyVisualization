@@ -41,8 +41,8 @@ RADAR_AXES: dict[str, list[tuple[str, str]]] = {
         ("success_rate", "Success Rate"),
         ("any_a", "ANY/A"),
         ("passing_cpoe", "CPOE"),
-        ("yards_per_pass", "Yards / Attempt"),
         ("adot", "aDOT"),
+        ("qb_rushing_epa_per_play", "Rush EPA / Play"),
     ],
     # 8+ man box % was dropped in favor of red zone touch share - goal-line
     # role (bell-cow vs. passing-down/receiving back) is a more direct
@@ -132,14 +132,34 @@ def _qb_metrics(stats: pd.DataFrame, plays: pd.DataFrame, current_week: int) -> 
         )
         / dropbacks
     )
-    qb["yards_per_pass"] = _clean(qb["passing_yards"] / qb["attempts"])
     qb["adot"] = _clean(qb["passing_air_yards"] / qb["attempts"])
     # passing_cpoe is already a season rate straight from nflverse.
 
     success = _success_rate(plays, "pass", "passer_player_id")
     qb["success_rate"] = qb["player_id"].map(success)
 
+    # Deliberately left null (not 0) for a pure pocket passer with zero rush
+    # attempts - there's no rushing sample to average over, the same
+    # "mathematically undefined" case as receiving_epa_per_target at 0
+    # targets, not a real, known zero.
+    qb["qb_rushing_epa_per_play"] = qb["player_id"].map(_qb_rushing_epa_per_play(plays))
+
     return qb
+
+
+def _qb_rushing_epa_per_play(plays: pd.DataFrame) -> pd.Series:
+    """Mean EPA on this QB's own rushing attempts - scrambles and designed
+    runs alike, since play_type doesn't distinguish the two - indexed by
+    gsis_id. Built from play-by-play rather than the season stats table's
+    rushing_epa column, matching every other play-level axis in this module.
+    """
+    scoped = plays[
+        (plays["season_type"] == REGULAR_SEASON)
+        & (plays["play_type"] == "run")
+        & plays["epa"].notna()
+        & plays["rusher_player_id"].notna()
+    ]
+    return scoped.groupby("rusher_player_id")["epa"].mean()
 
 
 def _rb_metrics(
