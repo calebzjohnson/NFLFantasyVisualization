@@ -66,8 +66,10 @@ def _team_codes_in_schedule(season: int) -> set[str]:
 def get_team_game_stats() -> list[dict[str, Any]]:
     """One row per team per played regular-season game this season: the
     team's own OWN_COLUMNS, the opponent's ALLOWED_COLUMNS (suffixed
-    "_allowed"), and the final score as points_for/points_against. nflverse's
-    team stats have no points column, so scores come from the schedule.
+    "_allowed"), the final score as points_for/points_against, and
+    week_complete (every team scheduled that week has played - see
+    schedules.last_complete_week). nflverse's team stats have no points
+    column, so scores come from the schedule.
     """
     season = nfl.get_current_season()
     stats = team_stats.get_weekly_team_stats(season)
@@ -86,6 +88,10 @@ def get_team_game_stats() -> list[dict[str, Any]]:
     )
     scores = schedules.get_team_game_log(season)[["team", "week", "points_for", "points_against"]]
     games = games.merge(scores, on=["team", "week"]).sort_values(["week", "team"], kind="stable")
+    # Flagged rather than dropped: the team game log should still show a
+    # Thursday game, but league-wide comparisons (trending teams) skip it.
+    complete_through = schedules.last_complete_week(stats, schedules.get_season_schedule(season))
+    games["week_complete"] = games["week"] <= complete_through
 
     records = games.astype(object).where(games.notna(), None).to_dict(orient="records")
     return cast(list[dict[str, Any]], records)

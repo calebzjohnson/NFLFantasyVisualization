@@ -11,7 +11,8 @@ import { slope, topTrends, type TrendLine } from "./trendingPlayers"
 
 // One row from /teams/weekly: one team's stats in one game. Opponent's stats
 // in that game carry an "_allowed" suffix; the score is points_for/against.
-export type TeamGameRow = StatFields & { team: string; week: number }
+// week_complete is false while other teams still have that week's game to play.
+export type TeamGameRow = StatFields & { team: string; week: number; week_complete: boolean }
 
 // One team's season: every numeric stat summed, plus games played, name, and logo.
 export type TeamSeasonRow = StatFields & { team: string; games: number; name: string; logo: string }
@@ -181,6 +182,9 @@ export function trendingTeams(
   const infoByTeam = new Map(teams.map((team) => [team.team_abbr, team]))
   const byTeam = new Map<string, TeamGameRow[]>()
   for (const game of games) {
+    // Like trending players: a team that played Thursday isn't compared
+    // against teams whose game hasn't happened yet.
+    if (!game.week_complete) continue
     const teamGames = byTeam.get(game.team) ?? []
     teamGames.push(game)
     byTeam.set(game.team, teamGames)

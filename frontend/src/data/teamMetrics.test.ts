@@ -5,7 +5,7 @@ import { teamInfo } from "../test/fixtures"
 import { TEAM_METRICS, teamGameLog, teamSeasonRows, trendingTeams, type TeamGameRow } from "./teamMetrics"
 
 function game(team: string, weekNumber: number, stats: Record<string, number> = {}): TeamGameRow {
-  return { team, week: weekNumber, game_id: `g${weekNumber}`, opponent_team: "OPP", ...stats }
+  return { team, week: weekNumber, week_complete: true, game_id: `g${weekNumber}`, opponent_team: "OPP", ...stats }
 }
 
 function metric(key: string) {
@@ -97,6 +97,15 @@ describe("trendingTeams", () => {
     const { up, down } = trendingTeams(games, metric("points"), [])
     expect(up).toEqual([])
     expect(down.map((l) => l.id)).toEqual(["MIA"])
+  })
+
+  it("leaves out games from a week other teams haven't finished", () => {
+    const games = [
+      ...[1, 2].map((w) => game("BUF", w, { points_for: w * 10 })),
+      { ...game("BUF", 3, { points_for: 0 }), week_complete: false },
+    ]
+    const { up } = trendingTeams(games, metric("points"), [])
+    expect(up[0].games.map((g) => g.week)).toEqual([1, 2])
   })
 })
 

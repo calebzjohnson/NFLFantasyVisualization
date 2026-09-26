@@ -105,3 +105,40 @@ def test_get_team_game_stats_pairs_each_team_with_its_opponent_and_score(
     assert games["BUF"]["points_for"] == 24
     assert games["BUF"]["points_against"] == 10
     assert games["MIA"]["passing_yards_allowed"] == 300
+
+
+def test_get_team_game_stats_flags_partially_played_week(
+    monkeypatch: pytest.MonkeyPatch, sample_standings_schedule: pd.DataFrame
+) -> None:
+    def row(team: str, opponent: str, week: int) -> dict[str, object]:
+        base = {column: 0 for column in {*OWN_COLUMNS, *ALLOWED_COLUMNS}}
+        return {
+            **base,
+            "game_id": f"{week}_{min(team, opponent)}",
+            "week": week,
+            "team": team,
+            "opponent_team": opponent,
+            "season_type": "REG",
+        }
+
+    # Week 1 is fully in. Week 2 is partial: NE at BUF has been played, but
+    # MIA at NYJ (added here) hasn't.
+    schedule = pd.concat(
+        [
+            sample_standings_schedule,
+            pd.DataFrame([dict(game_type="REG", week=2, away_team="MIA", home_team="NYJ")]),
+        ]
+    )
+    week1 = [("BUF", "MIA"), ("NYJ", "NE"), ("NYG", "DAL"), ("WAS", "PHI")]
+    stats = pd.DataFrame(
+        [row(a, b, 1) for a, b in week1]
+        + [row(b, a, 1) for a, b in week1]
+        + [row("BUF", "NE", 2), row("NE", "BUF", 2)]
+    )
+    monkeypatch.setattr("app.services.teams.nfl.get_current_season", lambda: 2026)
+    monkeypatch.setattr("app.data.team_stats.get_weekly_team_stats", lambda season: stats)
+    monkeypatch.setattr("app.data.schedules.get_season_schedule", lambda season: schedule)
+
+    games = get_team_game_stats()
+
+    assert {g["week"]: g["week_complete"] for g in games} == {1: True, 2: False}
