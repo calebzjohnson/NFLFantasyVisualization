@@ -33,7 +33,7 @@ function TeamPage() {
       {team && (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <TeamRadarChart teamAbbr={team.team_abbr} teamColor={team.team_color} />
-          <TeamScoringComposition />
+          <TeamScoringComposition teamAbbr={team.team_abbr} />
         </div>
       )}
       {team && <TeamLeagueComparisonBeeswarm />}

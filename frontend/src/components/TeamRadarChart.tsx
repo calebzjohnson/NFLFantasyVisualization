@@ -68,7 +68,7 @@ function TeamRadarChart({ teamAbbr, teamColor }: { teamAbbr: string; teamColor: 
   const { data, error, loading } = useFetch<TeamRadar>(`/teams/${teamAbbr}/radar`)
 
   return (
-    <Panel title="Team Identity">
+    <Panel title="Team Breakdown">
       {loading && <p className="p-4 text-sm text-[var(--text-secondary)]">Loading…</p>}
       {error && <p className="p-4 text-sm text-[var(--negative)]">Couldn't load radar: {error}</p>}
       {data && (
