@@ -4,7 +4,7 @@
 import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import { TEAM_METRICS } from "../data/teamMetrics"
-import MetricScatter from "./MetricScatter"
+import MetricScatter, { groupCoincidentPoints } from "./MetricScatter"
 
 function scatter(props: Partial<Parameters<typeof MetricScatter>[0]> = {}) {
   return (
@@ -45,5 +45,36 @@ describe("MetricScatter", () => {
 
     rerender(scatter({ rows: [] }))
     expect(screen.getByText("Nothing yet.")).toBeInTheDocument()
+  })
+})
+
+describe("groupCoincidentPoints", () => {
+  it("keeps a unique point as its own solo entry", () => {
+    const points = groupCoincidentPoints([{ id: "a", x: 1, y: 2 }])
+    expect(points).toEqual([{ kind: "solo", x: 1, y: 2, row: { id: "a", x: 1, y: 2 } }])
+  })
+
+  it("groups rows sharing the exact same coordinate into one cluster", () => {
+    const rows = [
+      { id: "a", x: 0, y: 0 },
+      { id: "b", x: 0, y: 0 },
+      { id: "c", x: 5, y: 1 },
+    ]
+    const points = groupCoincidentPoints(rows)
+
+    expect(points).toHaveLength(2)
+    const cluster = points.find((p) => p.kind === "cluster")
+    expect(cluster).toMatchObject({ x: 0, y: 0, members: [rows[0], rows[1]] })
+    const solo = points.find((p) => p.kind === "solo")
+    expect(solo).toEqual({ kind: "solo", x: 5, y: 1, row: rows[2] })
+  })
+
+  it("does not group rows that merely round to the same tick", () => {
+    const rows = [
+      { id: "a", x: 1.4, y: 0 },
+      { id: "b", x: 1.6, y: 0 },
+    ]
+    const points = groupCoincidentPoints(rows)
+    expect(points.every((p) => p.kind === "solo")).toBe(true)
   })
 })
