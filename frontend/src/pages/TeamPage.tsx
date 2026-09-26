@@ -5,6 +5,9 @@ import { useParams } from "react-router-dom"
 import GameLogTable from "../components/GameLogTable"
 import Panel from "../components/Panel"
 import TeamHeaderBar from "../components/TeamHeaderBar"
+import TeamLeagueComparisonBeeswarm from "../components/TeamLeagueComparisonBeeswarm"
+import TeamRadarChart from "../components/TeamRadarChart"
+import TeamScoringComposition from "../components/TeamScoringComposition"
 import { findTeamStanding, type DivisionStanding } from "../data/standings"
 import { teamGameLog, type TeamGameRow } from "../data/teamMetrics"
 import type { TeamInfo } from "../data/teams"
@@ -41,6 +44,13 @@ function TeamPage() {
           )}
         </Panel>
       )}
+      {team && (
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <TeamRadarChart teamAbbr={team.team_abbr} teamColor={team.team_color} />
+          <TeamScoringComposition teamAbbr={team.team_abbr} />
+        </div>
+      )}
+      {team && <TeamLeagueComparisonBeeswarm teamAbbr={team.team_abbr} teamColor={team.team_color} />}
     </div>
   )
 }

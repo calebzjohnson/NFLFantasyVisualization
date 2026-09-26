@@ -1,9 +1,11 @@
-// PlayerRadarChart.tsx
-// Radar of 6 position-specific efficiency stats, each plotted as a
-// percentile rank against other qualifying players at the same position
-// this season - not raw units, since EPA/play, yards/attempt, and rate
-// stats don't share a scale. Hovering a vertex shows the underlying raw
-// value and rank.
+// TeamRadarChart.tsx
+// Radar of the team's 6 identity axes (offense/defense EPA per play, red
+// zone TD%, special teams EPA), each plotted as a percentile rank against
+// the other 31 teams this season - not raw units, since EPA/play and a TD%
+// don't share a scale. Hovering a vertex shows the underlying raw value and
+// rank. Unlike the player radar, none of these axes are Next Gen Stats
+// sourced (there's no team-level NGS dataset), so there's no data-lag note
+// here.
 import { PolarAngleAxis, PolarGrid, PolarRadiusAxis, Radar, RadarChart } from "recharts"
 import { ordinal } from "../data/efficiency"
 import { useFetch } from "../lib/useFetch"
@@ -18,39 +20,21 @@ interface RadarAxis {
   percentile: number | null
 }
 
-interface PlayerRadar {
-  player_id: string
-  position: string
+interface TeamRadar {
+  team: string
   axes: RadarAxis[]
 }
 
 // Plain-language explanations for the footnote, keyed by axis key (labels
 // come from the backend and are abbreviated to fit the chart).
 const AXIS_GLOSSARY: Record<string, string> = {
-  epa_per_dropback:
-    "Expected Points Added per dropback - how much each pass play improved the team's chances of scoring.",
-  success_rate: "How often a play moved the team closer to scoring rather than setting it back.",
-  any_a: "Adjusted Net Yards per Attempt - passing yards per throw, with bonus credit for touchdowns and penalties for interceptions and sacks.",
-  passing_cpoe: "Completion % Over Expected - how many more passes he completes than an average QB would on the same throws.",
-  yards_per_pass: "Average passing yards gained per throw.",
-  adot: "Average Depth of Target - how far downfield his passes travel on average.",
-  rushing_epa_per_play: "Expected Points Added per carry - how much each run improved the team's chances of scoring.",
-  yards_per_carry: "Average rushing yards gained per carry.",
-  rush_yards_over_expected: "Rushing yards gained beyond what an average back would get given the blocking and defenders in front of him.",
-  receiving_epa_per_target: "Expected Points Added each time he's targeted.",
-  redzone_touch_share: "His share of the team's carries and catches inside the opponent's 20-yard line.",
-  wopr: "Weighted Opportunity Rating - blends his share of the team's targets and of its passing yardage downfield into one measure of how involved he is.",
-  yac_per_reception: "Yards After Catch per reception (REC) - how much he gains running with the ball once he's caught it.",
-  avg_separation: "Average distance, in yards, from the nearest defender when the ball arrives.",
-  yards_per_snap: "Receiving yards per play he's on the field.",
-  yards_per_target: "Receiving yards each time he's targeted.",
-  redzone_target_share: "His share of the team's targets inside the opponent's 20-yard line.",
+  off_pass_epa: "Expected Points Added per pass play - how much each throw improves the team's chances of scoring, averaged across the season.",
+  off_rush_epa: "Expected Points Added per run play - how much each carry improves the team's chances of scoring, averaged across the season.",
+  off_redzone_td_pct: "Percentage of team's possessions inside the opponent's 20-yard line that result in a touchdown.",
+  def_pass_epa: "Expected Points Added allowed per pass play - how much each throw against this defense improves the offense's chances of scoring.",
+  def_rush_epa: "Expected Points Added allowed per run play - how much each carry against this defense improves the offense's chances of scoring.",
+  special_teams_epa: "Total Expected Points Added from kicking, punting, and returns this season.",
 }
-
-// Axes sourced from NFL Next Gen Stats rather than play-by-play - NGS lags
-// behind and imposes its own minimum-volume thresholds, so these can go
-// blank for a player even after the rest of their radar is populated.
-const NGS_AXES = new Set(["avg_separation", "rush_yards_over_expected"])
 
 const chartConfig = {
   percentile: { label: "Percentile" },
@@ -80,26 +64,13 @@ function AxisTooltip({ active, payload }: { active?: boolean; payload?: { payloa
   )
 }
 
-function PlayerRadarChart({ playerId, teamColor }: { playerId: string; teamColor: string }) {
-  const { data, error, loading } = useFetch<PlayerRadar>(`/players/${playerId}/radar`)
-  // A 404 here means the player hasn't hit the minimum season volume for a
-  // radar profile (kept intentionally low-volume/backup players out of the
-  // percentile pool) - a normal, expected state for those players, not an
-  // error.
-  const notEnoughVolume = error?.includes("(404)") ?? false
-  const ngsAxisLabels = data?.axes.filter((axis) => NGS_AXES.has(axis.key)).map((axis) => axis.label) ?? []
+function TeamRadarChart({ teamAbbr, teamColor }: { teamAbbr: string; teamColor: string }) {
+  const { data, error, loading } = useFetch<TeamRadar>(`/teams/${teamAbbr}/radar`)
 
   return (
-    <Panel title="Player Breakdown">
+    <Panel title="Team Breakdown">
       {loading && <p className="p-4 text-sm text-[var(--text-secondary)]">Loading…</p>}
-      {notEnoughVolume && (
-        <p className="p-4 text-sm text-[var(--text-secondary)]">
-          Not enough season volume yet for a radar profile.
-        </p>
-      )}
-      {error && !notEnoughVolume && (
-        <p className="p-4 text-sm text-[var(--negative)]">Couldn't load radar: {error}</p>
-      )}
+      {error && <p className="p-4 text-sm text-[var(--negative)]">Couldn't load radar: {error}</p>}
       {data && (
         <div className="p-3">
           <ChartContainer config={chartConfig} className="aspect-[4/3]">
@@ -107,7 +78,7 @@ function PlayerRadarChart({ playerId, teamColor }: { playerId: string; teamColor
               <defs>
                 {/* Brighter near the center, fading toward the points - a
                     soft glow rather than a flat fill. */}
-                <radialGradient id="radarFill" cx="50%" cy="50%" r="70%">
+                <radialGradient id="teamRadarFill" cx="50%" cy="50%" r="70%">
                   <stop offset="0%" stopColor={teamColor} stopOpacity={0.55} />
                   <stop offset="100%" stopColor={teamColor} stopOpacity={0.08} />
                 </radialGradient>
@@ -120,7 +91,7 @@ function PlayerRadarChart({ playerId, teamColor }: { playerId: string; teamColor
                 dataKey="percentile"
                 stroke={teamColor}
                 strokeWidth={2}
-                fill="url(#radarFill)"
+                fill="url(#teamRadarFill)"
                 dot={{ r: 4, fill: "var(--surface-1)", stroke: teamColor, strokeWidth: 2 }}
                 activeDot={{ r: 6, fill: teamColor, stroke: "var(--surface-1)", strokeWidth: 2 }}
                 isAnimationActive={false}
@@ -142,8 +113,8 @@ function PlayerRadarChart({ playerId, teamColor }: { playerId: string; teamColor
             </RadarChart>
           </ChartContainer>
           <p className="px-3 pb-1 text-xs text-[var(--text-muted)]">
-            Each axis is this player's percentile rank at their position this season; the dashed
-            ring marks the 50th percentile, or league average.
+            Each axis is this team's percentile rank across the league this season; the dashed ring
+            marks the 50th percentile, or league average.
           </p>
           <details className="px-3 pb-1 pt-2 text-xs text-[var(--text-muted)]">
             <summary className="cursor-pointer text-[var(--text-secondary)]">What do these stats mean?</summary>
@@ -155,13 +126,6 @@ function PlayerRadarChart({ playerId, teamColor }: { playerId: string; teamColor
                 </div>
               ))}
             </dl>
-            {ngsAxisLabels.length > 0 && (
-              <p className="mt-2 border-t border-[var(--border)] pt-2">
-                {ngsAxisLabels.join(" and ")} {ngsAxisLabels.length > 1 ? "are" : "is"} sourced from
-                NFL Next Gen Stats, which can take time to update or require higher minimum touches
-                to appear.
-              </p>
-            )}
           </details>
         </div>
       )}
@@ -169,4 +133,4 @@ function PlayerRadarChart({ playerId, teamColor }: { playerId: string; teamColor
   )
 }
 
-export default PlayerRadarChart
+export default TeamRadarChart
