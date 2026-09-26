@@ -22,7 +22,7 @@ export type PlayerStatsRow = Record<string, string | number | null> & {
 // against the plain record shape. That lets the same metric catalog drive
 // both /players rows (PlayerStatsRow) and /players/weekly rows, which carry
 // `team` instead of `recent_team`.
-export type StatFields = Record<string, string | number | null>
+export type StatFields = Record<string, string | number | boolean | null>
 
 export interface PlayerMetric {
   key: string
