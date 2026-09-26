@@ -203,6 +203,74 @@ def test_get_player_game_log_falls_back_to_prior_season(
     assert len(records) == 3
 
 
+@pytest.fixture
+def sample_quiet_week_stats() -> pd.DataFrame:
+    """Player Z1 has a real stat row for week 1 only - weeks 2 and 3 are
+    deliberately absent, mirroring nflverse's own behavior of dropping a
+    player-week entirely when he recorded no statistical events.
+    """
+    return pd.DataFrame(
+        [
+            dict(player_id="Z1", player_display_name="Z One", position="WR",
+                 position_group="WR", team="DAL", week=1, season_type="REG",
+                 targets=5, receptions=3),
+        ]
+    )
+
+
+@pytest.fixture
+def sample_quiet_week_snaps() -> pd.DataFrame:
+    """Snap counts for the same three weeks, keyed by pfr_player_id (see
+    get_player_id_crosswalk): week 1 confirms the real stat row, week 2 has
+    real offensive snaps despite no stat row (the "played but quiet" case
+    get_player_game_log should surface as a zero-stat row), and week 3 has
+    zero offensive snaps (genuinely inactive - should stay excluded, not be
+    mistaken for a quiet week). A decoy row for a different player in week 2
+    confirms filtering by player_id, not just by week.
+    """
+    return pd.DataFrame(
+        [
+            dict(pfr_player_id="ZeeOne", game_type="REG", week=1, team="DAL",
+                 opponent="NYG", offense_snaps=50),
+            dict(pfr_player_id="ZeeOne", game_type="REG", week=2, team="DAL",
+                 opponent="PHI", offense_snaps=10),
+            dict(pfr_player_id="ZeeOne", game_type="REG", week=3, team="DAL",
+                 opponent="WAS", offense_snaps=0),
+            dict(pfr_player_id="Other", game_type="REG", week=2, team="NYG",
+                 opponent="DAL", offense_snaps=20),
+        ]
+    )
+
+
+def test_get_player_game_log_includes_quiet_week_played_via_snap_counts(
+    monkeypatch: pytest.MonkeyPatch,
+    sample_quiet_week_stats: pd.DataFrame,
+    sample_quiet_week_snaps: pd.DataFrame,
+) -> None:
+    monkeypatch.setattr(
+        "app.data.player_stats.get_week_stats", lambda season: sample_quiet_week_stats
+    )
+    monkeypatch.setattr(
+        "app.data.snap_counts.get_season_snap_counts", lambda season: sample_quiet_week_snaps
+    )
+    monkeypatch.setattr(
+        "app.data.snap_counts.get_pfr_to_gsis_map",
+        lambda: pd.Series({"ZeeOne": "Z1", "Other": "O1"}),
+    )
+
+    records = get_player_game_log("Z1")
+
+    assert [r["week"] for r in records] == [1, 2]  # week 3 (0 snaps) excluded
+
+    week_1 = next(r for r in records if r["week"] == 1)
+    assert week_1["targets"] == 5  # a real stat row, untouched
+
+    week_2 = next(r for r in records if r["week"] == 2)
+    assert week_2["team"] == "DAL"
+    assert week_2["opponent_team"] == "PHI"
+    assert "targets" not in week_2  # synthesized - no stat columns, not zero-filled
+
+
 def test_get_player_bio_returns_matching_player(
     monkeypatch: pytest.MonkeyPatch, sample_players_roster: pd.DataFrame
 ) -> None:
