@@ -15,6 +15,89 @@ const chartConfig = {
   point: { label: "Point" },
 } satisfies ChartConfig
 
+// A point on the chart is either its own row (the common case) or a cluster
+// of rows that landed on the exact same (x, y) - e.g. two WRs both sitting
+// at 0 receptions/0 TDs. Un-clustered, a coincidence like that means one
+// marker silently draws over the other; grouping them here lets the chart
+// show every row as one visible, hoverable thing instead of hiding most of
+// them behind whichever happened to draw last.
+export type PlotPoint<Row> =
+  | { kind: "solo"; x: number; y: number; row: Row }
+  | { kind: "cluster"; x: number; y: number; members: Row[] }
+
+export function groupCoincidentPoints<Row>(rows: (Row & { x: number; y: number })[]): PlotPoint<Row>[] {
+  const groups = new Map<string, (Row & { x: number; y: number })[]>()
+  for (const row of rows) {
+    const key = `${row.x},${row.y}`
+    const group = groups.get(key)
+    if (group) group.push(row)
+    else groups.set(key, [row])
+  }
+  return [...groups.values()].map((group) =>
+    group.length === 1
+      ? { kind: "solo", x: group[0].x, y: group[0].y, row: group[0] }
+      : { kind: "cluster", x: group[0].x, y: group[0].y, members: group },
+  )
+}
+
+// Radius grows with count but flattens out - a 30-way tie shouldn't dwarf
+// the plot, it just needs to read as "clearly the biggest cluster here."
+function clusterRadius(count: number): number {
+  return Math.min(9 + Math.sqrt(count) * 3.2, 26)
+}
+
+function ClusterBadge({ cx, cy, count }: { cx?: number; cy?: number; count: number }) {
+  if (cx === undefined || cy === undefined) return null
+  return (
+    <g>
+      <circle
+        cx={cx}
+        cy={cy}
+        r={clusterRadius(count)}
+        fill="var(--accent)"
+        fillOpacity={0.15}
+        stroke="var(--accent)"
+        strokeWidth={1.5}
+      />
+      <text
+        x={cx}
+        y={cy}
+        dy={3.5}
+        textAnchor="middle"
+        fontSize={10}
+        fontWeight={700}
+        fill="var(--accent)"
+      >
+        ×{count}
+      </text>
+    </g>
+  )
+}
+
+// Reuses the caller's own header renderer per member (so a player's
+// headshot or a team's logo still shows up correctly) rather than
+// inventing a separate generic member-list rendering.
+function ClusterTooltipHeader<Row>({
+  members,
+  renderHeader,
+}: {
+  members: Row[]
+  renderHeader: (row: Row) => ReactNode
+}) {
+  const MAX_SHOWN = 5
+  const shown = members.slice(0, MAX_SHOWN)
+  const rest = members.length - shown.length
+  return (
+    <div className="grid gap-1.5">
+      <div className="font-medium text-[var(--text-primary)]">{members.length} tied at this point</div>
+      {shown.map((member, index) => (
+        <div key={index}>{renderHeader(member)}</div>
+      ))}
+      {rest > 0 && <div className="text-[10px] text-[var(--text-muted)] italic">+{rest} more</div>}
+    </div>
+  )
+}
+
 function formatValue(value: number, unit?: string): string {
   const rounded = Number.isInteger(value) ? value : Math.round(value * 10) / 10
   return `${rounded.toLocaleString()}${unit ?? ""}`
@@ -112,6 +195,10 @@ function MetricScatter<Row extends StatFields>({
     [rows, xMetric, yMetric],
   )
 
+  // Re-grouped whenever the chosen axes change, since which rows coincide
+  // depends entirely on the two stats currently picked.
+  const plotPoints = useMemo(() => (points ? groupCoincidentPoints(points) : null), [points])
+
   const xDomain = useMemo(() => valueDomain(points?.map((p) => p.x) ?? []), [points])
   const yDomain = useMemo(() => valueDomain(points?.map((p) => p.y) ?? []), [points])
 
@@ -191,8 +278,13 @@ function MetricScatter<Row extends StatFields>({
                     variant="frosted-glass"
                     hideIndicator
                     labelFormatter={(_, items) => {
-                      const row = items[0]?.payload as Row | undefined
-                      return row ? renderTooltipHeader(row) : null
+                      const point = items[0]?.payload as PlotPoint<Row> | undefined
+                      if (!point) return null
+                      return point.kind === "cluster" ? (
+                        <ClusterTooltipHeader members={point.members} renderHeader={renderTooltipHeader} />
+                      ) : (
+                        renderTooltipHeader(point.row)
+                      )
                     }}
                     formatter={(value, name) => {
                       const metric: PlayerMetric | undefined =
@@ -210,7 +302,19 @@ function MetricScatter<Row extends StatFields>({
                   />
                 }
               />
-              <Scatter data={points} shape={Dot} isAnimationActive={false} />
+              <Scatter
+                data={plotPoints ?? []}
+                shape={(props: { cx?: number; cy?: number; payload?: PlotPoint<Row> }) => {
+                  const point = props.payload
+                  if (!point) return null
+                  return point.kind === "cluster" ? (
+                    <ClusterBadge cx={props.cx} cy={props.cy} count={point.members.length} />
+                  ) : (
+                    <Dot cx={props.cx} cy={props.cy} payload={point.row} />
+                  )
+                }}
+                isAnimationActive={false}
+              />
             </ScatterChart>
           </ChartContainer>
           <p className="pt-2 text-xs text-[var(--text-muted)]">{caption}</p>
