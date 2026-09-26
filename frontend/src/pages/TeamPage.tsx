@@ -31,13 +31,6 @@ function TeamPage() {
       {teams.data && !team && <p className="text-sm text-[var(--text-secondary)]">No team found for “{teamAbbr}”.</p>}
       {team && <TeamHeaderBar team={team} standing={standing} />}
       {team && (
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <TeamRadarChart teamAbbr={team.team_abbr} teamColor={team.team_color} />
-          <TeamScoringComposition teamAbbr={team.team_abbr} />
-        </div>
-      )}
-      {team && <TeamLeagueComparisonBeeswarm />}
-      {team && (
         <Panel title="Game Log">
           {games.loading && <p className="p-4 text-sm text-[var(--text-secondary)]">Loading…</p>}
           {games.error && <p className="p-4 text-sm text-[var(--negative)]">Couldn't load game log: {games.error}</p>}
@@ -51,6 +44,13 @@ function TeamPage() {
           )}
         </Panel>
       )}
+      {team && (
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <TeamRadarChart teamAbbr={team.team_abbr} teamColor={team.team_color} />
+          <TeamScoringComposition teamAbbr={team.team_abbr} />
+        </div>
+      )}
+      {team && <TeamLeagueComparisonBeeswarm teamAbbr={team.team_abbr} teamColor={team.team_color} />}
     </div>
   )
 }
