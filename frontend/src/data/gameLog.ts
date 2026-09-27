@@ -1,8 +1,9 @@
 // gameLog.ts
 // Per-position column config for the player page's game log table, fed by
-// /players/:id/games. Mirrors the Stat Leaders columns (leaderCategories.ts)
-// so the same stats read the same way in both places.
-import { passerRating, perAttempt } from "../lib/footballStats"
+// /players/:id/games, plus the roster-position -> position-group mapping.
+// Mirrors the Stat Leaders columns (leaderCategories.ts) so the same stats
+// read the same way in both places.
+import { passerRating, perAttempt, totalTackles } from "../lib/footballStats"
 import type { LeaderColumn } from "./leaderStatsTypes"
 import type { PositionGroup } from "./leaderCategories"
 
@@ -27,6 +28,28 @@ function num(row: GameStatsRow, field: string): number {
 
 function sum(rows: GameStatsRow[], field: string): number {
   return rows.reduce((total, row) => total + num(row, field), 0)
+}
+
+// Every numeric field summed across games, as one row. Configs whose stats
+// are all counts or ratios of counts reuse their per-game toStats on this for
+// the season totals row - so rates come out of summed counts, not averaged.
+function summedRow(rows: GameStatsRow[]): GameStatsRow {
+  const totals: Record<string, number> = {}
+  for (const row of rows) {
+    for (const [field, value] of Object.entries(row)) {
+      if (typeof value === "number") totals[field] = (totals[field] ?? 0) + value
+    }
+  }
+  return { ...totals, week: 0, opponent_team: "" }
+}
+
+function snapPct(row: GameStatsRow, side: "offense" | "defense"): number {
+  return perAttempt(num(row, `${side}_snaps`) * 100, num(row, `${side}_team_snaps`))
+}
+
+// Stat-only config (no custom totals) -> full config with summed-row totals.
+function fromCounts(columns: LeaderColumn[], toStats: GameLogConfig["toStats"]): GameLogConfig {
+  return { columns, toStats, toTotals: (rows) => toStats(summedRow(rows)) }
 }
 
 // Shared by WR and TE - both are receivers with the same game log shape.
@@ -167,20 +190,185 @@ const GAME_LOG_CONFIGS: Record<PositionGroup, GameLogConfig> = {
   // TEs are receivers first - same game log shape as WR.
   WR: receivingConfig,
   TE: receivingConfig,
+  DL: fromCounts(
+    [
+      { key: "snaps", label: "SNAPS" },
+      { key: "tkl", label: "TKL" },
+      { key: "tfl", label: "TFL" },
+      { key: "sack", label: "SACK", tone: "positive" },
+      { key: "qbHit", label: "QB HIT" },
+      { key: "press", label: "PRESS" },
+      { key: "ff", label: "FF", tone: "positive" },
+      { key: "pen", label: "PEN", tone: "negative" },
+    ],
+    (row) => ({
+      snaps: num(row, "defense_snaps"),
+      tkl: totalTackles(row),
+      tfl: num(row, "def_tackles_for_loss"),
+      sack: num(row, "def_sacks"),
+      qbHit: num(row, "def_qb_hits"),
+      press: num(row, "def_pressures"),
+      ff: num(row, "def_fumbles_forced"),
+      pen: num(row, "penalties"),
+    }),
+  ),
+  LB: fromCounts(
+    [
+      { key: "snaps", label: "SNAPS" },
+      { key: "tkl", label: "TKL" },
+      { key: "tfl", label: "TFL" },
+      { key: "sack", label: "SACK" },
+      { key: "pd", label: "PD" },
+      { key: "int", label: "INT", tone: "positive" },
+      { key: "ff", label: "FF", tone: "positive" },
+      { key: "miss", label: "MISS", tone: "negative" },
+    ],
+    (row) => ({
+      snaps: num(row, "defense_snaps"),
+      tkl: totalTackles(row),
+      tfl: num(row, "def_tackles_for_loss"),
+      sack: num(row, "def_sacks"),
+      pd: num(row, "def_pass_defended"),
+      int: num(row, "def_interceptions"),
+      ff: num(row, "def_fumbles_forced"),
+      miss: num(row, "def_missed_tackles"),
+    }),
+  ),
+  DB: fromCounts(
+    [
+      { key: "snaps", label: "SNAPS" },
+      { key: "tkl", label: "TKL" },
+      { key: "int", label: "INT", tone: "positive" },
+      { key: "pd", label: "PD" },
+      { key: "tgt", label: "TGT" },
+      { key: "yardsAllowed", label: "YDS ALLOWED", tone: "negative" },
+      { key: "tdAllowed", label: "TD ALLOWED", tone: "negative" },
+      { key: "ratingAllowed", label: "RTG ALLOWED" },
+    ],
+    (row) => {
+      const int = num(row, "def_interceptions")
+      const tgt = num(row, "def_targets")
+      const yardsAllowed = num(row, "def_yards_allowed")
+      const tdAllowed = num(row, "def_receiving_td_allowed")
+      return {
+        snaps: num(row, "defense_snaps"),
+        tkl: totalTackles(row),
+        int,
+        pd: num(row, "def_pass_defended"),
+        tgt,
+        yardsAllowed,
+        tdAllowed,
+        ratingAllowed: passerRating(num(row, "def_completions_allowed"), tgt, yardsAllowed, tdAllowed, int),
+      }
+    },
+  ),
+  OL: fromCounts(
+    [
+      { key: "snaps", label: "SNAPS" },
+      { key: "snapPct", label: "SNAP %" },
+      { key: "pen", label: "PEN", tone: "negative" },
+      { key: "penYards", label: "PEN YDS", tone: "negative" },
+    ],
+    (row) => ({
+      snaps: num(row, "offense_snaps"),
+      snapPct: snapPct(row, "offense"),
+      pen: num(row, "penalties"),
+      penYards: num(row, "penalty_yards"),
+    }),
+  ),
+  K: {
+    ...fromCounts(
+      [
+        { key: "fgm", label: "FGM" },
+        { key: "fga", label: "FGA" },
+        { key: "fgPct", label: "FG%" },
+        { key: "long", label: "LONG" },
+        { key: "fg50", label: "50+", tone: "positive" },
+        { key: "xpm", label: "XPM" },
+        { key: "xpa", label: "XPA" },
+      ],
+      (row) => {
+        const fgm = num(row, "fg_made")
+        const fga = num(row, "fg_att")
+        return {
+          fgm,
+          fga,
+          fgPct: perAttempt(fgm * 100, fga),
+          long: num(row, "fg_long"),
+          fg50: num(row, "fg_made_50_59") + num(row, "fg_made_60_"),
+          xpm: num(row, "pat_made"),
+          xpa: num(row, "pat_att"),
+        }
+      },
+    ),
+    // Everything sums except the long, which is the season's longest.
+    toTotals(rows) {
+      const totals = GAME_LOG_CONFIGS.K.toStats(summedRow(rows))
+      return {
+        ...totals,
+        long: Math.max(0, ...rows.map((row) => num(row, "fg_long"))),
+      }
+    },
+  },
+  P: fromCounts(
+    [
+      { key: "punts", label: "PUNTS" },
+      { key: "avg", label: "AVG" },
+      { key: "net", label: "NET" },
+      { key: "in20", label: "IN20", tone: "positive" },
+      { key: "tb", label: "TB" },
+    ],
+    (row) => {
+      const punts = num(row, "pt_att")
+      return {
+        punts,
+        avg: perAttempt(num(row, "pt_yards"), punts),
+        net: perAttempt(num(row, "pt_net_yards"), punts),
+        in20: num(row, "pt_inside_20"),
+        tb: num(row, "pt_touchback"),
+      }
+    },
+  ),
 }
 
-// Roster positions vary more than the site's QB/RB/WR/TE toggle (FB, ...) -
-// bucket each into whichever game log shape fits its stats best.
+// Roster positions are finer-grained than the site's position groups (FB,
+// OLB, SAF, ...) - bucket each into the group whose stats fit it best. Long
+// snappers have no group.
 const POSITION_BUCKET: Record<string, PositionGroup> = {
   QB: "QB",
   RB: "RB",
   FB: "RB",
   WR: "WR",
   TE: "TE",
+  DE: "DL",
+  DT: "DL",
+  NT: "DL",
+  DL: "DL",
+  LB: "LB",
+  ILB: "LB",
+  MLB: "LB",
+  OLB: "LB",
+  CB: "DB",
+  S: "DB",
+  SS: "DB",
+  FS: "DB",
+  SAF: "DB",
+  DB: "DB",
+  T: "OL",
+  OT: "OL",
+  G: "OL",
+  OG: "OL",
+  C: "OL",
+  OL: "OL",
+  K: "K",
+  P: "P",
+}
+
+export function positionGroupFor(position: string | null): PositionGroup | null {
+  return position === null ? null : (POSITION_BUCKET[position] ?? null)
 }
 
 export function gameLogConfigForPosition(position: string | null): GameLogConfig | null {
-  if (position === null) return null
-  const bucket = POSITION_BUCKET[position]
-  return bucket ? GAME_LOG_CONFIGS[bucket] : null
+  const group = positionGroupFor(position)
+  return group ? GAME_LOG_CONFIGS[group] : null
 }

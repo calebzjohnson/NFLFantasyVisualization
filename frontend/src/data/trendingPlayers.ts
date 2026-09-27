@@ -21,11 +21,19 @@ export type WeeklyPlayerRow = Record<string, string | number | null> & {
 // How involved a player was in a given week, by position - the stat that
 // decides whether a week counts toward their trend at all. RB uses total
 // touches since a receiving back's involvement isn't captured by carries alone.
+// Defenders and linemen go by snaps, since they rarely touch the ball.
+const defenseSnaps = (row: WeeklyPlayerRow) => Number(row.defense_snaps ?? 0)
 const INVOLVEMENT: Record<PositionGroup, (row: WeeklyPlayerRow) => number> = {
   QB: (row) => Number(row.attempts ?? 0),
   RB: (row) => Number(row.carries ?? 0) + Number(row.targets ?? 0),
   WR: (row) => Number(row.targets ?? 0),
   TE: (row) => Number(row.targets ?? 0),
+  DL: defenseSnaps,
+  LB: defenseSnaps,
+  DB: defenseSnaps,
+  OL: (row) => Number(row.offense_snaps ?? 0),
+  K: (row) => Number(row.fg_att ?? 0) + Number(row.pat_att ?? 0),
+  P: (row) => Number(row.pt_att ?? 0),
 }
 
 const TREND_WINDOW_WEEKS = 5

@@ -69,23 +69,38 @@ function restOfLabel(label: string): string {
   return scope ? `Rest of ${scope.toLowerCase()}` : "Rest of team"
 }
 
-// This panel covers 3 different metrics (see USAGE_METRIC_BY_POSITION_GROUP
+// This panel covers 5 different metrics (see USAGE_METRIC_BY_POSITION_GROUP
 // on the backend) behind one generic donut/bar component, so the caption is
 // picked by metric rather than hardcoded for one position.
+const USAGE_CAPTIONS: Record<string, { season: string; weekly: string }> = {
+  td_involvement: {
+    season:
+      "Share of the team's touchdowns this player passed or ran in himself this season, vs. touchdowns that did not involve this player.",
+    weekly:
+      "Team touchdowns each week this player passed or ran in himself, vs. touchdowns that did not involve this player.",
+  },
+  touches: {
+    season: "Share of the backfield's touches (carries + receptions) this player has taken this season.",
+    weekly: "Backfield touches (carries + receptions) this player took each week, vs. the rest of the backfield.",
+  },
+  targets: {
+    season: "Share of the team's targets this player has drawn this season.",
+    weekly: "Targets this player drew each week, vs. the rest of the team.",
+  },
+  tackles: {
+    season: "Share of the team's tackles this player has made this season.",
+    weekly: "Tackles this player made each week, vs. the rest of the team.",
+  },
+  pressures: {
+    season:
+      "Share of the team's quarterback pressures (sacks, hits, and hurries) this player has created this season.",
+    weekly: "Quarterback pressures this player created each week, vs. the rest of the team.",
+  },
+}
+
 function usageCaption(metric: string, weekly: boolean): string {
-  if (metric === "td_involvement") {
-    return weekly
-      ? "Team touchdowns each week this player passed or ran in himself, vs. touchdowns that did not involve this player."
-      : "Share of the team's touchdowns this player passed or ran in himself this season, vs. touchdowns that did not involve this player."
-  }
-  if (metric === "touches") {
-    return weekly
-      ? "Backfield touches (carries + receptions) this player took each week, vs. the rest of the backfield."
-      : "Share of the backfield's touches (carries + receptions) this player has taken this season."
-  }
-  return weekly
-    ? "Targets this player drew each week, vs. the rest of the team."
-    : "Share of the team's targets this player has drawn this season."
+  const caption = USAGE_CAPTIONS[metric] ?? USAGE_CAPTIONS.targets
+  return weekly ? caption.weekly : caption.season
 }
 
 // Custom rather than the shared ChartTooltipContent, which assumes one

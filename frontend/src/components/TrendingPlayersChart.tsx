@@ -4,7 +4,7 @@
 // TrendChart. Clicking a line opens that player's page.
 import { useCallback } from "react"
 import { useNavigate } from "react-router-dom"
-import type { PositionGroup } from "../data/leaderCategories"
+import { positionPlural, type PositionGroup } from "../data/leaderCategories"
 import { PLAYER_METRICS, playersWeeklyPathForPosition, type PlayerMetric } from "../data/playerMetrics"
 import { trendingPlayers, type WeeklyPlayerRow } from "../data/trendingPlayers"
 import { useFetch } from "../lib/useFetch"
@@ -26,7 +26,7 @@ function TrendingPlayersChart({ position }: { position: PositionGroup }) {
       key={position}
       title="Trending Players"
       metrics={PLAYER_METRICS[position]}
-      plural={`${position}s`}
+      plural={positionPlural(position)}
       singular="player"
       loading={loading}
       error={error}

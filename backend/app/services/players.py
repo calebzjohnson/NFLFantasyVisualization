@@ -4,8 +4,16 @@ import nflreadpy as nfl
 import pandas as pd
 
 from app.data import pbp as pbp_data
-from app.data import player_stats, schedules, snap_counts
+from app.data import player_stats, schedules
 from app.data import players as players_data
+from app.services.extended_stats import (
+    EXTENDED_GROUPS,
+    split_specialists,
+    total_tackles,
+    weekly_extras,
+    with_season_extras,
+    with_weekly_extras,
+)
 
 REGULAR_SEASON = "REG"
 
@@ -41,9 +49,13 @@ def get_current_player_stats(
     season = nfl.get_current_season()
     stats = player_stats.get_season_stats(season)
     if stats.empty:
-        stats = player_stats.get_season_stats(season - 1)
+        season -= 1
+        stats = player_stats.get_season_stats(season)
 
     if position_group is not None:
+        stats = split_specialists(stats)
+        if position_group in EXTENDED_GROUPS:
+            stats = with_season_extras(stats, weekly_extras(season))
         stats = stats[stats["position_group"] == position_group]
 
     if sort is not None:
@@ -82,10 +94,15 @@ def get_weekly_player_stats(
     stats = stats[stats["season_type"] == "REG"]
     # Before the position filter: completeness is judged across every team.
     schedule = schedules.get_season_schedule(season)
-    stats = stats[stats["week"] <= schedules.last_complete_week(stats, schedule)]
+    last_week = schedules.last_complete_week(stats, schedule)
 
     if position_group is not None:
+        stats = split_specialists(stats)
+        if position_group in EXTENDED_GROUPS:
+            stats = with_weekly_extras(stats, weekly_extras(season))
         stats = stats[stats["position_group"] == position_group]
+
+    stats = stats[stats["week"] <= last_week]
 
     stats = stats.sort_values("week", kind="stable")
 
@@ -94,19 +111,6 @@ def get_weekly_player_stats(
 
     records = stats.astype(object).where(stats.notna(), None).to_dict(orient="records")
     return cast(list[dict[str, Any]], records)
-def _snap_weeks(player_id: str, season: int) -> pd.DataFrame:
-    """This player's weekly snap-count rows (team, opponent), indexed by
-    week - confirms which weeks he actually played. nflverse's stat pipeline
-    only emits a row for a player-week when he had some statistical event (a
-    target, a carry, ...), silently dropping weeks where he played but
-    recorded nothing; snap counts are participation-based, so they still
-    have a row for those weeks.
-    """
-    snaps = snap_counts.get_season_snap_counts(season)
-    snaps = snaps[snaps["game_type"] == REGULAR_SEASON]
-    snaps = snaps.assign(gsis_id=snaps["pfr_player_id"].map(snap_counts.get_pfr_to_gsis_map()))
-    mine = snaps[(snaps["gsis_id"] == player_id) & (snaps["offense_snaps"] > 0)]
-    return mine.set_index("week")[["team", "opponent"]]
 
 
 def get_player_game_log(player_id: str) -> list[dict[str, Any]]:
@@ -114,10 +118,11 @@ def get_player_game_log(player_id: str) -> list[dict[str, Any]]:
     oldest week first. Falls back to the prior season if the current one
     hasn't started yet, matching get_current_player_stats.
 
-    Includes a zero-stat row for any week he's confirmed to have played
-    (via snap counts) but recorded no statistical events - without this, a
-    scoreless week would just be missing from the table entirely rather than
-    showing as a real, played-but-quiet week.
+    Includes a row for any week he's confirmed to have played (via snap
+    counts) but recorded no statistical events - without this, a quiet week
+    would just be missing from the table rather than showing as a real,
+    played-but-quiet week. Rows carry snap counts and PFR's advanced defense
+    too (see extended_stats), for the defensive and offensive line logs.
     """
     season = nfl.get_current_season()
     stats = player_stats.get_week_stats(season)
@@ -125,31 +130,16 @@ def get_player_game_log(player_id: str) -> list[dict[str, Any]]:
         season -= 1
         stats = player_stats.get_week_stats(season)
 
-    games = stats[(stats["player_id"] == player_id) & (stats["season_type"] == "REG")]
-    stat_weeks = {int(week) for week in games["week"]}
-
-    snap_rows = _snap_weeks(player_id, season)
-    missing_weeks = [week for week in snap_rows.index if int(week) not in stat_weeks]
-
-    if games.empty and not missing_weeks:
+    extras = weekly_extras(season)
+    games = with_weekly_extras(
+        stats[stats["player_id"] == player_id], extras[extras["player_id"] == player_id]
+    )
+    games = games[games["season_type"] == REGULAR_SEASON]
+    if games.empty:
         raise PlayerNotFoundError(f"No games found for player_id: {player_id}")
 
     games = games.sort_values("week", kind="stable")
     records = games.astype(object).where(games.notna(), None).to_dict(orient="records")
-
-    for week in missing_weeks:
-        row = snap_rows.loc[week]
-        records.append(
-            {
-                "player_id": player_id,
-                "week": int(week),
-                "season_type": "REG",
-                "team": row["team"],
-                "opponent_team": row["opponent"],
-            }
-        )
-    records.sort(key=lambda record: record["week"])
-
     return cast(list[dict[str, Any]], records)
 
 
@@ -192,18 +182,28 @@ def get_player_bio(player_id: str) -> dict[str, Any]:
 # backfield specifically (one ball-carrier at a time), so those are pooled
 # across just the team's RBs/FBs instead. QBs get a different shape entirely
 # (see get_player_usage_share) - not a share of one stat, but every team
-# touchdown split into "this QB was involved" vs. not.
+# touchdown split into "this QB was involved" vs. not. Defenders are framed
+# against the whole team too - pressures for linemen (their main job), tackles
+# for linebackers and defensive backs. Groups not listed here (OL, K, P) have
+# no usage donut.
 USAGE_METRIC_BY_POSITION_GROUP = {
     "RB": ("touches", "Touch Share vs Backfield"),
     "FB": ("touches", "Touch Share vs Backfield"),
     "WR": ("targets", "Target Share"),
     "TE": ("targets", "Target Share"),
+    "DL": ("pressures", "Pressure Share"),
+    "LB": ("tackles", "Tackle Share"),
+    "DB": ("tackles", "Tackle Share"),
 }
 
 
 def _usage_amount(stats: pd.DataFrame, metric: str) -> pd.Series:
     if metric == "touches":
         return stats["carries"] + stats["receptions"]
+    if metric == "tackles":
+        return total_tackles(stats).fillna(0)
+    if metric == "pressures":
+        return stats["def_pressures"].fillna(0)
     return stats["targets"]
 
 
@@ -289,6 +289,9 @@ def _usage_weekly(team: str, season: int, player_id: str, metric: str) -> list[d
         week_stats = player_stats.get_week_stats(season - 1)
     is_regular_season = week_stats["season_type"] == REGULAR_SEASON
     week_stats = week_stats[is_regular_season & (week_stats["team"] == team)]
+    if metric == "pressures":
+        extras = weekly_extras(season)
+        week_stats = with_weekly_extras(week_stats, extras[extras["team"] == team])
 
     pool = _usage_pool(week_stats, metric)
     pool = pool.assign(usage_amount=_usage_amount(pool, metric))
@@ -318,10 +321,16 @@ def get_player_usage_share(player_id: str) -> dict[str, Any]:
     if player["position_group"] == "QB":
         return _qb_td_involvement(player_id, player["recent_team"], season)
 
-    metric, label = USAGE_METRIC_BY_POSITION_GROUP.get(
-        player["position_group"], ("touches", "Touch Share")
-    )
+    usage = USAGE_METRIC_BY_POSITION_GROUP.get(player["position_group"])
+    if usage is None:
+        raise PlayerNotFoundError(f"No usage profile for player_id: {player_id}")
+    metric, label = usage
+
     team_stats = stats[stats["recent_team"] == player["recent_team"]]
+    if metric == "pressures":
+        extras = weekly_extras(season)
+        team_stats = with_season_extras(team_stats, extras[extras["team"] == player["recent_team"]])
+        player_rows = team_stats[team_stats["player_id"] == player_id]
     pool = _usage_pool(team_stats, metric)
     pool = pool.assign(usage_amount=_usage_amount(pool, metric))
 
@@ -358,9 +367,7 @@ def _sorted(stats: pd.DataFrame, sort: str) -> pd.DataFrame:
     # kind="stable" so players tied on the sort field keep a consistent,
     # deterministic relative order instead of one that can vary between
     # runs/platforms (the default "quicksort" isn't stable).
-    return stats.sort_values(
-        column, ascending=not descending, na_position="last", kind="stable"
-    )
+    return stats.sort_values(column, ascending=not descending, na_position="last", kind="stable")
 
 
 def _with_fields(stats: pd.DataFrame, fields: list[str]) -> pd.DataFrame:
