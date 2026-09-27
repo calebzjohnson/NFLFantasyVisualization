@@ -1,12 +1,14 @@
 import pandas as pd
 import pytest
 
+from app.services.extended_stats import PFR_COLUMNS
 from app.services.players import (
     InvalidQueryError,
     PlayerNotFoundError,
     get_current_player_stats,
     get_player_bio,
     get_player_game_log,
+    get_player_usage_share,
     get_weekly_player_stats,
 )
 
@@ -221,25 +223,24 @@ def sample_quiet_week_stats() -> pd.DataFrame:
 @pytest.fixture
 def sample_quiet_week_snaps() -> pd.DataFrame:
     """Snap counts for the same three weeks, keyed by pfr_player_id (see
-    get_player_id_crosswalk): week 1 confirms the real stat row, week 2 has
+    get_pfr_to_gsis_map): week 1 confirms the real stat row, week 2 has
     real offensive snaps despite no stat row (the "played but quiet" case
-    get_player_game_log should surface as a zero-stat row), and week 3 has
-    zero offensive snaps (genuinely inactive - should stay excluded, not be
+    get_player_game_log should surface as a quiet-week row), and week 3 has
+    zero snaps of any kind (genuinely inactive - should stay excluded, not be
     mistaken for a quiet week). A decoy row for a different player in week 2
     confirms filtering by player_id, not just by week.
     """
-    return pd.DataFrame(
-        [
-            dict(pfr_player_id="ZeeOne", game_type="REG", week=1, team="DAL",
-                 opponent="NYG", offense_snaps=50),
-            dict(pfr_player_id="ZeeOne", game_type="REG", week=2, team="DAL",
-                 opponent="PHI", offense_snaps=10),
-            dict(pfr_player_id="ZeeOne", game_type="REG", week=3, team="DAL",
-                 opponent="WAS", offense_snaps=0),
-            dict(pfr_player_id="Other", game_type="REG", week=2, team="NYG",
-                 opponent="DAL", offense_snaps=20),
-        ]
-    )
+    rows = [
+        dict(pfr_player_id="ZeeOne", week=1, team="DAL", opponent="NYG", offense_snaps=50,
+             offense_pct=0.5),
+        dict(pfr_player_id="ZeeOne", week=2, team="DAL", opponent="PHI", offense_snaps=10,
+             offense_pct=0.2),
+        dict(pfr_player_id="ZeeOne", week=3, team="DAL", opponent="WAS", offense_snaps=0,
+             offense_pct=0.0),
+        dict(pfr_player_id="Other", week=2, team="NYG", opponent="DAL", offense_snaps=20,
+             offense_pct=0.25),
+    ]
+    return pd.DataFrame(rows).assign(game_type="REG", defense_snaps=0, defense_pct=0.0, st_snaps=0)
 
 
 def test_get_player_game_log_includes_quiet_week_played_via_snap_counts(
@@ -257,6 +258,17 @@ def test_get_player_game_log_includes_quiet_week_played_via_snap_counts(
         "app.data.snap_counts.get_pfr_to_gsis_map",
         lambda: pd.Series({"ZeeOne": "Z1", "Other": "O1"}),
     )
+    monkeypatch.setattr(
+        "app.data.pfr_defense.get_season_pfr_defense",
+        lambda season: pd.DataFrame(columns=["pfr_player_id", "game_type", "week", *PFR_COLUMNS]),
+    )
+    monkeypatch.setattr(
+        "app.data.players.get_players",
+        lambda: pd.DataFrame(
+            [dict(gsis_id="Z1", display_name="Z One", position="WR", position_group="WR",
+                  headshot=None)]
+        ),
+    )
 
     records = get_player_game_log("Z1")
 
@@ -264,11 +276,14 @@ def test_get_player_game_log_includes_quiet_week_played_via_snap_counts(
 
     week_1 = next(r for r in records if r["week"] == 1)
     assert week_1["targets"] == 5  # a real stat row, untouched
+    assert week_1["offense_snaps"] == 50
 
     week_2 = next(r for r in records if r["week"] == 2)
     assert week_2["team"] == "DAL"
     assert week_2["opponent_team"] == "PHI"
-    assert "targets" not in week_2  # synthesized - no stat columns, not zero-filled
+    assert week_2["player_display_name"] == "Z One"
+    assert week_2["offense_snaps"] == 10
+    assert week_2["targets"] is None  # synthesized - null box score, not zero-filled
 
 
 def test_get_player_bio_returns_matching_player(
@@ -405,3 +420,53 @@ def test_get_weekly_player_stats_hides_partially_played_week(
     records = get_weekly_player_stats(position_group="QB")
 
     assert [r["week"] for r in records] == [1, 2, 3]
+
+
+def test_get_current_player_stats_splits_specialists_into_kickers_and_punters(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    stats = pd.DataFrame(
+        [
+            dict(player_id="K1", position="K", position_group="SPEC", fg_made=10),
+            dict(player_id="P1", position="P", position_group="SPEC", fg_made=0),
+        ]
+    )
+    monkeypatch.setattr("app.data.player_stats.get_season_stats", lambda season: stats)
+
+    records = get_current_player_stats(position_group="K")
+
+    assert [r["player_id"] for r in records] == ["K1"]
+
+
+def test_get_player_usage_share_uses_team_tackle_share_for_defensive_backs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tackles = dict(def_tackles_with_assist=0, def_tackle_assists=0)
+    season = pd.DataFrame(
+        [
+            dict(player_id="D1", player_display_name="D One", position_group="DB",
+                 recent_team="DAL", def_tackles_solo=6, **tackles),
+            dict(player_id="L1", player_display_name="L One", position_group="LB",
+                 recent_team="DAL", def_tackles_solo=4, **tackles),
+            dict(player_id="X1", player_display_name="X One", position_group="LB",
+                 recent_team="NYG", def_tackles_solo=9, **tackles),
+        ]
+    )
+    week = season.rename(columns={"recent_team": "team"}).assign(week=1, season_type="REG")
+    monkeypatch.setattr("app.data.player_stats.get_season_stats", lambda s: season)
+    monkeypatch.setattr("app.data.player_stats.get_week_stats", lambda s: week)
+
+    usage = get_player_usage_share("D1")
+
+    assert (usage["label"], usage["player_value"], usage["team_value"]) == ("Tackle Share", 6, 10)
+    assert usage["teammates"] == [{"player_id": "L1", "name": "L One", "value": 4}]
+
+
+def test_get_player_usage_share_raises_for_groups_without_a_usage_metric(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    season = pd.DataFrame([dict(player_id="C1", position_group="OL", recent_team="DAL")])
+    monkeypatch.setattr("app.data.player_stats.get_season_stats", lambda s: season)
+
+    with pytest.raises(PlayerNotFoundError):
+        get_player_usage_share("C1")

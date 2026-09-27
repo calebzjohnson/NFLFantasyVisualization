@@ -5,7 +5,7 @@
 // open-ended comparison across every player in a position, not a top-5 list.
 // Verified against the real /players response (season 2026) before picking
 // these - only fields that actually come back non-null for that position.
-import { passerRating, perAttempt } from "../lib/footballStats"
+import { passerRating, perAttempt, TACKLE_FIELDS, totalTackles } from "../lib/footballStats"
 import type { PositionGroup } from "./leaderCategories"
 
 // One row from /players, restricted via ?fields=... to whatever the active
@@ -128,12 +128,214 @@ const WR_METRICS: PlayerMetric[] = [
   fantasyPointsPpr,
 ]
 
+// Defensive metrics shared across DL/LB/DB, each group picking the ones that
+// fit its job. Rates use perAttempt (0 with no attempts) like the offense.
+const tackles: PlayerMetric = { key: "tackles", label: "Tackles", value: totalTackles }
+const soloTackles: PlayerMetric = {
+  key: "def_tackles_solo",
+  label: "Solo Tackles",
+  value: (row) => num(row, "def_tackles_solo"),
+}
+const tacklesForLoss: PlayerMetric = {
+  key: "def_tackles_for_loss",
+  label: "Tackles for Loss",
+  value: (row) => num(row, "def_tackles_for_loss"),
+}
+const sacks: PlayerMetric = { key: "def_sacks", label: "Sacks", value: (row) => num(row, "def_sacks") }
+const qbHits: PlayerMetric = { key: "def_qb_hits", label: "QB Hits", value: (row) => num(row, "def_qb_hits") }
+const pressures: PlayerMetric = { key: "def_pressures", label: "Pressures", value: (row) => num(row, "def_pressures") }
+const hurries: PlayerMetric = {
+  key: "def_times_hurried",
+  label: "Hurries",
+  value: (row) => num(row, "def_times_hurried"),
+}
+const forcedFumbles: PlayerMetric = {
+  key: "def_fumbles_forced",
+  label: "Forced Fumbles",
+  value: (row) => num(row, "def_fumbles_forced"),
+}
+const passesDefended: PlayerMetric = {
+  key: "def_pass_defended",
+  label: "Passes Defended",
+  value: (row) => num(row, "def_pass_defended"),
+}
+const interceptions: PlayerMetric = {
+  key: "def_interceptions",
+  label: "Interceptions",
+  value: (row) => num(row, "def_interceptions"),
+}
+const defenseSnaps: PlayerMetric = {
+  key: "defense_snaps",
+  label: "Defensive Snaps",
+  value: (row) => num(row, "defense_snaps"),
+}
+const defenseSnapPct: PlayerMetric = {
+  key: "defense_snap_pct",
+  label: "Snap %",
+  unit: "%",
+  value: (row) => num(row, "defense_snap_pct"),
+}
+const pressureRate: PlayerMetric = {
+  key: "pressure_rate",
+  label: "Pressure Rate",
+  unit: "%",
+  value: (row) => perAttempt(num(row, "def_pressures") * 100, num(row, "defense_snaps")),
+}
+const missedTacklePct: PlayerMetric = {
+  key: "missed_tackle_pct",
+  label: "Missed Tackle %",
+  unit: "%",
+  value: (row) => {
+    const missed = num(row, "def_missed_tackles")
+    return perAttempt(missed * 100, totalTackles(row) + missed)
+  },
+}
+const targetsAllowed: PlayerMetric = {
+  key: "def_targets",
+  label: "Targets Allowed",
+  value: (row) => num(row, "def_targets"),
+}
+const yardsAllowed: PlayerMetric = {
+  key: "def_yards_allowed",
+  label: "Yards Allowed",
+  value: (row) => num(row, "def_yards_allowed"),
+}
+const ratingAllowed: PlayerMetric = {
+  key: "passer_rating_allowed",
+  label: "Passer Rating Allowed",
+  value: (row) =>
+    passerRating(
+      num(row, "def_completions_allowed"),
+      num(row, "def_targets"),
+      num(row, "def_yards_allowed"),
+      num(row, "def_receiving_td_allowed"),
+      num(row, "def_interceptions"),
+    ),
+}
+
+const DL_METRICS: PlayerMetric[] = [
+  tackles,
+  tacklesForLoss,
+  sacks,
+  qbHits,
+  pressures,
+  hurries,
+  forcedFumbles,
+  passesDefended,
+  defenseSnaps,
+  defenseSnapPct,
+  pressureRate,
+  missedTacklePct,
+]
+
+const LB_METRICS: PlayerMetric[] = [
+  tackles,
+  soloTackles,
+  tacklesForLoss,
+  sacks,
+  pressures,
+  passesDefended,
+  interceptions,
+  forcedFumbles,
+  targetsAllowed,
+  yardsAllowed,
+  ratingAllowed,
+  missedTacklePct,
+  defenseSnaps,
+]
+
+const DB_METRICS: PlayerMetric[] = [
+  tackles,
+  interceptions,
+  passesDefended,
+  targetsAllowed,
+  {
+    key: "def_completions_allowed",
+    label: "Completions Allowed",
+    value: (row) => num(row, "def_completions_allowed"),
+  },
+  {
+    key: "completion_pct_allowed",
+    label: "Completion % Allowed",
+    unit: "%",
+    value: (row) => perAttempt(num(row, "def_completions_allowed") * 100, num(row, "def_targets")),
+  },
+  yardsAllowed,
+  {
+    key: "yards_per_target_allowed",
+    label: "Yards / Target Allowed",
+    value: (row) => perAttempt(num(row, "def_yards_allowed"), num(row, "def_targets")),
+  },
+  { key: "def_receiving_td_allowed", label: "TDs Allowed", value: (row) => num(row, "def_receiving_td_allowed") },
+  ratingAllowed,
+  missedTacklePct,
+  defenseSnaps,
+]
+
+const OL_METRICS: PlayerMetric[] = [
+  { key: "offense_snaps", label: "Offensive Snaps", value: (row) => num(row, "offense_snaps") },
+  { key: "offense_snap_pct", label: "Snap %", unit: "%", value: (row) => num(row, "offense_snap_pct") },
+  { key: "penalties", label: "Penalties", value: (row) => num(row, "penalties") },
+  { key: "penalty_yards", label: "Penalty Yards", value: (row) => num(row, "penalty_yards") },
+  {
+    key: "penalties_per_100_snaps",
+    label: "Penalties / 100 Snaps",
+    value: (row) => perAttempt(num(row, "penalties") * 100, num(row, "offense_snaps")),
+  },
+]
+
+const K_METRICS: PlayerMetric[] = [
+  { key: "fg_made", label: "Field Goals Made", value: (row) => num(row, "fg_made") },
+  { key: "fg_att", label: "Field Goal Attempts", value: (row) => num(row, "fg_att") },
+  {
+    key: "fg_pct",
+    label: "Field Goal %",
+    unit: "%",
+    value: (row) => perAttempt(num(row, "fg_made") * 100, num(row, "fg_att")),
+  },
+  { key: "fg_long", label: "Longest Field Goal", value: (row) => num(row, "fg_long") },
+  {
+    key: "fg_made_50_plus",
+    label: "50+ Yard FGs Made",
+    value: (row) => num(row, "fg_made_50_59") + num(row, "fg_made_60_"),
+  },
+  { key: "pat_made", label: "Extra Points Made", value: (row) => num(row, "pat_made") },
+  {
+    key: "pat_pct",
+    label: "Extra Point %",
+    unit: "%",
+    value: (row) => perAttempt(num(row, "pat_made") * 100, num(row, "pat_att")),
+  },
+]
+
+const P_METRICS: PlayerMetric[] = [
+  { key: "pt_att", label: "Punts", value: (row) => num(row, "pt_att") },
+  { key: "gross_avg", label: "Gross Average", value: (row) => perAttempt(num(row, "pt_yards"), num(row, "pt_att")) },
+  { key: "net_avg", label: "Net Average", value: (row) => perAttempt(num(row, "pt_net_yards"), num(row, "pt_att")) },
+  { key: "pt_inside_20", label: "Inside the 20", value: (row) => num(row, "pt_inside_20") },
+  {
+    key: "inside_20_pct",
+    label: "Inside the 20 %",
+    unit: "%",
+    value: (row) => perAttempt(num(row, "pt_inside_20") * 100, num(row, "pt_att")),
+  },
+  { key: "pt_touchback", label: "Touchbacks", value: (row) => num(row, "pt_touchback") },
+]
+
+// Defenders, linemen, and specialists get no Fantasy Points metric -
+// nflverse's fantasy scoring only counts offensive stats, so theirs is ~0.
 export const PLAYER_METRICS: Record<PositionGroup, PlayerMetric[]> = {
   QB: QB_METRICS,
   RB: RB_METRICS,
   WR: WR_METRICS,
   // TEs are receivers first - same metric catalog as WR.
   TE: WR_METRICS,
+  DL: DL_METRICS,
+  LB: LB_METRICS,
+  DB: DB_METRICS,
+  OL: OL_METRICS,
+  K: K_METRICS,
+  P: P_METRICS,
 }
 
 // The middle value of a metric across every player in the position - no
@@ -201,6 +403,48 @@ const RAW_FIELDS: Record<PositionGroup, string[]> = {
     "wopr",
     "fantasy_points_ppr",
   ],
+  DL: [
+    ...TACKLE_FIELDS,
+    "def_tackles_for_loss",
+    "def_sacks",
+    "def_qb_hits",
+    "def_pressures",
+    "def_times_hurried",
+    "def_fumbles_forced",
+    "def_pass_defended",
+    "def_missed_tackles",
+    "defense_snaps",
+    "defense_snap_pct",
+  ],
+  LB: [
+    ...TACKLE_FIELDS,
+    "def_tackles_for_loss",
+    "def_sacks",
+    "def_pressures",
+    "def_pass_defended",
+    "def_interceptions",
+    "def_fumbles_forced",
+    "def_targets",
+    "def_completions_allowed",
+    "def_yards_allowed",
+    "def_receiving_td_allowed",
+    "def_missed_tackles",
+    "defense_snaps",
+  ],
+  DB: [
+    ...TACKLE_FIELDS,
+    "def_interceptions",
+    "def_pass_defended",
+    "def_targets",
+    "def_completions_allowed",
+    "def_yards_allowed",
+    "def_receiving_td_allowed",
+    "def_missed_tackles",
+    "defense_snaps",
+  ],
+  OL: ["offense_snaps", "offense_snap_pct", "penalties", "penalty_yards"],
+  K: ["fg_made", "fg_att", "fg_long", "fg_made_50_59", "fg_made_60_", "pat_made", "pat_att"],
+  P: ["pt_att", "pt_yards", "pt_net_yards", "pt_inside_20", "pt_touchback"],
 }
 
 export function playersPathForPosition(position: PositionGroup): string {

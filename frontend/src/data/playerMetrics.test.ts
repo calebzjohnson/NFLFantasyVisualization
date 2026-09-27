@@ -1,6 +1,8 @@
 // playerMetrics.test.ts
-// Tests for the median used by comparison charts and the /players query paths.
+// Tests for the median used by comparison charts, the /players query paths, and the metric formulas.
 import { describe, expect, it } from "vitest"
+import { readFields } from "../test/readFields"
+import { POSITION_GROUPS } from "./leaderCategories"
 import { metricMedian, PLAYER_METRICS, playersPathForPosition, playersWeeklyPathForPosition } from "./playerMetrics"
 
 const yards = PLAYER_METRICS.WR.find((m) => m.key === "receiving_yards")!
@@ -30,5 +32,26 @@ describe("query paths", () => {
     const url = new URL(playersWeeklyPathForPosition("RB"), "http://x")
     expect(url.pathname).toBe("/players/weekly")
     expect(url.searchParams.get("fields")?.split(",")).toEqual(expect.arrayContaining(["week", "team", "carries"]))
+  })
+})
+
+describe("metric catalogs", () => {
+  it.each(POSITION_GROUPS)("%s requests every field its metrics read", (position) => {
+    const requested = new URL(playersPathForPosition(position), "http://x").searchParams.get("fields")!.split(",")
+    for (const metric of PLAYER_METRICS[position]) {
+      expect(requested, metric.key).toEqual(expect.arrayContaining(readFields(metric.value)))
+    }
+  })
+
+  it("computes missed tackle % against tackle attempts (made + missed)", () => {
+    const missed = PLAYER_METRICS.LB.find((m) => m.key === "missed_tackle_pct")!
+    // 1 missed out of 10 attempts (9 made).
+    expect(missed.value({ def_tackles_solo: 5, def_tackle_assists: 4, def_missed_tackles: 1 })).toBe(10)
+  })
+
+  it("gives defenders, linemen, and specialists no fantasy points metric", () => {
+    for (const position of ["DL", "LB", "DB", "OL", "K", "P"] as const) {
+      expect(PLAYER_METRICS[position].map((m) => m.key)).not.toContain("fantasy_points_ppr")
+    }
   })
 })

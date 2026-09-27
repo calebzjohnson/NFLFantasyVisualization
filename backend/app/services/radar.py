@@ -6,6 +6,7 @@ import pandas as pd
 
 from app.data import nextgen_stats, player_stats, snap_counts
 from app.data import pbp as pbp_data
+from app.services.extended_stats import total_tackles, weekly_extras, with_season_extras
 from app.services.players import PlayerNotFoundError
 
 REGULAR_SEASON = "REG"
@@ -19,8 +20,10 @@ REGULAR_SEASON = "REG"
 # flat floor low enough to not leave the radar empty in Week 1 becomes far
 # too lenient by Week 12 (a QB with 10 career attempts back in Week 1 would
 # still "qualify" at midseason), while a flat floor strict enough for
-# midseason would leave every chart blank for the first month.
-MIN_SAMPLE_PER_WEEK = {"QB": 6.25, "RB": 3.0, "WR": 2.0, "TE": 1.25}
+# midseason would leave every chart blank for the first month. Defenders
+# are measured in defensive snaps instead - roughly a quarter of a game's
+# snaps each week, which keeps special-teams-only players out.
+MIN_SAMPLE_PER_WEEK = {"QB": 6.25, "RB": 3.0, "WR": 2.0, "TE": 1.25, "DL": 15, "LB": 15, "DB": 15}
 
 
 def _min_sample(bucket: str, current_week: int) -> float:
@@ -33,6 +36,7 @@ def _current_week(season: int) -> int:
     week_stats = player_stats.get_week_stats(season)
     reg = week_stats[week_stats["season_type"] == REGULAR_SEASON]
     return int(reg["week"].max()) if not reg.empty else 1
+
 
 # (raw column, display label), in the order the radar's axes should appear.
 RADAR_AXES: dict[str, list[tuple[str, str]]] = {
@@ -81,7 +85,42 @@ RADAR_AXES: dict[str, list[tuple[str, str]]] = {
         ("yards_per_target", "Yards / TGT"),
         ("redzone_target_share", "RZ TGT Share"),
     ],
+    "DL": [
+        ("pressure_rate", "Pressure Rate"),
+        ("sack_rate", "Sack Rate"),
+        ("tfl_per_100_snaps", "TFL / 100 Snaps"),
+        ("tackles_per_100_snaps", "Tackles / 100 Snaps"),
+        ("missed_tackle_pct", "Missed Tackle %"),
+        ("defense_snap_pct", "Snap Share"),
+    ],
+    "LB": [
+        ("tackles_per_100_snaps", "Tackles / 100 Snaps"),
+        ("tfl_per_100_snaps", "TFL / 100 Snaps"),
+        ("pressure_rate", "Pressure Rate"),
+        ("yards_per_target_allowed", "Yards / TGT Allowed"),
+        ("passer_rating_allowed", "Rating Allowed"),
+        ("missed_tackle_pct", "Missed Tackle %"),
+    ],
+    "DB": [
+        ("passer_rating_allowed", "Rating Allowed"),
+        ("yards_per_target_allowed", "Yards / TGT Allowed"),
+        ("completion_pct_allowed", "CMP % Allowed"),
+        ("ball_production", "Ball Production"),
+        ("tackles_per_100_snaps", "Tackles / 100 Snaps"),
+        ("missed_tackle_pct", "Missed Tackle %"),
+    ],
 }
+
+# Axes where a smaller raw value is the better result - ranked in reverse so
+# a high percentile always means "better than his peers," on every axis.
+LOWER_IS_BETTER = frozenset(
+    {
+        "missed_tackle_pct",
+        "yards_per_target_allowed",
+        "passer_rating_allowed",
+        "completion_pct_allowed",
+    }
+)
 
 
 def _position_bucket(position_group: str) -> str | None:
@@ -91,8 +130,8 @@ def _position_bucket(position_group: str) -> str | None:
         return "RB"
     if position_group == "WR":
         return "WR"
-    if position_group == "TE":
-        return "TE"
+    if position_group in ("TE", "DL", "LB", "DB"):
+        return position_group
     return None
 
 
@@ -201,11 +240,13 @@ def _redzone_touch_share(plays: pd.DataFrame) -> pd.Series:
         & red_zone["receiver_player_id"].notna()
     ]
 
-    player_touches = runs.groupby("rusher_player_id").size().add(
-        catches.groupby("receiver_player_id").size(), fill_value=0
+    player_touches = (
+        runs.groupby("rusher_player_id")
+        .size()
+        .add(catches.groupby("receiver_player_id").size(), fill_value=0)
     )
-    team_touches = runs.groupby("posteam").size().add(
-        catches.groupby("posteam").size(), fill_value=0
+    team_touches = (
+        runs.groupby("posteam").size().add(catches.groupby("posteam").size(), fill_value=0)
     )
     player_team = (
         pd.concat(
@@ -310,10 +351,69 @@ def _te_metrics(
     return te
 
 
+def _passer_rating(
+    cmp: pd.Series, att: pd.Series, yards: pd.Series, td: pd.Series, ints: pd.Series
+) -> pd.Series:
+    """Standard NFL passer rating (the same formula as the frontend's
+    passerRating), vectorized - null at 0 attempts, where it's undefined.
+    """
+    att = att.where(att > 0)
+    parts = [
+        (cmp / att - 0.3) * 5,
+        (yards / att - 3) * 0.25,
+        td / att * 20,
+        2.375 - ints / att * 25,
+    ]
+    return cast(pd.Series, sum(part.clip(0, 2.375) for part in parts) / 6 * 100)
+
+
+def _defense_metrics(
+    stats: pd.DataFrame, bucket: str, season: int, current_week: int
+) -> pd.DataFrame:
+    """Every DL/LB/DB radar axis for the qualifying players in this bucket.
+    Rates are per 100 defensive snaps, since defenders have no "attempts" to
+    divide by the way passers, runners, and receivers do.
+    """
+    # Extras first, then the bucket filter - see with_season_extras.
+    defense = with_season_extras(stats, weekly_extras(season))
+    defense = defense[defense["position_group"] == bucket]
+    defense = defense[defense["defense_snaps"] >= _min_sample(bucket, current_week)].copy()
+
+    snaps = defense["defense_snaps"]
+    tackles = total_tackles(defense)
+    targets = defense["def_targets"]
+
+    defense["pressure_rate"] = _clean(defense["def_pressures"] / snaps * 100)
+    # Null (not 0) with no pressures - there's nothing to convert yet.
+    defense["sack_rate"] = _clean(defense["def_sacks"] / defense["def_pressures"] * 100)
+    defense["tfl_per_100_snaps"] = _clean(defense["def_tackles_for_loss"] / snaps * 100)
+    defense["tackles_per_100_snaps"] = _clean(tackles / snaps * 100)
+    defense["missed_tackle_pct"] = _clean(
+        defense["def_missed_tackles"] / (tackles + defense["def_missed_tackles"]) * 100
+    )
+    # Recomputed from summed coverage counts, not averaged from PFR's weekly
+    # rating - PFR leaves that blank for many linebacker weeks.
+    defense["passer_rating_allowed"] = _passer_rating(
+        defense["def_completions_allowed"],
+        targets,
+        defense["def_yards_allowed"],
+        defense["def_receiving_td_allowed"],
+        defense["def_interceptions"],
+    )
+    defense["yards_per_target_allowed"] = _clean(defense["def_yards_allowed"] / targets)
+    defense["completion_pct_allowed"] = _clean(defense["def_completions_allowed"] / targets * 100)
+    # Passes defended already includes interceptions (every INT play credits
+    # the intercepting player with a pass defended), so it isn't added again.
+    defense["ball_production"] = _clean(defense["def_pass_defended"] / targets * 100)
+
+    return defense
+
+
 def _with_percentiles(pool: pd.DataFrame, axes: list[tuple[str, str]]) -> pd.DataFrame:
     pool = pool.copy()
     for key, _ in axes:
-        pool[f"{key}_percentile"] = pool[key].rank(pct=True) * 100
+        ascending = key not in LOWER_IS_BETTER
+        pool[f"{key}_percentile"] = pool[key].rank(pct=True, ascending=ascending) * 100
     return pool
 
 
@@ -349,10 +449,12 @@ def _build_pool(bucket: str, stats: pd.DataFrame, season: int) -> pd.DataFrame:
         ngs_receiving = nextgen_stats.get_season_nextgen_stats(season, "receiving")
         total_snaps = _wr_total_offense_snaps(season)
         pool = _wr_metrics(stats, ngs_receiving, total_snaps, plays, current_week)
-    else:
+    elif bucket == "TE":
         plays = pbp_data.get_season_pbp(season)
         ngs_receiving = nextgen_stats.get_season_nextgen_stats(season, "receiving")
         pool = _te_metrics(stats, ngs_receiving, plays, current_week)
+    else:
+        pool = _defense_metrics(stats, bucket, season, current_week)
 
     return _with_percentiles(pool, RADAR_AXES[bucket])
 
@@ -375,9 +477,7 @@ def get_player_radar(player_id: str) -> dict[str, Any]:
 
     pool = _build_pool(bucket, stats, season).set_index("player_id")
     if player_id not in pool.index:
-        raise PlayerNotFoundError(
-            f"Not enough season volume for a radar profile: {player_id}"
-        )
+        raise PlayerNotFoundError(f"Not enough season volume for a radar profile: {player_id}")
     row = pool.loc[player_id]
 
     return {

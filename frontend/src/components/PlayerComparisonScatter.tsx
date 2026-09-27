@@ -7,7 +7,7 @@
 // (~7 KB each), so there's nothing to clip.
 import { memo, useMemo } from "react"
 import { useNavigate } from "react-router-dom"
-import type { PositionGroup } from "../data/leaderCategories"
+import { positionPlural, type PositionGroup } from "../data/leaderCategories"
 import { PLAYER_METRICS, playersPathForPosition, type PlayerStatsRow } from "../data/playerMetrics"
 import type { TeamInfo } from "../data/teams"
 import { headshotUrl } from "../lib/imageUrls"
@@ -133,7 +133,7 @@ function PlayerComparisonScatter({ position }: { position: PositionGroup }) {
       loading={loading}
       error={error}
       noun="players"
-      emptyText={`No ${position}s with stats yet.`}
+      emptyText={`No ${positionPlural(position)} with stats yet.`}
       Dot={(props) => <PlayerDot {...props} onSelect={goToPlayer} />}
       renderTooltipHeader={(point) => <TooltipHeader point={point} />}
       caption={

@@ -1,7 +1,7 @@
 // footballStats.test.ts
-// Tests for the passer rating and per-attempt formulas.
+// Tests for the passer rating, per-attempt, and tackle formulas.
 import { describe, expect, it } from "vitest"
-import { passerRating, perAttempt } from "./footballStats"
+import { passerRating, perAttempt, totalTackles } from "./footballStats"
 
 describe("passerRating", () => {
   it("caps a perfect game at 158.3", () => {
@@ -29,5 +29,15 @@ describe("perAttempt", () => {
 
   it("returns 0 with no attempts", () => {
     expect(perAttempt(10, 0)).toBe(0)
+  })
+})
+
+describe("totalTackles", () => {
+  it("adds solo tackles and both kinds of assisted-tackle credit", () => {
+    expect(totalTackles({ def_tackles_solo: 5, def_tackles_with_assist: 1, def_tackle_assists: 3 })).toBe(9)
+  })
+
+  it("treats missing or null fields (a quiet week) as 0", () => {
+    expect(totalTackles({ def_tackles_solo: null })).toBe(0)
   })
 })
