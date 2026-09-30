@@ -1,13 +1,13 @@
 // trendingPlayers.ts
-// Picks which players show up on the Trending Players chart: qualifies each
-// player by a per-position involvement floor (so a garbage-time snap can't
-// fake a "trend") and by having played recently (so an injured player
-// doesn't linger), scores everyone else by the slope of the selected stat
-// over their last-5-week window, and keeps only the top 5 trending up and
-// top 5 trending down - a position can have 150+ players, and plotting all
+// Picks which players show up on the Trending Players chart: drops games a
+// player left early (by snap share), qualifies each player by a snap share
+// floor (so garbage-time snaps can't fake a "trend") and by having played
+// recently (so an injured player doesn't linger), scores everyone else by
+// the slope of the selected stat over their last-5-week window, and keeps
+// only the top 5 trending up and top 5 trending down - a position can have 150+ players, and plotting all
 // of them would be an unreadable tangle of lines.
 import type { PositionGroup } from "./leaderCategories"
-import type { PlayerMetric } from "./playerMetrics"
+import { median, SNAP_SHARE_FIELD, type PlayerMetric } from "./playerMetrics"
 
 // One row from /players/weekly. Identity fields mirror PlayerStatsRow except
 // `team` (that endpoint's field name; /players uses `recent_team`).
@@ -19,24 +19,6 @@ export type WeeklyPlayerRow = Record<string, string | number | null> & {
   week: number
 }
 
-// How involved a player was in a given week, by position - the stat that
-// decides whether a week counts toward their trend at all. RB uses total
-// touches since a receiving back's involvement isn't captured by carries alone.
-// Defenders and linemen go by snaps, since they rarely touch the ball.
-const defenseSnaps = (row: WeeklyPlayerRow) => Number(row.defense_snaps ?? 0)
-const INVOLVEMENT: Record<PositionGroup, (row: WeeklyPlayerRow) => number> = {
-  QB: (row) => Number(row.attempts ?? 0),
-  RB: (row) => Number(row.carries ?? 0) + Number(row.targets ?? 0),
-  WR: (row) => Number(row.targets ?? 0),
-  TE: (row) => Number(row.targets ?? 0),
-  DL: defenseSnaps,
-  LB: defenseSnaps,
-  DB: defenseSnaps,
-  OL: (row) => Number(row.offense_snaps ?? 0),
-  K: (row) => Number(row.fg_att ?? 0) + Number(row.pat_att ?? 0),
-  P: (row) => Number(row.pt_att ?? 0),
-}
-
 const TREND_WINDOW_WEEKS = 5
 const MIN_GAMES = 2
 // A player must have played in one of the last this-many weeks to trend, so
@@ -45,10 +27,15 @@ const MIN_GAMES = 2
 // bye in the latest week doesn't knock anyone off. Only the end of the
 // window matters - a practice-squad call-up with no early games still counts.
 const RECENT_WEEKS = 2
-// A player needs to average at least this fraction of the position's most-
-// involved player's workload to qualify - the same bar Compare Players uses,
-// so a single garbage-time series of snaps can't read as a "trend."
-const QUALIFYING_FRACTION = 0.2
+// A game counts only if the player was on the field for at least this
+// fraction of their usual (median) snap share - a game left early to injury
+// would otherwise swing the slope as if it were a real slump. Median, not
+// their busiest game, so one heavy fill-in game doesn't make a part-timer's
+// normal games all look cut short.
+const FULL_GAME_FRACTION = 0.5
+// Average snap share (%) a player needs over their counted games to qualify,
+// so a backup's garbage-time snaps can't read as a "trend."
+const MIN_AVG_SNAP_SHARE = 20
 const MAX_LINES_PER_DIRECTION = 5
 
 export interface TrendLine {
@@ -81,7 +68,7 @@ export function trendingPlayers(
 ): { up: TrendLine[]; down: TrendLine[] } {
   if (rows.length === 0) return { up: [], down: [] }
 
-  const involvement = INVOLVEMENT[position]
+  const shareField = SNAP_SHARE_FIELD[position]
   const latestWeek = Math.max(...rows.map((row) => row.week))
   const windowStart = latestWeek - TREND_WINDOW_WEEKS + 1
 
@@ -93,16 +80,11 @@ export function trendingPlayers(
     byPlayer.set(row.player_id, games)
   }
 
-  const avgInvolvement = new Map<string, number>()
-  for (const [id, games] of byPlayer) {
-    avgInvolvement.set(id, games.reduce((sum, g) => sum + involvement(g), 0) / games.length)
-  }
-  const threshold = Math.max(0, ...avgInvolvement.values()) * QUALIFYING_FRACTION
-
   const lines: TrendLine[] = []
-  for (const [id, games] of byPlayer) {
+  for (const [id, played] of byPlayer) {
+    const games = shareField ? fullGames(played, shareField) : played
     if (games.length < MIN_GAMES) continue
-    if ((avgInvolvement.get(id) ?? 0) < threshold) continue
+    if (shareField && averageShare(games, shareField) < MIN_AVG_SNAP_SHARE) continue
 
     const sorted = [...games].sort((a, b) => a.week - b.week)
     if (sorted[sorted.length - 1].week <= latestWeek - RECENT_WEEKS) continue
@@ -118,6 +100,28 @@ export function trendingPlayers(
   }
 
   return topTrends(lines)
+}
+
+// null when snap counts haven't been published for that game yet.
+function snapShare(row: WeeklyPlayerRow, field: string): number | null {
+  const value = row[field]
+  return value === null || value === undefined ? null : Number(value)
+}
+
+function knownShares(games: WeeklyPlayerRow[], field: string): number[] {
+  return games.map((g) => snapShare(g, field)).filter((share) => share !== null)
+}
+
+// Games without snap counts yet are kept - there's nothing to judge them by.
+function fullGames(games: WeeklyPlayerRow[], field: string): WeeklyPlayerRow[] {
+  const cutoff = median(knownShares(games, field)) * FULL_GAME_FRACTION
+  return games.filter((g) => (snapShare(g, field) ?? cutoff) >= cutoff)
+}
+
+// Infinity (always qualifies) when no game has snap counts yet.
+function averageShare(games: WeeklyPlayerRow[], field: string): number {
+  const shares = knownShares(games, field)
+  return shares.length === 0 ? Infinity : shares.reduce((sum, s) => sum + s, 0) / shares.length
 }
 
 // The steepest MAX_LINES_PER_DIRECTION lines each way; flat lines are neither.

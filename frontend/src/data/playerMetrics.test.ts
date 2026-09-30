@@ -33,6 +33,14 @@ describe("query paths", () => {
     expect(url.pathname).toBe("/players/weekly")
     expect(url.searchParams.get("fields")?.split(",")).toEqual(expect.arrayContaining(["week", "team", "carries"]))
   })
+
+  it("asks /players/weekly for the position's snap share, once, and none for kickers", () => {
+    const fields = (position: "WR" | "DL" | "K") =>
+      new URL(playersWeeklyPathForPosition(position), "http://x").searchParams.get("fields")!.split(",")
+    expect(fields("WR")).toContain("offense_snap_pct")
+    expect(fields("DL").filter((f) => f === "defense_snap_pct")).toHaveLength(1)
+    expect(fields("K").some((f) => f.endsWith("snap_pct"))).toBe(false)
+  })
 })
 
 describe("metric catalogs", () => {

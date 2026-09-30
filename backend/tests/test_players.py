@@ -353,6 +353,7 @@ def test_get_weekly_player_stats_filters_position_and_regular_season(
     monkeypatch: pytest.MonkeyPatch,
     sample_week_stats: pd.DataFrame,
     sample_week_schedule: pd.DataFrame,
+    week_snaps: None,
 ) -> None:
     monkeypatch.setattr("app.data.player_stats.get_week_stats", lambda season: sample_week_stats)
     monkeypatch.setattr(
@@ -364,6 +365,22 @@ def test_get_weekly_player_stats_filters_position_and_regular_season(
     # Q1's 3 REG games only - W1 (WR) and the POST week 19 game are excluded.
     assert [r["week"] for r in records] == [1, 2, 3]
     assert all(r["player_id"] == "Q1" for r in records)
+
+
+def test_get_weekly_player_stats_carries_snap_share_for_offense(
+    monkeypatch: pytest.MonkeyPatch,
+    sample_week_stats: pd.DataFrame,
+    sample_week_schedule: pd.DataFrame,
+    week_snaps: None,
+) -> None:
+    monkeypatch.setattr("app.data.player_stats.get_week_stats", lambda season: sample_week_stats)
+    monkeypatch.setattr(
+        "app.data.schedules.get_season_schedule", lambda season: sample_week_schedule
+    )
+
+    records = get_weekly_player_stats(position_group="QB", fields=["week", "offense_snap_pct"])
+
+    assert [r["offense_snap_pct"] for r in records] == [100, 100, 25]
 
 
 def test_get_weekly_player_stats_includes_every_player_without_a_position_filter(
@@ -399,6 +416,7 @@ def test_get_weekly_player_stats_hides_partially_played_week(
     monkeypatch: pytest.MonkeyPatch,
     sample_week_stats: pd.DataFrame,
     sample_week_schedule: pd.DataFrame,
+    week_snaps: None,
 ) -> None:
     # Week 4 after Thursday night: DAL (the Thursday team) has stats, but
     # PHI/WAS haven't played yet, so week 4 is left out for everyone.

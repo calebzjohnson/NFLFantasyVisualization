@@ -2,6 +2,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from app.services.extended_stats import PFR_COLUMNS
+
 
 @pytest.fixture
 def sample_season_stats() -> pd.DataFrame:
@@ -184,3 +186,26 @@ def sample_pbp() -> pd.DataFrame:
         dict(season_type="REG", play_type="pass", epa=np.nan, posteam="A", defteam="B"),
     ]
     return pd.DataFrame(rows)
+
+
+@pytest.fixture
+def week_snaps(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Stubs the snap-count sources /players/weekly now merges for every
+    position group: Q1 (PFR id "QOne") plays every snap of DAL's weeks 1-2
+    but only a quarter of week 3's - an injury exit.
+    """
+    snaps = pd.DataFrame(
+        [
+            dict(pfr_player_id="QOne", week=week, team="DAL", opponent="NYG",
+                 offense_snaps=snaps, offense_pct=snaps / 60)
+            for week, snaps in ((1, 60), (2, 60), (3, 15))
+        ]
+    ).assign(game_type="REG", defense_snaps=0, defense_pct=0.0, st_snaps=0)
+    monkeypatch.setattr("app.data.snap_counts.get_season_snap_counts", lambda season: snaps)
+    monkeypatch.setattr(
+        "app.data.snap_counts.get_pfr_to_gsis_map", lambda: pd.Series({"QOne": "Q1"})
+    )
+    monkeypatch.setattr(
+        "app.data.pfr_defense.get_season_pfr_defense",
+        lambda season: pd.DataFrame(columns=["pfr_player_id", "game_type", "week", *PFR_COLUMNS]),
+    )

@@ -12,9 +12,10 @@ from app.data import players as players_data
 
 REGULAR_SEASON = "REG"
 
-# Position groups whose /players responses get these extra columns. Offense
-# skips them - its stats don't use them, and the quiet-week rows below would
-# shift its trending/median numbers.
+# Position groups whose season /players responses get these extra columns.
+# Offense skips them - its stats don't use them, and the quiet-week rows below
+# would shift its league medians. (/players/weekly and the game log merge
+# them for every group.)
 EXTENDED_GROUPS = frozenset({"DL", "LB", "DB", "OL"})
 
 PFR_COLUMNS = [
