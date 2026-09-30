@@ -344,8 +344,13 @@ export const PLAYER_METRICS: Record<PositionGroup, PlayerMetric[]> = {
 // the way they'd drag an average, since a median only cares about rank order,
 // not how extreme the low (or high) values are.
 export function metricMedian(rows: StatFields[], metric: PlayerMetric): number {
-  if (rows.length === 0) return 0
-  const sorted = rows.map(metric.value).sort((a, b) => a - b)
+  return median(rows.map(metric.value))
+}
+
+// 0 for no values.
+export function median(values: number[]): number {
+  if (values.length === 0) return 0
+  const sorted = [...values].sort((a, b) => a - b)
   const mid = Math.floor(sorted.length / 2)
   return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid]
 }
@@ -447,6 +452,25 @@ const RAW_FIELDS: Record<PositionGroup, string[]> = {
   P: ["pt_att", "pt_yards", "pt_net_yards", "pt_inside_20", "pt_touchback"],
 }
 
+// Each position's snap share field (% of the team's snaps on that side of the
+// ball) - how much of a game a player was on the field for. Trending Players
+// judges involvement by this rather than production (targets, attempts,
+// kicks), which swings with scheme and game script. Kickers and punters have
+// none: there's no team special-teams total to take a share of, and when they
+// play has nothing to do with health. /players/weekly only.
+export const SNAP_SHARE_FIELD: Record<PositionGroup, string | null> = {
+  QB: "offense_snap_pct",
+  RB: "offense_snap_pct",
+  WR: "offense_snap_pct",
+  TE: "offense_snap_pct",
+  OL: "offense_snap_pct",
+  DL: "defense_snap_pct",
+  LB: "defense_snap_pct",
+  DB: "defense_snap_pct",
+  K: null,
+  P: null,
+}
+
 export function playersPathForPosition(position: PositionGroup): string {
   const fields = [...IDENTITY_FIELDS, ...RAW_FIELDS[position]]
   const params = new URLSearchParams({ position_group: position, fields: fields.join(",") })
@@ -456,9 +480,12 @@ export function playersPathForPosition(position: PositionGroup): string {
 // Same field set as playersPathForPosition, but /players/weekly - one row
 // per player per game - for the Trending Players chart. "week" is added on
 // top of the identity fields; "team" (not "recent_team") comes from
-// RAW_FIELDS' sibling endpoint shape, so it's just appended here.
+// RAW_FIELDS' sibling endpoint shape, so it's just appended here, along with
+// the position's snap share.
 export function playersWeeklyPathForPosition(position: PositionGroup): string {
-  const fields = ["player_id", "player_display_name", "team", "headshot_url", "week", ...RAW_FIELDS[position]]
-  const params = new URLSearchParams({ position_group: position, fields: fields.join(",") })
+  const snapShare = SNAP_SHARE_FIELD[position]
+  const fields = new Set(["player_id", "player_display_name", "team", "headshot_url", "week", ...RAW_FIELDS[position]])
+  if (snapShare) fields.add(snapShare)
+  const params = new URLSearchParams({ position_group: position, fields: [...fields].join(",") })
   return `/players/weekly?${params.toString()}`
 }

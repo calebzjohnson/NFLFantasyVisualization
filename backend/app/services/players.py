@@ -98,8 +98,10 @@ def get_weekly_player_stats(
 
     if position_group is not None:
         stats = split_specialists(stats)
-        if position_group in EXTENDED_GROUPS:
-            stats = with_weekly_extras(stats, weekly_extras(season))
+        # Every group, not just EXTENDED_GROUPS: the trending chart needs snap
+        # share to tell a full game from one cut short by injury, and a week
+        # played without a box-score event is a real game for a trend.
+        stats = with_weekly_extras(stats, weekly_extras(season))
         stats = stats[stats["position_group"] == position_group]
 
     stats = stats[stats["week"] <= last_week]

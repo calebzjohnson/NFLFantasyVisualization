@@ -55,6 +55,7 @@ def test_get_weekly_players(
     monkeypatch: pytest.MonkeyPatch,
     sample_week_stats: pd.DataFrame,
     sample_week_schedule: pd.DataFrame,
+    week_snaps: None,
 ) -> None:
     monkeypatch.setattr("app.data.player_stats.get_week_stats", lambda season: sample_week_stats)
     monkeypatch.setattr(
