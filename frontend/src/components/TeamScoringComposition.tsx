@@ -116,7 +116,11 @@ function TeamScoringComposition({ teamAbbr }: { teamAbbr: string }) {
           <div className="relative p-3">
             <ChartContainer config={chartConfig} className="aspect-[4/3]">
               <PieChart>
-                <Tooltip content={<ScoringTooltip totalPoints={side.total_points} />} animationDuration={200} />
+                <Tooltip
+                  content={<ScoringTooltip totalPoints={side.total_points} />}
+                  animationDuration={200}
+                  wrapperStyle={{ zIndex: 20 }}
+                />
                 <Pie
                   data={side.categories}
                   dataKey="points"
