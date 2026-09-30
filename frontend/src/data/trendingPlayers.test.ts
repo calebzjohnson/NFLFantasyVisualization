@@ -64,6 +64,15 @@ describe("trendingPlayers", () => {
     expect(down.map((l) => l.id)).toEqual(["falling"])
   })
 
+  it("still trends a player who missed a week, keeping only the weeks played", () => {
+    const rows = [week("missed-week-2", 1, 10, 10), week("missed-week-2", 3, 10, 40)]
+
+    const { up } = trendingPlayers(rows, receivingYards, "WR")
+
+    expect(up[0].games.map((g) => g.week)).toEqual([1, 3])
+    expect(up[0].slope).toBeCloseTo(15)
+  })
+
   it("returns nothing for no rows", () => {
     expect(trendingPlayers([], receivingYards, "WR")).toEqual({ up: [], down: [] })
   })

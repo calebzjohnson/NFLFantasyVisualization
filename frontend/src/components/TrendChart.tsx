@@ -272,9 +272,11 @@ function TrendChart({ title, metrics, plural, singular, loading, error, trends, 
     [lineMetas],
   )
 
-  // Wide format: one row per week, one column per shown player, so byes
-  // break that player's line (via connectNulls={false}) instead of drawing a
-  // straight line across a game they didn't play.
+  // Wide format: one row per week, one column per shown player. A missed week
+  // is null and the line bridges it (connectNulls) - breaking it instead left
+  // a player with games only on either side of the gap (e.g. weeks 1 and 3)
+  // as two lone points with no curve to hover. The hover card still lists
+  // only the weeks actually played.
   const chartData = useMemo(
     () =>
       weeks.map((week) => {
@@ -369,7 +371,7 @@ function TrendChart({ title, metrics, plural, singular, loading, error, trends, 
                   stroke={meta.color}
                   strokeWidth={hoveredId === meta.line.id ? 3 : 2}
                   strokeOpacity={hoveredId === null || hoveredId === meta.line.id ? 1 : DIMMED_OPACITY}
-                  connectNulls={false}
+                  connectNulls
                   isAnimationActive={false}
                   dot={false}
                   activeDot={false}
@@ -388,7 +390,7 @@ function TrendChart({ title, metrics, plural, singular, loading, error, trends, 
                   name={meta.line.id}
                   stroke="transparent"
                   strokeWidth={HIT_STROKE_WIDTH}
-                  connectNulls={false}
+                  connectNulls
                   isAnimationActive={false}
                   className={onSelect ? "cursor-pointer" : undefined}
                   onClick={onSelect && (() => onSelect(meta.line))}
