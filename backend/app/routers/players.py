@@ -61,14 +61,6 @@ def get_player_usage(player_id: str) -> dict[str, Any]:
         raise HTTPException(status_code=404, detail=str(e)) from e
 
 
-@router.get("/players/{player_id}/radar")
-def get_player_radar(player_id: str) -> dict[str, Any]:
-    try:
-        return radar.get_player_radar(player_id)
-    except players.PlayerNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e)) from e
-
-
 @router.get("/players/radar-pool")
 def get_players_radar_pool(position: str = Query(...)) -> dict[str, Any]:
     try:

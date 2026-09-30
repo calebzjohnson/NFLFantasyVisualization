@@ -40,10 +40,10 @@ function PlayerPage() {
           {hasProfile && (
             <>
               <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-                <PlayerRadarChart playerId={playerId} teamColor={team?.team_color ?? "var(--accent)"} />
+                <PlayerRadarChart playerId={playerId} position={group} teamColor={team?.team_color ?? "var(--accent)"} />
                 <TeamUsagePanel playerId={playerId} playerName={bio.data.display_name} />
               </div>
-              <LeagueComparisonBeeswarm playerId={playerId} teamColor={team?.team_color ?? "var(--accent)"} />
+              <LeagueComparisonBeeswarm playerId={playerId} position={group} teamColor={team?.team_color ?? "var(--accent)"} />
             </>
           )}
         </>

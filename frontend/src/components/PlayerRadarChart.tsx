@@ -18,10 +18,10 @@ interface RadarAxis {
   percentile: number | null
 }
 
-interface PlayerRadar {
-  player_id: string
-  position: string
-  axes: RadarAxis[]
+// Only the fields this chart reads - the pool is shared with (and fetched
+// for) LeagueComparisonBeeswarm, which uses the rest.
+interface RadarPool {
+  players: { player_id: string; axes: RadarAxis[] }[]
 }
 
 // Axes where a lower raw number is better - the backend ranks them in
@@ -95,13 +95,25 @@ function AxisTooltip({ active, payload }: { active?: boolean; payload?: { payloa
   )
 }
 
-function PlayerRadarChart({ playerId, teamColor }: { playerId: string; teamColor: string }) {
-  const { data, error, loading } = useFetch<PlayerRadar>(`/players/${playerId}/radar`)
-  // A 404 here means the player hasn't hit the minimum season volume for a
-  // radar profile (kept intentionally low-volume/backup players out of the
-  // percentile pool) - a normal, expected state for those players, not an
+function PlayerRadarChart({
+  playerId,
+  position,
+  teamColor,
+}: {
+  playerId: string
+  position: string
+  teamColor: string
+}) {
+  // Same path as LeagueComparisonBeeswarm, so useFetch's cache serves both
+  // charts from one request - this chart just picks out its own row.
+  const pool = useFetch<RadarPool>(`/players/radar-pool?position=${position}`)
+  const { error, loading } = pool
+  const data = pool.data?.players.find((player) => player.player_id === playerId)
+  // Missing from the pool means the player hasn't hit the minimum season
+  // volume for a radar profile (keeps low-volume/backup players out of the
+  // percentile ranks) - a normal, expected state for those players, not an
   // error.
-  const notEnoughVolume = error?.includes("(404)") ?? false
+  const notEnoughVolume = !!pool.data && !data
   const ngsAxisLabels = data?.axes.filter((axis) => NGS_AXES.has(axis.key)).map((axis) => axis.label) ?? []
 
   return (

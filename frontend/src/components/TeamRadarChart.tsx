@@ -20,9 +20,10 @@ interface RadarAxis {
   percentile: number | null
 }
 
-interface TeamRadar {
-  team: string
-  axes: RadarAxis[]
+// Only the fields this chart reads - the pool is shared with (and fetched
+// for) TeamLeagueComparisonBeeswarm, which uses the rest.
+interface TeamRadarPool {
+  teams: { team: string; axes: RadarAxis[] }[]
 }
 
 // Plain-language explanations for the footnote, keyed by axis key (labels
@@ -65,7 +66,11 @@ function AxisTooltip({ active, payload }: { active?: boolean; payload?: { payloa
 }
 
 function TeamRadarChart({ teamAbbr, teamColor }: { teamAbbr: string; teamColor: string }) {
-  const { data, error, loading } = useFetch<TeamRadar>(`/teams/${teamAbbr}/radar`)
+  // Same path as TeamLeagueComparisonBeeswarm, so useFetch's cache serves
+  // both charts from one request - this chart just picks out its own row.
+  const pool = useFetch<TeamRadarPool>("/teams/radar-pool")
+  const { error, loading } = pool
+  const data = pool.data?.teams.find((team) => team.team === teamAbbr)
 
   return (
     <Panel title="Team Breakdown">

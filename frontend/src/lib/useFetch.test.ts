@@ -1,5 +1,5 @@
 // useFetch.test.ts
-// Tests for useFetch's loading/data/error states and its per-path cache.
+// Tests for useFetch's loading/data/error states, its per-path cache, and in-flight request sharing.
 import { renderHook, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { fetchJson } from "./api"
@@ -31,6 +31,14 @@ describe("useFetch", () => {
     const second = renderHook(() => useFetch<string>("/cached"))
 
     expect(second.result.current).toEqual({ data: "first", error: null, loading: false })
+    expect(mockFetchJson).toHaveBeenCalledTimes(1)
+  })
+
+  it("shares one request between hooks that mount before it resolves", async () => {
+    mockFetchJson.mockResolvedValue("shared")
+    const { result } = renderHook(() => [useFetch<string>("/shared"), useFetch<string>("/shared")])
+
+    await waitFor(() => expect(result.current.map((state) => state.data)).toEqual(["shared", "shared"]))
     expect(mockFetchJson).toHaveBeenCalledTimes(1)
   })
 

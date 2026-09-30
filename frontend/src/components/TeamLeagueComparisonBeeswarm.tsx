@@ -10,6 +10,7 @@ import { memo, useMemo } from "react"
 import { useNavigate } from "react-router-dom"
 import { Scatter, ScatterChart, XAxis, YAxis } from "recharts"
 import { teamPath, type TeamInfo } from "../data/teams"
+import { ordinal } from "../data/efficiency"
 import { useFetch } from "../lib/useFetch"
 import { ChartContainer, type ChartConfig } from "./evilcharts/ui/recharts-chart"
 import { ChartTooltip } from "./evilcharts/ui/recharts-tooltip"
@@ -17,6 +18,7 @@ import Panel from "./Panel"
 
 interface PoolAxis {
   key: string
+  value: number | null
   percentile: number | null
 }
 
@@ -34,6 +36,7 @@ interface SwarmPoint {
   team: PoolTeam
   axisIndex: number
   axisLabel: string
+  value: number | null
   x: number // axisIndex + horizontal jitter
   y: number // percentile, 0-100
 }
@@ -51,11 +54,10 @@ const MAX_JITTER = 0.42
 
 function layoutColumn(teams: PoolTeam[], axisIndex: number, axisKey: string, axisLabel: string): SwarmPoint[] {
   const withPct = teams
-    .map((team) => ({
-      team,
-      pct: team.axes.find((axis) => axis.key === axisKey)?.percentile,
-    }))
-    .filter((entry): entry is { team: PoolTeam; pct: number } => entry.pct != null)
+    .flatMap((team) => {
+      const axis = team.axes.find((a) => a.key === axisKey)
+      return axis?.percentile != null ? [{ team, pct: axis.percentile, value: axis.value }] : []
+    })
     .sort((a, b) => a.pct - b.pct)
 
   const points: SwarmPoint[] = []
@@ -71,6 +73,7 @@ function layoutColumn(teams: PoolTeam[], axisIndex: number, axisKey: string, axi
         team: entry.team,
         axisIndex,
         axisLabel,
+        value: entry.value,
         x: axisIndex + jitter,
         y: entry.pct,
       })
@@ -133,7 +136,7 @@ const SwarmDot = memo(function SwarmDot({
   )
 })
 
-function SwarmTooltip({
+export function SwarmTooltip({
   active,
   payload,
   nameByTeam,
@@ -151,10 +154,17 @@ function SwarmTooltip({
       <div className="font-medium text-[var(--text-primary)]">
         {nameByTeam.get(point.team.team) ?? point.team.team}
       </div>
+      <div className="text-[var(--text-secondary)]">{point.axisLabel}</div>
       <div className="flex items-baseline justify-between gap-4">
-        <span className="text-[var(--text-secondary)]">{point.axisLabel}</span>
+        <span className="text-[var(--text-secondary)]">Value</span>
         <span className="font-mono font-medium tabular-nums text-[var(--text-primary)]">
-          {Math.round(point.y)}th
+          {point.value ?? "—"}
+        </span>
+      </div>
+      <div className="flex items-baseline justify-between gap-4">
+        <span className="text-[var(--text-secondary)]">Percentile</span>
+        <span className="font-mono font-medium tabular-nums text-[var(--text-primary)]">
+          {ordinal(Math.round(point.y))}
         </span>
       </div>
     </div>
