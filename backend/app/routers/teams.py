@@ -27,14 +27,6 @@ def get_teams_radar_pool() -> dict[str, Any]:
     return team_radar.get_team_radar_pool()
 
 
-@router.get("/teams/{team}/radar")
-def get_team_radar(team: str) -> dict[str, Any]:
-    try:
-        return team_radar.get_team_radar(team)
-    except team_radar.TeamNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e)) from e
-
-
 @router.get("/teams/{team}/scoring")
 def get_team_scoring_composition(team: str) -> dict[str, Any]:
     try:

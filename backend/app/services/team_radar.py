@@ -99,10 +99,6 @@ def _with_percentiles(pool: pd.DataFrame) -> pd.DataFrame:
     return pool
 
 
-class TeamNotFoundError(ValueError):
-    """Raised when a team abbreviation has no radar data for the season."""
-
-
 def _load_season_plays() -> tuple[pd.DataFrame, int]:
     season = nfl.get_current_season()
     plays = pbp_data.get_season_pbp(season)
@@ -114,9 +110,8 @@ def _load_season_plays() -> tuple[pd.DataFrame, int]:
 
 def _build_team_pool(plays: pd.DataFrame) -> pd.DataFrame:
     """Every team's 6 radar axes plus percentile ranks across the league -
-    the shared computation behind both a single team's radar chart and a
-    future team-vs-league beeswarm, mirroring app/services/radar.py's
-    player-level _build_pool.
+    the data behind both the team radar and the team-vs-league beeswarm,
+    mirroring app/services/radar.py's player-level _build_pool.
     """
     plays = plays[plays["season_type"] == REGULAR_SEASON]
 
@@ -132,36 +127,27 @@ def _build_team_pool(plays: pd.DataFrame) -> pd.DataFrame:
     return _with_percentiles(pool)
 
 
-def get_team_radar(team: str) -> dict[str, Any]:
-    """This team's 6 identity axes, each as a raw value plus a percentile
-    rank against every other team in the league this season.
+def _axis_entries(row: pd.Series, axes: list[tuple[str, str]]) -> list[dict[str, Any]]:
+    """One pool row's radar axes as raw value + percentile - the data behind
+    both the team radar (one row) and the beeswarm (every row).
     """
-    plays, _ = _load_season_plays()
-    pool = _build_team_pool(plays).set_index("team")
-
-    if team not in pool.index:
-        raise TeamNotFoundError(f"No radar profile for team: {team}")
-    row = pool.loc[team]
-
-    return {
-        "team": team,
-        "axes": [
-            {
-                "key": key,
-                "label": label,
-                "value": None if pd.isna(row[key]) else round(float(row[key]), 3),
-                "percentile": None
-                if pd.isna(row[f"{key}_percentile"])
-                else round(float(row[f"{key}_percentile"]), 1),
-            }
-            for key, label in TEAM_RADAR_AXES
-        ],
-    }
+    return [
+        {
+            "key": key,
+            "label": label,
+            "value": None if pd.isna(row[key]) else round(float(row[key]), 3),
+            "percentile": None
+            if pd.isna(row[f"{key}_percentile"])
+            else round(float(row[f"{key}_percentile"]), 1),
+        }
+        for key, label in axes
+    ]
 
 
 def get_team_radar_pool() -> dict[str, Any]:
-    """Every team with its 6 radar axes - the data behind a team-vs-league
-    beeswarm, matching get_position_radar_pool's shape for players.
+    """Every team with its 6 radar axes - the data behind the team radar
+    (which picks out its own row) and the team-vs-league beeswarm, matching
+    get_position_radar_pool's shape for players.
     """
     plays, _ = _load_season_plays()
     pool = _build_team_pool(plays)
@@ -171,15 +157,7 @@ def get_team_radar_pool() -> dict[str, Any]:
         teams.append(
             {
                 "team": row["team"],
-                "axes": [
-                    {
-                        "key": key,
-                        "percentile": None
-                        if pd.isna(row[f"{key}_percentile"])
-                        else round(float(row[f"{key}_percentile"]), 1),
-                    }
-                    for key, _ in TEAM_RADAR_AXES
-                ],
+                "axes": _axis_entries(row, TEAM_RADAR_AXES),
             }
         )
 

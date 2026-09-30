@@ -7,7 +7,6 @@ import pandas as pd
 from app.data import nextgen_stats, player_stats, snap_counts
 from app.data import pbp as pbp_data
 from app.services.extended_stats import total_tackles, weekly_extras, with_season_extras
-from app.services.players import PlayerNotFoundError
 
 REGULAR_SEASON = "REG"
 
@@ -432,8 +431,8 @@ def _load_season_stats() -> tuple[pd.DataFrame, int]:
 
 def _build_pool(bucket: str, stats: pd.DataFrame, season: int) -> pd.DataFrame:
     """Every qualifying player at this position, with their 6 radar axes and
-    percentile ranks - the shared computation behind both a single player's
-    radar chart and the full-league beeswarm.
+    percentile ranks - the shared computation behind the player radar and
+    the full-league beeswarm.
     """
     current_week = _current_week(season)
 
@@ -459,48 +458,28 @@ def _build_pool(bucket: str, stats: pd.DataFrame, season: int) -> pd.DataFrame:
     return _with_percentiles(pool, RADAR_AXES[bucket])
 
 
-def get_player_radar(player_id: str) -> dict[str, Any]:
-    """This player's 6 position-specific efficiency axes, each as a raw value
-    plus a percentile rank against every other qualifying player at their
-    position this season - the data behind the player page's radar chart.
+def _axis_entries(row: pd.Series, axes: list[tuple[str, str]]) -> list[dict[str, Any]]:
+    """One pool row's radar axes as raw value + percentile - the data behind
+    both the player radar (one row) and the beeswarm (every row).
     """
-    stats, season = _load_season_stats()
-
-    player_rows = stats[stats["player_id"] == player_id]
-    if player_rows.empty:
-        raise PlayerNotFoundError(f"No stats found for player_id: {player_id}")
-
-    bucket = _position_bucket(player_rows.iloc[0]["position_group"])
-    if bucket is None:
-        raise PlayerNotFoundError(f"No radar profile for player_id: {player_id}")
-    axes = RADAR_AXES[bucket]
-
-    pool = _build_pool(bucket, stats, season).set_index("player_id")
-    if player_id not in pool.index:
-        raise PlayerNotFoundError(f"Not enough season volume for a radar profile: {player_id}")
-    row = pool.loc[player_id]
-
-    return {
-        "player_id": player_id,
-        "position": bucket,
-        "axes": [
-            {
-                "key": key,
-                "label": label,
-                "value": None if pd.isna(row[key]) else round(float(row[key]), 2),
-                "percentile": None
-                if pd.isna(row[f"{key}_percentile"])
-                else round(float(row[f"{key}_percentile"]), 1),
-            }
-            for key, label in axes
-        ],
-    }
+    return [
+        {
+            "key": key,
+            "label": label,
+            "value": None if pd.isna(row[key]) else round(float(row[key]), 2),
+            "percentile": None
+            if pd.isna(row[f"{key}_percentile"])
+            else round(float(row[f"{key}_percentile"]), 1),
+        }
+        for key, label in axes
+    ]
 
 
 def get_position_radar_pool(position: str) -> dict[str, Any]:
     """Every qualifying player at this position with their 6 radar axes -
-    the data behind the player page's league-comparison beeswarm, where
-    every player at the position gets a dot on each axis.
+    the data behind the player page's radar (which picks out its own row)
+    and league-comparison beeswarm (a dot per player on each axis). A player
+    missing from the pool hasn't hit the minimum season volume yet.
     """
     bucket = _position_bucket(position)
     if bucket is None:
@@ -517,15 +496,7 @@ def get_position_radar_pool(position: str) -> dict[str, Any]:
                 "player_id": row["player_id"],
                 "name": row["player_display_name"],
                 "team": row["recent_team"],
-                "axes": [
-                    {
-                        "key": key,
-                        "percentile": None
-                        if pd.isna(row[f"{key}_percentile"])
-                        else round(float(row[f"{key}_percentile"]), 1),
-                    }
-                    for key, _ in axes
-                ],
+                "axes": _axis_entries(row, axes),
             }
         )
 

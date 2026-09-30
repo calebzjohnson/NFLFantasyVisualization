@@ -14,6 +14,10 @@ interface FetchState<T> {
 }
 
 const cache = new Map<string, unknown>()
+// Requests still in flight, keyed by path - lets sibling components that
+// mount together (e.g. a radar and beeswarm reading the same pool) share one
+// request instead of each missing the cache and fetching it again.
+const inflight = new Map<string, Promise<unknown>>()
 
 function stateForPath<T>(path: string | null): FetchState<T> {
   if (path === null) return { data: null, error: null, loading: true }
@@ -44,7 +48,13 @@ export function useFetch<T>(path: string | null): FetchState<T> {
 
     let cancelled = false
 
-    fetchJson<T>(path)
+    let request = inflight.get(path) as Promise<T> | undefined
+    if (!request) {
+      request = fetchJson<T>(path).finally(() => inflight.delete(path))
+      inflight.set(path, request)
+    }
+
+    request
       .then((data) => {
         cache.set(path, data)
         if (!cancelled) setState({ data, error: null, loading: false })

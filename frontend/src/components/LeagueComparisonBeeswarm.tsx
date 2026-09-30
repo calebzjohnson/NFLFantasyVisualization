@@ -8,6 +8,7 @@
 import { memo, useMemo } from "react"
 import { useNavigate } from "react-router-dom"
 import { Scatter, ScatterChart, XAxis, YAxis } from "recharts"
+import { ordinal } from "../data/efficiency"
 import { useFetch } from "../lib/useFetch"
 import { ChartContainer, type ChartConfig } from "./evilcharts/ui/recharts-chart"
 import { ChartTooltip } from "./evilcharts/ui/recharts-tooltip"
@@ -15,6 +16,7 @@ import Panel from "./Panel"
 
 interface PoolAxis {
   key: string
+  value: number | null
   percentile: number | null
 }
 
@@ -31,16 +33,11 @@ interface RadarPool {
   players: PoolPlayer[]
 }
 
-interface PlayerRadar {
-  player_id: string
-  position: string
-  axes: { key: string; label: string; value: number | null; percentile: number | null }[]
-}
-
 interface SwarmPoint {
   player: PoolPlayer
   axisIndex: number
   axisLabel: string
+  value: number | null
   x: number // axisIndex + horizontal jitter
   y: number // percentile, 0-100
 }
@@ -64,11 +61,10 @@ const MAX_JITTER = 0.42
 
 function layoutColumn(players: PoolPlayer[], axisIndex: number, axisKey: string, axisLabel: string): SwarmPoint[] {
   const withPct = players
-    .map((player) => ({
-      player,
-      pct: player.axes.find((axis) => axis.key === axisKey)?.percentile,
-    }))
-    .filter((entry): entry is { player: PoolPlayer; pct: number } => entry.pct != null)
+    .flatMap((player) => {
+      const axis = player.axes.find((a) => a.key === axisKey)
+      return axis?.percentile != null ? [{ player, pct: axis.percentile, value: axis.value }] : []
+    })
     .sort((a, b) => a.pct - b.pct)
 
   const points: SwarmPoint[] = []
@@ -84,6 +80,7 @@ function layoutColumn(players: PoolPlayer[], axisIndex: number, axisKey: string,
         player: entry.player,
         axisIndex,
         axisLabel,
+        value: entry.value,
         x: axisIndex + jitter,
         y: entry.pct,
       })
@@ -146,7 +143,7 @@ const SwarmDot = memo(function SwarmDot({
   )
 })
 
-function SwarmTooltip({ active, payload }: { active?: boolean; payload?: { payload: SwarmPoint }[] }) {
+export function SwarmTooltip({ active, payload }: { active?: boolean; payload?: { payload: SwarmPoint }[] }) {
   // An empty-but-present element, not null - keeps the tooltip from
   // resetting position to (0,0) and flying in from the corner on each hover.
   if (!active || !payload?.length) return <span className="p-4" />
@@ -156,23 +153,36 @@ function SwarmTooltip({ active, payload }: { active?: boolean; payload?: { paylo
       <div className="font-medium text-[var(--text-primary)]">
         {point.player.name} <span className="text-[var(--text-muted)]">· {point.player.team}</span>
       </div>
+      <div className="text-[var(--text-secondary)]">{point.axisLabel}</div>
       <div className="flex items-baseline justify-between gap-4">
-        <span className="text-[var(--text-secondary)]">{point.axisLabel}</span>
+        <span className="text-[var(--text-secondary)]">Value</span>
         <span className="font-mono font-medium tabular-nums text-[var(--text-primary)]">
-          {Math.round(point.y)}th
+          {point.value ?? "—"}
+        </span>
+      </div>
+      <div className="flex items-baseline justify-between gap-4">
+        <span className="text-[var(--text-secondary)]">Percentile</span>
+        <span className="font-mono font-medium tabular-nums text-[var(--text-primary)]">
+          {ordinal(Math.round(point.y))}
         </span>
       </div>
     </div>
   )
 }
 
-function LeagueComparisonBeeswarm({ playerId, teamColor }: { playerId: string; teamColor: string }) {
+function LeagueComparisonBeeswarm({
+  playerId,
+  position,
+  teamColor,
+}: {
+  playerId: string
+  position: string
+  teamColor: string
+}) {
   const navigate = useNavigate()
-  // Shares the useFetch cache with PlayerRadarChart's own fetch of the same
-  // path - just reads the position bucket, no extra network cost.
-  const playerRadar = useFetch<PlayerRadar>(`/players/${playerId}/radar`)
-  const position = playerRadar.data?.position
-  const pool = useFetch<RadarPool>(position ? `/players/radar-pool?position=${position}` : null)
+  // Same path as PlayerRadarChart, so useFetch's cache serves both charts
+  // from one request.
+  const pool = useFetch<RadarPool>(`/players/radar-pool?position=${position}`)
 
   const points = useMemo(() => {
     if (!pool.data) return null
@@ -181,16 +191,11 @@ function LeagueComparisonBeeswarm({ playerId, teamColor }: { playerId: string; t
     )
   }, [pool.data])
 
-  // pool stays permanently "loading" while position is unknown (useFetch's
-  // null-path behavior), which would otherwise never clear once playerRadar
-  // 404s - only count it once we actually have a position to fetch for.
-  const loading = playerRadar.loading || (!!position && pool.loading)
-  const error = playerRadar.error ?? pool.error
-  // A 404 on the player's own radar means he hasn't hit the minimum season
-  // volume for a radar profile - expected for a low-volume/backup player,
-  // not an error. Without his own profile we can't tell which position's
-  // pool to show him against, so the comparison just isn't available yet.
-  const notEnoughVolume = playerRadar.error?.includes("(404)") ?? false
+  const { loading, error } = pool
+  // Missing from the pool means he hasn't hit the minimum season volume for
+  // a radar profile - expected for a low-volume/backup player, not an error,
+  // and there's no dot of his to highlight.
+  const notEnoughVolume = !!pool.data && !pool.data.players.some((player) => player.player_id === playerId)
   const ngsAxisLabels =
     pool.data?.axes.filter((axis) => NGS_AXES.has(axis.key)).map((axis) => axis.label) ?? []
 
@@ -209,7 +214,7 @@ function LeagueComparisonBeeswarm({ playerId, teamColor }: { playerId: string; t
       {error && !notEnoughVolume && (
         <p className="p-4 text-sm text-[var(--negative)]">Couldn't load league comparison: {error}</p>
       )}
-      {points && pool.data && (
+      {points && pool.data && !notEnoughVolume && (
         <div className="p-3">
           <ChartContainer config={chartConfig} className="aspect-auto h-[420px]">
             <ScatterChart margin={{ top: 8, right: 16, bottom: 8, left: 4 }}>
