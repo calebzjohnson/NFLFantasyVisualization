@@ -7,6 +7,7 @@ export interface TeamInfo {
   team_name: string
   team_logo_espn: string
   team_color: string
+  team_color2: string
 }
 
 export function teamPath(abbr: string): string {

@@ -453,13 +453,73 @@ def test_get_player_usage_share_uses_team_tackle_share_for_defensive_backs(
         ]
     )
     week = season.rename(columns={"recent_team": "team"}).assign(week=1, season_type="REG")
+    roster = pd.DataFrame(
+        [dict(gsis_id="D1", headshot="https://img/d1.png"), dict(gsis_id="L1", headshot=None)]
+    )
     monkeypatch.setattr("app.data.player_stats.get_season_stats", lambda s: season)
     monkeypatch.setattr("app.data.player_stats.get_week_stats", lambda s: week)
+    monkeypatch.setattr("app.data.players.get_players", lambda: roster)
 
     usage = get_player_usage_share("D1")
 
     assert (usage["label"], usage["player_value"], usage["team_value"]) == ("Tackle Share", 6, 10)
     assert usage["teammates"] == [{"player_id": "L1", "name": "L One", "value": 4}]
+
+    # Weekly: one line per player in the DAL pool (D1 and L1 - X1 is on NYG,
+    # a different team, and correctly excluded), not folded into an "Other"
+    # bucket, and the shown lines sum to the real week total. Each player's
+    # headshot comes from the standing roster table, not the stats table -
+    # D1 has one there, L1 doesn't (and isn't in the fixture at all), so
+    # both a real URL and a missing one resolve correctly.
+    week_1 = usage["weekly"][0]
+    assert week_1["team_value"] == 10
+    assert week_1["players"] == [
+        {"player_id": "D1", "name": "D One", "headshot_url": "https://img/d1.png", "value": 6},
+        {"player_id": "L1", "name": "L One", "headshot_url": None, "value": 4},
+    ]
+    assert sum(p["value"] for p in week_1["players"]) == week_1["team_value"]
+
+
+def test_get_player_usage_share_qb_weekly_is_just_two_lines(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Unlike every other usage metric (one line per individual player), a
+    QB's weekly TD involvement stays a simple 2-line split: this QB's own
+    involvement vs. every other touchdown lumped into "Other" - not broken
+    out by individual scorer.
+    """
+    season = pd.DataFrame([dict(player_id="Q1", player_display_name="Q One",
+                                 position_group="QB", recent_team="DAL")])
+    plays = pd.DataFrame(
+        [
+            # Week 1: Q1 passes for a TD, a teammate scores a TD Q1 wasn't
+            # involved in, and an unrelated team's TD is correctly excluded.
+            dict(season_type="REG", week=1, posteam="DAL", pass_touchdown=1, rush_touchdown=0,
+                 passer_player_id="Q1", rusher_player_id=None,
+                 receiver_player_id="W1", receiver_player_name="W One"),
+            dict(season_type="REG", week=1, posteam="DAL", pass_touchdown=0, rush_touchdown=1,
+                 passer_player_id=None, rusher_player_id="R1",
+                 receiver_player_id=None, receiver_player_name=None,
+                 rusher_player_name="R One"),
+            dict(season_type="REG", week=1, posteam="NYG", pass_touchdown=1, rush_touchdown=0,
+                 passer_player_id="Q2", rusher_player_id=None,
+                 receiver_player_id="W2", receiver_player_name="W Two"),
+        ]
+    )
+    roster = pd.DataFrame([dict(gsis_id="Q1", headshot="https://img/q1.png")])
+    monkeypatch.setattr("app.data.player_stats.get_season_stats", lambda s: season)
+    monkeypatch.setattr("app.services.players.nfl.get_current_season", lambda: 2026)
+    monkeypatch.setattr("app.data.pbp.get_season_pbp", lambda s: plays)
+    monkeypatch.setattr("app.data.players.get_players", lambda: roster)
+
+    usage = get_player_usage_share("Q1")
+
+    week_1 = usage["weekly"][0]
+    assert week_1["team_value"] == 2
+    assert week_1["players"] == [
+        {"player_id": "Q1", "name": "Q One", "headshot_url": "https://img/q1.png", "value": 1},
+        {"player_id": None, "name": "Other", "headshot_url": None, "value": 1},
+    ]
 
 
 def test_get_player_usage_share_raises_for_groups_without_a_usage_metric(

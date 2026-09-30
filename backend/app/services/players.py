@@ -213,19 +213,94 @@ def _usage_pool(team_stats: pd.DataFrame, metric: str) -> pd.DataFrame:
     return team_stats
 
 
-def _weekly_breakdown(player_by_week: pd.Series, team_by_week: pd.Series) -> list[dict[str, Any]]:
-    weeks = sorted(team_by_week.index)
-    return [
-        {
-            "week": int(week),
-            "player_value": int(player_by_week.get(week, 0)),
-            "team_value": int(team_by_week.get(week, 0)),
-        }
-        for week in weeks
-    ]
+def _headshot_by_id() -> dict[str, str]:
+    """gsis_id -> headshot URL, from the standing roster table (not
+    season-scoped) - a single shared lookup so every weekly-usage code path
+    (season-stats-based pools and play-by-play-based TD involvement alike)
+    sources headshots the same way.
+    """
+    roster = players_data.get_players()
+    return cast(
+        dict[str, str],
+        roster.dropna(subset=["gsis_id", "headshot"]).set_index("gsis_id")["headshot"].to_dict(),
+    )
 
 
-def _qb_td_involvement(player_id: str, team: str, season: int) -> dict[str, Any]:
+def _weekly_player_lines(
+    weekly_totals: "pd.Series[int]",
+    season_totals: "pd.Series[int]",
+    name_by_id: dict[str, str],
+    headshot_by_id: dict[str, str],
+    focus_player_id: str,
+) -> list[dict[str, Any]]:
+    """Every week's amount broken out by player - one line per player in the
+    pool (the focus player included), ordered by season total descending so
+    the chart's legend/line order is stable and meaningful. weekly_totals
+    and season_totals are both indexed by player_id (weekly_totals
+    additionally by week).
+    """
+    all_ids = [focus_player_id, *season_totals.drop(index=focus_player_id, errors="ignore")
+               .sort_values(ascending=False).index]
+
+    weeks = sorted({week for week, _ in weekly_totals.index})
+    rows = []
+    for week in weeks:
+        team_value = int(weekly_totals.xs(week, level=0).sum())
+        players = [
+            {
+                "player_id": player_id,
+                "name": name_by_id.get(player_id, player_id),
+                "headshot_url": headshot_by_id.get(player_id),
+                "value": int(weekly_totals.get((week, player_id), 0)),
+            }
+            for player_id in all_ids
+        ]
+        rows.append({"week": int(week), "team_value": team_value, "players": players})
+    return rows
+
+
+def _qb_td_weekly(
+    touchdowns: pd.DataFrame,
+    involved: "pd.Series[bool]",
+    player_id: str,
+    player_name: str,
+    headshot_by_id: dict[str, str],
+) -> list[dict[str, Any]]:
+    """Every week's touchdowns split into just 2 lines - this QB's own
+    involvement vs. every other touchdown lumped together - unlike the other
+    usage metrics, which get one line per individual player.
+    """
+    weeks = sorted(touchdowns["week"].unique())
+    involved_by_week = touchdowns[involved].groupby("week").size()
+    team_by_week = touchdowns.groupby("week").size()
+    rows = []
+    for week in weeks:
+        team_value = int(team_by_week.get(week, 0))
+        involved_value = int(involved_by_week.get(week, 0))
+        rows.append(
+            {
+                "week": int(week),
+                "team_value": team_value,
+                "players": [
+                    {
+                        "player_id": player_id,
+                        "name": player_name,
+                        "headshot_url": headshot_by_id.get(player_id),
+                        "value": involved_value,
+                    },
+                    {
+                        "player_id": None,
+                        "name": "Other",
+                        "headshot_url": None,
+                        "value": team_value - involved_value,
+                    },
+                ],
+            }
+        )
+    return rows
+
+
+def _qb_td_involvement(player_id: str, player_name: str, team: str, season: int) -> dict[str, Any]:
     """Every one of the team's touchdowns this season, split into "this QB
     threw or ran it in" vs. not - determined play-by-play (who was the passer
     or rusher on each scoring play), not by summing season stat columns. A
@@ -264,10 +339,6 @@ def _qb_td_involvement(player_id: str, team: str, season: int) -> dict[str, Any]
         .sort_values("count", ascending=False, kind="stable")
     )
 
-    weekly = _weekly_breakdown(
-        touchdowns[involved].groupby("week").size(), touchdowns.groupby("week").size()
-    )
-
     return {
         "player_id": player_id,
         "team": team,
@@ -279,7 +350,7 @@ def _qb_td_involvement(player_id: str, team: str, season: int) -> dict[str, Any]
             {"player_id": row["player_id"], "name": row["name"], "value": int(row["count"])}
             for _, row in breakdown.iterrows()
         ],
-        "weekly": weekly,
+        "weekly": _qb_td_weekly(touchdowns, involved, player_id, player_name, _headshot_by_id()),
     }
 
 
@@ -296,9 +367,16 @@ def _usage_weekly(team: str, season: int, player_id: str, metric: str) -> list[d
     pool = _usage_pool(week_stats, metric)
     pool = pool.assign(usage_amount=_usage_amount(pool, metric))
 
-    player_by_week = pool[pool["player_id"] == player_id].groupby("week")["usage_amount"].sum()
-    team_by_week = pool.groupby("week")["usage_amount"].sum()
-    return _weekly_breakdown(player_by_week, team_by_week)
+    weekly_totals = pool.groupby(["week", "player_id"])["usage_amount"].sum()
+    season_totals = pool.groupby("player_id")["usage_amount"].sum()
+    name_by_id = cast(
+        dict[str, str],
+        pool.drop_duplicates("player_id").set_index("player_id")["player_display_name"].to_dict(),
+    )
+
+    return _weekly_player_lines(
+        weekly_totals, season_totals, name_by_id, _headshot_by_id(), player_id
+    )
 
 
 def get_player_usage_share(player_id: str) -> dict[str, Any]:
@@ -319,7 +397,9 @@ def get_player_usage_share(player_id: str) -> dict[str, Any]:
     player = player_rows.iloc[0]
 
     if player["position_group"] == "QB":
-        return _qb_td_involvement(player_id, player["recent_team"], season)
+        return _qb_td_involvement(
+            player_id, player["player_display_name"], player["recent_team"], season
+        )
 
     usage = USAGE_METRIC_BY_POSITION_GROUP.get(player["position_group"])
     if usage is None:
