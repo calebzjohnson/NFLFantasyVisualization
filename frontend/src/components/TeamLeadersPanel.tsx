@@ -22,12 +22,16 @@ function metricsFor(side: TeamSide) {
 function TeamCell({ row }: { row: TeamLeaderRow }) {
   return (
     <div className="flex items-center gap-3">
-      <TeamLogoBadge logo={row.logo} size="h-8 w-8" />
+      <TeamLink team={row.team}>
+        <TeamLogoBadge logo={row.logo} size="h-8 w-8" />
+      </TeamLink>
       <div>
         <TeamLink team={row.team} className="font-medium text-[var(--text-primary)]">
           {row.name}
         </TeamLink>
-        <div className="text-xs text-[var(--text-secondary)]">{row.team}</div>
+        <TeamLink team={row.team} className="block text-xs text-[var(--text-secondary)]">
+          {row.team}
+        </TeamLink>
       </div>
     </div>
   )

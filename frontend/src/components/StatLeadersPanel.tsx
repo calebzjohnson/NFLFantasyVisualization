@@ -20,7 +20,9 @@ const LEADER_ROWS_SHOWN = 5
 function PlayerCell({ row }: { row: DetailedLeaderRow }) {
   return (
     <div className="flex items-center gap-3">
-      <PlayerAvatar name={row.player} headshot={row.headshot} color={row.teamColor} size="h-8 w-8" />
+      <Link to={`/players/${row.playerId}`} state={{ playerName: row.player }}>
+        <PlayerAvatar name={row.player} headshot={row.headshot} color={row.teamColor} size="h-8 w-8" />
+      </Link>
       <div>
         <Link
           to={`/players/${row.playerId}`}

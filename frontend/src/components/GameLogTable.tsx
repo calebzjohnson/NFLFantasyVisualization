@@ -1,6 +1,7 @@
 // GameLogTable.tsx
 // ESPN-style per-game stat table: one row per week, oldest first.
 import type { LeaderColumn } from "../data/leaderStatsTypes"
+import TeamLink from "./TeamLink"
 
 const TONE = {
   positive: "text-[var(--positive)]",
@@ -40,7 +41,9 @@ function GameLogTable({ columns, rows, totals }: GameLogTableProps) {
         {rows.map((row) => (
           <tr key={row.week} className="border-t border-[var(--border)] hover:bg-[var(--surface-2)]">
             <td className="px-4 py-2 font-display text-[var(--text-muted)]">{row.week}</td>
-            <td className="px-2 py-2 text-[var(--text-primary)]">{row.opponent}</td>
+            <td className="px-2 py-2 text-[var(--text-primary)]">
+              <TeamLink team={row.opponent}>{row.opponent}</TeamLink>
+            </td>
             {columns.map((column, index) => (
               <td
                 key={column.key}
