@@ -1,7 +1,8 @@
 // trendingPlayers.ts
 // Picks which players show up on the Trending Players chart: qualifies each
 // player by a per-position involvement floor (so a garbage-time snap can't
-// fake a "trend"), scores everyone else by the slope of the selected stat
+// fake a "trend") and by having played recently (so an injured player
+// doesn't linger), scores everyone else by the slope of the selected stat
 // over their last-5-week window, and keeps only the top 5 trending up and
 // top 5 trending down - a position can have 150+ players, and plotting all
 // of them would be an unreadable tangle of lines.
@@ -38,6 +39,12 @@ const INVOLVEMENT: Record<PositionGroup, (row: WeeklyPlayerRow) => number> = {
 
 const TREND_WINDOW_WEEKS = 5
 const MIN_GAMES = 2
+// A player must have played in one of the last this-many weeks to trend, so
+// someone injured and out drops off within two weeks instead of lingering
+// for the whole window on the games before the injury. Two, not one, so a
+// bye in the latest week doesn't knock anyone off. Only the end of the
+// window matters - a practice-squad call-up with no early games still counts.
+const RECENT_WEEKS = 2
 // A player needs to average at least this fraction of the position's most-
 // involved player's workload to qualify - the same bar Compare Players uses,
 // so a single garbage-time series of snaps can't read as a "trend."
@@ -98,6 +105,7 @@ export function trendingPlayers(
     if ((avgInvolvement.get(id) ?? 0) < threshold) continue
 
     const sorted = [...games].sort((a, b) => a.week - b.week)
+    if (sorted[sorted.length - 1].week <= latestWeek - RECENT_WEEKS) continue
     const points = sorted.map((g) => ({ x: g.week, y: metric.value(g) }))
     lines.push({
       id,

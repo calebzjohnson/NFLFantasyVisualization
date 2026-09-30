@@ -73,6 +73,21 @@ describe("trendingPlayers", () => {
     expect(up[0].slope).toBeCloseTo(15)
   })
 
+  it("drops players who haven't played in the last 2 weeks, but keeps byes and late starters", () => {
+    const rows = [
+      // Out since week 2 (weeks 3 and 4 missed) - the injured starter.
+      ...[1, 2].map((w) => week("injured", w, 10, w * 10)),
+      // Missed only the latest week - a bye.
+      ...[1, 2, 3].map((w) => week("bye", w, 10, w * 10)),
+      // No early games, then started - a practice-squad call-up.
+      ...[3, 4].map((w) => week("call-up", w, 10, w * 10)),
+    ]
+
+    const { up } = trendingPlayers(rows, receivingYards, "WR")
+
+    expect(up.map((l) => l.id).sort()).toEqual(["bye", "call-up"])
+  })
+
   it("returns nothing for no rows", () => {
     expect(trendingPlayers([], receivingYards, "WR")).toEqual({ up: [], down: [] })
   })
