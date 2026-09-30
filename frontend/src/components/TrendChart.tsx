@@ -372,6 +372,7 @@ function TrendChart({ title, metrics, plural, singular, loading, error, trends, 
                   strokeWidth={hoveredId === meta.line.id ? 3 : 2}
                   strokeOpacity={hoveredId === null || hoveredId === meta.line.id ? 1 : DIMMED_OPACITY}
                   connectNulls
+                  type="monotone"
                   isAnimationActive={false}
                   dot={false}
                   activeDot={false}
@@ -391,6 +392,7 @@ function TrendChart({ title, metrics, plural, singular, loading, error, trends, 
                   stroke="transparent"
                   strokeWidth={HIT_STROKE_WIDTH}
                   connectNulls
+                  type="monotone"
                   isAnimationActive={false}
                   className={onSelect ? "cursor-pointer" : undefined}
                   onClick={onSelect && (() => onSelect(meta.line))}
