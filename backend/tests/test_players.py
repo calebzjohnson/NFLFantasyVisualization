@@ -503,8 +503,8 @@ def test_get_player_usage_share_qb_weekly_is_just_two_lines(
 ) -> None:
     """Unlike every other usage metric (one line per individual player), a
     QB's weekly TD involvement stays a simple 2-line split: this QB's own
-    involvement vs. every other touchdown lumped into "Other" - not broken
-    out by individual scorer.
+    involvement vs. every other touchdown lumped together - not broken out by
+    individual scorer.
     """
     season = pd.DataFrame([dict(player_id="Q1", player_display_name="Q One",
                                  position_group="QB", recent_team="DAL")])

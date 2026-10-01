@@ -97,15 +97,20 @@ const CATEGORICAL_PALETTE = [
 // case), ordered by season total descending. No team colors: the point is
 // a consistent, position-based color per rank, the same across every
 // player's page, not a color tied to which team happens to be selected.
-// Doesn't apply to QB TD involvement: that's a simple this-QB-vs-
-// everyone-else split, not a roster of individually ranked teammates - the
-// QB gets the palette's first color and "Other" a fixed neutral, since
-// "Other" isn't an individually ranked entity.
-function buildColorByKey(usage: UsageShare, playerId: string): Map<string, string> {
+// QB TD involvement is the exception, and takes the team's two colors
+// instead: it's a this-QB-vs-the-rest-of-his-team split rather than a
+// roster of individually ranked players, so a rank-based palette would be
+// encoding a ranking that isn't there.
+function buildColorByKey(
+  usage: UsageShare,
+  playerId: string,
+  teamColor: string,
+  teamColor2: string,
+): Map<string, string> {
   if (usage.metric === "td_involvement") {
     return new Map([
-      [playerId, CATEGORICAL_PALETTE[0]],
-      [OTHER_KEY, TEAMMATE_FILL],
+      [playerId, teamColor],
+      [OTHER_KEY, teamColor2],
     ])
   }
   const ranked = [
@@ -342,16 +347,26 @@ function HoverDot({
 
 function HoverCard({ point }: { point: HoverPoint }) {
   return (
-    <div className="grid w-56 gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface-2)]/90 p-2.5 text-xs shadow-xl backdrop-blur-sm">
+    <div className="grid w-max max-w-56 gap-1 rounded-lg border border-[var(--border)] bg-[var(--surface-2)]/90 px-2 py-1.5 text-xs shadow-xl backdrop-blur-sm">
       <div className="font-medium text-[var(--text-primary)]">{point.week}</div>
       {point.members.map((member) => (
         <div key={member.key} className="flex items-center gap-2">
-          <PlayerAvatar
-            name={member.name}
-            headshot={member.headshotUrl}
-            color={member.color}
-            size="h-6 w-6"
-          />
+          {/* The "everyone else" bucket is a group, not a person - anything
+              in the headshot slot there reads as a teammate's missing photo,
+              so it gets the legend's small color dot instead. */}
+          {member.key === OTHER_KEY ? (
+            <span
+              className="mx-2 h-2.5 w-2.5 shrink-0 rounded-full"
+              style={{ backgroundColor: member.color }}
+            />
+          ) : (
+            <PlayerAvatar
+              name={member.name}
+              headshot={member.headshotUrl}
+              color={member.color}
+              size="h-6 w-6"
+            />
+          )}
           <span className="min-w-0 flex-1 truncate text-[var(--text-secondary)]">{member.name}</span>
           <span className="shrink-0 font-mono font-medium tabular-nums text-[var(--text-primary)]">
             {member.value} ({Math.round(member.sharePct)}%)
@@ -426,6 +441,12 @@ function UsageWeeklyChart({
   })
   const peak = data.reduce((best, row) => (Number(row[playerId]) > Number(best[playerId]) ? row : best))
 
+  // A QB's best week is almost always 100% - most starters have some week
+  // they had a hand in every touchdown their team scored - so the peak says
+  // nothing about one QB vs. another. The per-game rate does.
+  const isTdInvolvement = usage.metric === "td_involvement"
+  const perGame = usage.weekly.length > 0 ? usage.player_value / usage.weekly.length : 0
+
   // Scaled to the real data rather than a fixed 0-100 - a deep pool (tackle
   // share) rarely has anyone above 20-30%, so a full 100% axis would leave
   // every line squashed into the bottom of the chart instead of using the
@@ -468,13 +489,15 @@ function UsageWeeklyChart({
       <div className="mb-2 flex items-start justify-between gap-4 px-1">
         <div className="flex flex-col gap-0.5">
           <span className="text-[10px] tracking-wider text-[var(--text-muted)] uppercase">
-            {usage.label.split(" vs ")[0]} - Best Week
+            {isTdInvolvement ? "TD Involvements - Average" : `${usage.label.split(" vs ")[0]} - Best Week`}
           </span>
           <div className="flex items-baseline gap-2">
             <span className="font-display text-2xl font-bold text-[var(--text-primary)]">
-              {Math.round(Number(peak[playerId]) || 0)}%
+              {isTdInvolvement ? perGame.toFixed(1) : `${Math.round(Number(peak[playerId]) || 0)}%`}
             </span>
-            <span className="text-sm text-[var(--text-secondary)]">in {peak.week}</span>
+            <span className="text-sm text-[var(--text-secondary)]">
+              {isTdInvolvement ? "per game" : `in ${peak.week}`}
+            </span>
           </div>
         </div>
         <details className="text-xs text-[var(--text-muted)]">
@@ -603,6 +626,7 @@ function TeamUsagePanel({ playerId, playerName }: { playerId: string; playerName
   const error = usage.error ?? teams.error
   const team = teams.data?.find((t) => t.team_abbr === usage.data?.team)
   const teamColor = team?.team_color ?? "var(--accent)"
+  const teamColor2 = team?.team_color2 ?? "var(--border)"
 
   function goToPlayer(id: string) {
     navigate(`/players/${id}`)
@@ -630,7 +654,7 @@ function TeamUsagePanel({ playerId, playerName }: { playerId: string; playerName
             playerId={playerId}
             playerName={playerName}
             usage={usage.data}
-            colorByKey={buildColorByKey(usage.data, playerId)}
+            colorByKey={buildColorByKey(usage.data, playerId, teamColor, teamColor2)}
             onSelect={goToPlayer}
           />
         ))}
