@@ -370,6 +370,7 @@ function HoverCard({ point }: { point: HoverPoint }) {
               headshot={member.headshotUrl}
               color={member.color}
               size="h-6 w-6"
+              imageSize={64}
             />
           )}
           <span className="min-w-0 flex-1 truncate text-[var(--text-secondary)]">{member.name}</span>
@@ -553,20 +554,6 @@ function UsageWeeklyChart({
             </span>
           </div>
         </div>
-        <details className="text-xs text-[var(--text-muted)]">
-          <summary className="cursor-pointer text-[var(--text-secondary)]">Key</summary>
-          <ul className="mt-1 grid max-h-40 gap-1 overflow-y-auto pr-1">
-            {(stacked ? stackIds : allIds).map((key) => (
-              <li key={key} className="flex items-center gap-1.5 whitespace-nowrap">
-                <span
-                  className="h-2 w-2 shrink-0 rounded-full"
-                  style={{ backgroundColor: colorByKey.get(key) }}
-                />
-                {nameByKey.get(key) ?? key}
-              </li>
-            ))}
-          </ul>
-        </details>
       </div>
       {/* A bar segment is an area, not a point, so its card tracks the cursor
           rather than pinning to one spot the way the line chart's dots do. */}
@@ -735,6 +722,20 @@ function UsageWeeklyChart({
         )}
       </div>
       <p className="pt-2 text-xs text-[var(--text-muted)]">{usageCaption(usage.metric, true)}</p>
+      <details className="px-3 pt-2 pb-1 text-xs text-[var(--text-muted)]">
+        <summary className="cursor-pointer text-[var(--text-secondary)]">Legend</summary>
+        <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1.5">
+          {(stacked ? stackIds : allIds).map((key) => (
+            <li key={key} className="flex items-center gap-1.5 text-[11px] text-[var(--text-secondary)]">
+              <span
+                className="h-2.5 w-2.5 shrink-0 rounded-[3px]"
+                style={{ backgroundColor: colorByKey.get(key) }}
+              />
+              {nameByKey.get(key) ?? key}
+            </li>
+          ))}
+        </ul>
+      </details>
     </div>
   )
 }
