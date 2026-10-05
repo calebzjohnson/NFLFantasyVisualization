@@ -4,7 +4,8 @@
 // between points for and points against - not "offense" and "defense", since
 // every unit can contribute to either side (a pick-six is scored by the
 // defense, and shows up as points against for the team that turned it over).
-import { useState } from "react"
+import { useRef, useState } from "react"
+import type * as React from "react"
 import { Cell, Pie, PieChart, Tooltip } from "recharts"
 import { useFetch } from "../lib/useFetch"
 import { ChartContainer, type ChartConfig } from "./evilcharts/ui/recharts-chart"
@@ -99,6 +100,28 @@ function ScoringLegend({ categories }: { categories: ScoringCategory[] }) {
 function TeamScoringComposition({ teamAbbr }: { teamAbbr: string }) {
   const { data, error, loading } = useFetch<ScoringComposition>(`/teams/${teamAbbr}/scoring`)
   const [view, setView] = useState<View>("points for")
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [cursorPos, setCursorPos] = useState<{ x: number; y: number } | null>(null)
+
+  // Recharts pins a Pie tooltip to wherever the slice activated; overriding
+  // position with live cursor coordinates makes it track the mouse. Sizes are
+  // read off the rendered wrapper so the edge flip matches the real card.
+  function handleMouseMove(event: React.MouseEvent<HTMLDivElement>) {
+    if (!containerRef.current) return
+    const rect = containerRef.current.getBoundingClientRect()
+    const x = event.clientX - rect.left
+    const y = event.clientY - rect.top
+    const card = containerRef.current.querySelector<HTMLElement>(".recharts-tooltip-wrapper")
+    const cardWidth = card?.offsetWidth || 150
+    const cardHeight = card?.offsetHeight || 36
+    const GAP = 12
+    const flipLeft = x + GAP + cardWidth > rect.width
+    const flipUp = y + GAP + cardHeight > rect.height
+    setCursorPos({
+      x: flipLeft ? Math.max(x - GAP - cardWidth, 0) : x + GAP,
+      y: flipUp ? Math.max(y - GAP - cardHeight, 0) : y + GAP,
+    })
+  }
 
   const side = data?.[SIDE_BY_VIEW[view]]
 
@@ -113,13 +136,14 @@ function TeamScoringComposition({ teamAbbr }: { teamAbbr: string }) {
       {error && <p className="p-4 text-sm text-[var(--negative)]">Couldn't load scoring: {error}</p>}
       {side && (
         <>
-          <div className="relative p-3">
+          <div ref={containerRef} className="relative p-3" onMouseMove={handleMouseMove}>
             <ChartContainer config={chartConfig} className="aspect-[4/3]">
               <PieChart>
                 <Tooltip
                   content={<ScoringTooltip totalPoints={side.total_points} />}
                   animationDuration={200}
                   wrapperStyle={{ zIndex: 20 }}
+                  position={cursorPos ?? undefined}
                 />
                 <Pie
                   data={side.categories}
