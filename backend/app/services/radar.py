@@ -4,9 +4,14 @@ import nflreadpy as nfl
 import numpy as np
 import pandas as pd
 
-from app.data import nextgen_stats, player_stats, snap_counts
+from app.data import depth_charts, nextgen_stats, player_stats, snap_counts
 from app.data import pbp as pbp_data
-from app.services.extended_stats import total_tackles, weekly_extras, with_season_extras
+from app.services.extended_stats import (
+    split_front_seven,
+    total_tackles,
+    weekly_extras,
+    with_season_extras,
+)
 
 REGULAR_SEASON = "REG"
 
@@ -22,7 +27,23 @@ REGULAR_SEASON = "REG"
 # midseason would leave every chart blank for the first month. Defenders
 # are measured in defensive snaps instead - roughly a quarter of a game's
 # snaps each week, which keeps special-teams-only players out.
-MIN_SAMPLE_PER_WEEK = {"QB": 6.25, "RB": 3.0, "WR": 2.0, "TE": 1.25, "DL": 15, "LB": 15, "DB": 15}
+MIN_SAMPLE_PER_WEEK = {
+    "QB": 6.25,
+    "RB": 3.0,
+    "WR": 2.0,
+    "TE": 1.25,
+    "EDGE": 15,
+    "DL": 15,
+    "LB": 15,
+    "DB": 15,
+}
+
+
+# Run tackles per week played needed before a player's average tackle depth
+# means anything. Set from what edge rushers actually do - their median is 0.5
+# a week and their 90th percentile 1.18, so a linebacker-sized floor (1.5)
+# would leave the axis permanently empty rather than filling in over time.
+RUN_TACKLE_MIN_PER_WEEK = 0.5
 
 
 def _min_sample(bucket: str, current_week: int) -> float:
@@ -36,6 +57,15 @@ def _current_week(season: int) -> int:
     reg = week_stats[week_stats["season_type"] == REGULAR_SEASON]
     return int(reg["week"].max()) if not reg.empty else 1
 
+
+PASS_RUSHER_AXES = [
+    ("pressure_rate", "Pressure Rate"),
+    ("sack_rate", "Sack Conversion"),
+    ("qb_hits_per_100_snaps", "QB Hit Rate"),
+    ("tfl_per_100_snaps", "TFL Rate"),
+    ("missed_tackle_pct", "Missed Tackle %"),
+    ("tackle_depth", "Tackle Depth"),
+]
 
 # (raw column, display label), in the order the radar's axes should appear.
 RADAR_AXES: dict[str, list[tuple[str, str]]] = {
@@ -84,17 +114,14 @@ RADAR_AXES: dict[str, list[tuple[str, str]]] = {
         ("yards_per_target", "Yards / TGT"),
         ("redzone_target_share", "RZ TGT Share"),
     ],
-    "DL": [
-        ("pressure_rate", "Pressure Rate"),
-        ("sack_rate", "Sack Rate"),
-        ("tfl_per_100_snaps", "TFL / 100 Snaps"),
-        ("tackles_per_100_snaps", "Tackles / 100 Snaps"),
-        ("missed_tackle_pct", "Missed Tackle %"),
-        ("defense_snap_pct", "Snap Share"),
-    ],
+    # Edge rushers and interior linemen do the same two jobs in different
+    # proportions, so they share axes and are told apart by their pools: an
+    # interior lineman's pressure rate is read against other interior linemen.
+    "EDGE": PASS_RUSHER_AXES,
+    "DL": PASS_RUSHER_AXES,
     "LB": [
-        ("tackles_per_100_snaps", "Tackles / 100 Snaps"),
-        ("tfl_per_100_snaps", "TFL / 100 Snaps"),
+        ("tackles_per_100_snaps", "Tackle Rate"),
+        ("tfl_per_100_snaps", "TFL Rate"),
         ("pressure_rate", "Pressure Rate"),
         ("yards_per_target_allowed", "Yards / TGT Allowed"),
         ("passer_rating_allowed", "Rating Allowed"),
@@ -105,7 +132,7 @@ RADAR_AXES: dict[str, list[tuple[str, str]]] = {
         ("yards_per_target_allowed", "Yards / TGT Allowed"),
         ("completion_pct_allowed", "CMP % Allowed"),
         ("ball_production", "Ball Production"),
-        ("tackles_per_100_snaps", "Tackles / 100 Snaps"),
+        ("tackles_per_100_snaps", "Tackle Rate"),
         ("missed_tackle_pct", "Missed Tackle %"),
     ],
 }
@@ -118,6 +145,9 @@ LOWER_IS_BETTER = frozenset(
         "yards_per_target_allowed",
         "passer_rating_allowed",
         "completion_pct_allowed",
+        # Meeting the ball carrier at or behind the line beats catching him
+        # five yards downfield.
+        "tackle_depth",
     }
 )
 
@@ -129,7 +159,7 @@ def _position_bucket(position_group: str) -> str | None:
         return "RB"
     if position_group == "WR":
         return "WR"
-    if position_group in ("TE", "DL", "LB", "DB"):
+    if position_group in ("TE", "EDGE", "DL", "LB", "DB"):
         return position_group
     return None
 
@@ -366,15 +396,48 @@ def _passer_rating(
     return cast(pd.Series, sum(part.clip(0, 2.375) for part in parts) / 6 * 100)
 
 
+def _run_tackle_depth(plays: pd.DataFrame) -> pd.DataFrame:
+    """Mean yards gained on the designed runs a player helped tackle, with the
+    count behind it, indexed by gsis_id. 0 means he met the back at the line;
+    negative means behind it.
+
+    play_type "run" covers scrambles as well as designed runs, so those are
+    dropped - a defender chasing down a scrambling quarterback says nothing
+    about how he holds up against the run. All four tackle credits count, the
+    same way total_tackles does.
+    """
+    runs = plays[
+        (plays["season_type"] == REGULAR_SEASON)
+        & (plays["play_type"] == "run")
+        & (plays["qb_scramble"] == 0)
+        & (plays["two_point_attempt"] == 0)
+        & plays["yards_gained"].notna()
+    ]
+    slots = [
+        "solo_tackle_1_player_id",
+        "solo_tackle_2_player_id",
+        "tackle_with_assist_1_player_id",
+        "tackle_with_assist_2_player_id",
+    ]
+    credited = pd.concat(
+        [runs[[slot, "yards_gained"]].rename(columns={slot: "player_id"}) for slot in slots]
+    ).dropna(subset=["player_id"])
+    return cast(
+        pd.DataFrame,
+        credited.groupby("player_id")["yards_gained"].agg(depth="mean", tackles="size"),
+    )
+
+
 def _defense_metrics(
-    stats: pd.DataFrame, bucket: str, season: int, current_week: int
+    stats: pd.DataFrame, bucket: str, season: int, current_week: int, plays: pd.DataFrame
 ) -> pd.DataFrame:
-    """Every DL/LB/DB radar axis for the qualifying players in this bucket.
-    Rates are per 100 defensive snaps, since defenders have no "attempts" to
-    divide by the way passers, runners, and receivers do.
+    """Every EDGE/DL/LB/DB radar axis for the qualifying players in this
+    bucket. Rates are per 100 defensive snaps, since defenders have no
+    "attempts" to divide by the way passers, runners, and receivers do.
     """
     # Extras first, then the bucket filter - see with_season_extras.
     defense = with_season_extras(stats, weekly_extras(season))
+    defense = split_front_seven(defense, depth_charts.get_alignment_bucket(season))
     defense = defense[defense["position_group"] == bucket]
     defense = defense[defense["defense_snaps"] >= _min_sample(bucket, current_week)].copy()
 
@@ -387,6 +450,15 @@ def _defense_metrics(
     defense["sack_rate"] = _clean(defense["def_sacks"] / defense["def_pressures"] * 100)
     defense["tfl_per_100_snaps"] = _clean(defense["def_tackles_for_loss"] / snaps * 100)
     defense["tackles_per_100_snaps"] = _clean(tackles / snaps * 100)
+    defense["qb_hits_per_100_snaps"] = _clean(defense["def_qb_hits"] / snaps * 100)
+
+    # Null, not a substitute stat, below the run-tackle floor: an average over
+    # two or three tackles is noise, and swapping in a different measurement
+    # for those players would rank two unlike quantities on one axis.
+    depth = _run_tackle_depth(plays)
+    run_tackles = defense["player_id"].map(depth["tackles"]).fillna(0)
+    defense["tackle_depth"] = defense["player_id"].map(depth["depth"])
+    defense.loc[run_tackles < RUN_TACKLE_MIN_PER_WEEK * current_week, "tackle_depth"] = np.nan
     defense["missed_tackle_pct"] = _clean(
         defense["def_missed_tackles"] / (tackles + defense["def_missed_tackles"]) * 100
     )
@@ -453,7 +525,8 @@ def _build_pool(bucket: str, stats: pd.DataFrame, season: int) -> pd.DataFrame:
         ngs_receiving = nextgen_stats.get_season_nextgen_stats(season, "receiving")
         pool = _te_metrics(stats, ngs_receiving, plays, current_week)
     else:
-        pool = _defense_metrics(stats, bucket, season, current_week)
+        plays = pbp_data.get_season_pbp(season)
+        pool = _defense_metrics(stats, bucket, season, current_week, plays)
 
     return _with_percentiles(pool, RADAR_AXES[bucket])
 

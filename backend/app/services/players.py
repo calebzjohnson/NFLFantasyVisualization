@@ -3,11 +3,12 @@ from typing import Any, cast
 import nflreadpy as nfl
 import pandas as pd
 
+from app.data import depth_charts, player_stats, schedules
 from app.data import pbp as pbp_data
-from app.data import player_stats, schedules
 from app.data import players as players_data
 from app.services.extended_stats import (
     EXTENDED_GROUPS,
+    split_front_seven,
     split_specialists,
     total_tackles,
     weekly_extras,
@@ -54,6 +55,7 @@ def get_current_player_stats(
 
     if position_group is not None:
         stats = split_specialists(stats)
+        stats = split_front_seven(stats, depth_charts.get_alignment_bucket(season))
         if position_group in EXTENDED_GROUPS:
             stats = with_season_extras(stats, weekly_extras(season))
         stats = stats[stats["position_group"] == position_group]
@@ -98,6 +100,7 @@ def get_weekly_player_stats(
 
     if position_group is not None:
         stats = split_specialists(stats)
+        stats = split_front_seven(stats, depth_charts.get_alignment_bucket(season))
         # Every group, not just EXTENDED_GROUPS: the trending chart needs snap
         # share to tell a full game from one cut short by injury, and a week
         # played without a box-score event is a real game for a trend.
@@ -145,6 +148,20 @@ def get_player_game_log(player_id: str) -> list[dict[str, Any]]:
     return cast(list[dict[str, Any]], records)
 
 
+def _bio_position_group(player: pd.Series) -> str | None:
+    """The group the rest of the site buckets this player into, served with the
+    bio so the browser doesn't have to infer it from `position` - which can't
+    tell a 3-4 end from a 4-3 one, and so can't tell EDGE from DL.
+    """
+    group = player["position_group"]
+    if group == "SPEC":
+        return cast(str | None, player["position"])
+    if group in ("DL", "LB"):
+        aligned = depth_charts.get_alignment_bucket(nfl.get_current_season())
+        return cast(str, aligned.get(player["gsis_id"], group))
+    return cast(str | None, group)
+
+
 def get_player_bio(player_id: str) -> dict[str, Any]:
     """Bio/roster info for one player - name, team, position, physical
     measurables, draft info, and status - for the page header bar.
@@ -161,6 +178,7 @@ def get_player_bio(player_id: str) -> dict[str, Any]:
         "player_id": player_id,
         "display_name": player["display_name"],
         "position": player["position"],
+        "position_group": _bio_position_group(player),
         "team": player["latest_team"],
         "jersey_number": player["jersey_number"],
         "height_in": player["height"],
@@ -193,6 +211,7 @@ USAGE_METRIC_BY_POSITION_GROUP = {
     "FB": ("touches", "Touch Share vs Backfield"),
     "WR": ("targets", "Target Share"),
     "TE": ("targets", "Target Share"),
+    "EDGE": ("pressures", "Pressure Share"),
     "DL": ("pressures", "Pressure Share"),
     "LB": ("tackles", "Tackle Share"),
     "DB": ("tackles", "Tackle Share"),
@@ -248,6 +267,11 @@ def _weekly_player_lines(
     rows = []
     for week in weeks:
         team_value = int(weekly_totals.xs(week, level=0).sum())
+        # A whole team recording none of a stat means the week isn't in the
+        # data yet (PFR's advanced defense runs days behind), not that it
+        # happened and amounted to nothing.
+        if team_value == 0:
+            continue
         players = [
             {
                 "player_id": player_id,
@@ -392,6 +416,8 @@ def get_player_usage_share(player_id: str) -> dict[str, Any]:
     if stats.empty:
         season -= 1
         stats = player_stats.get_season_stats(season)
+
+    stats = split_front_seven(stats, depth_charts.get_alignment_bucket(season))
 
     player_rows = stats[stats["player_id"] == player_id]
     if player_rows.empty:

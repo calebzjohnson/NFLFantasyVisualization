@@ -11,6 +11,7 @@ const bio: PlayerBio = {
   player_id: "Q1",
   display_name: "Q One",
   position: "QB",
+  position_group: "QB",
   team: "KC",
   jersey_number: "15",
   height_in: null,

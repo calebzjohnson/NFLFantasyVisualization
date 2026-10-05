@@ -22,11 +22,19 @@ const dbPool = {
   ],
 }
 
-function renderPlayer(playerId: string, position: string) {
+// The group comes from the bio rather than being derived from `position` -
+// a defensive end's bucket depends on his team's scheme, so only the server
+// can say whether he's an EDGE or an interior lineman.
+function renderPlayer(playerId: string, position: string, positionGroup: string) {
   mockApi({
     "/teams": [teamInfo("KC")],
     "/players/radar-pool?position=DB": dbPool,
-    [`/players/${playerId}/bio`]: playerBio({ player_id: playerId, display_name: `${position} Player`, position }),
+    [`/players/${playerId}/bio`]: playerBio({
+      player_id: playerId,
+      display_name: `${position} Player`,
+      position,
+      position_group: positionGroup,
+    }),
     [`/players/${playerId}/games`]: [],
   })
   renderWithRouter(<PlayerPage />, { route: `/players/${playerId}`, path: "/players/:playerId" })
@@ -34,11 +42,11 @@ function renderPlayer(playerId: string, position: string) {
 
 describe("PlayerPage", () => {
   it.each([
-    ["O1", "OT"],
-    ["K1", "K"],
-    ["P1", "P"],
-  ])("shows only the game log for a %s (%s)", async (playerId, position) => {
-    renderPlayer(playerId, position)
+    ["O1", "OT", "OL"],
+    ["K1", "K", "K"],
+    ["P1", "P", "P"],
+  ])("shows only the game log for a %s (%s)", async (playerId, position, group) => {
+    renderPlayer(playerId, position, group)
 
     expect(await screen.findByText("Game Log")).toBeInTheDocument()
     expect(screen.queryByText("Player Breakdown")).not.toBeInTheDocument()
@@ -46,7 +54,7 @@ describe("PlayerPage", () => {
   })
 
   it("shows the radar and league comparison for a defender", async () => {
-    renderPlayer("D1", "CB")
+    renderPlayer("D1", "CB", "DB")
 
     expect(await screen.findByText("Player Breakdown")).toBeInTheDocument()
     expect(screen.getByText("League Comparison")).toBeInTheDocument()
@@ -58,7 +66,7 @@ describe("PlayerPage", () => {
   })
 
   it("explains a missing radar for a player below the volume minimum", async () => {
-    renderPlayer("D2", "S")
+    renderPlayer("D2", "S", "DB")
 
     expect(await screen.findByText("Not enough season volume yet for a radar profile.")).toBeInTheDocument()
     expect(screen.getByText("Not enough season volume yet for a league comparison.")).toBeInTheDocument()

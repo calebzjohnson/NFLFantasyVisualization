@@ -24,10 +24,6 @@ interface RadarPool {
   players: { player_id: string; axes: RadarAxis[] }[]
 }
 
-// Axes where a lower raw number is better - the backend ranks them in
-// reverse, so a point further out still means "better than his peers."
-const LOWER_IS_BETTER = "Lower is better, so a lower number ranks higher here."
-
 // Plain-language explanations for the footnote, keyed by axis key (labels
 // come from the backend and are abbreviated to fit the chart).
 const AXIS_GLOSSARY: Record<string, string> = {
@@ -51,13 +47,15 @@ const AXIS_GLOSSARY: Record<string, string> = {
   redzone_target_share: "His share of the team's targets inside the opponent's 20-yard line.",
   pressure_rate: "How often he pressures the quarterback (a sack, hit, or hurry), per 100 defensive snaps.",
   sack_rate: "Of the times he pressures the quarterback, how often he finishes with a sack.",
+  qb_hits_per_100_snaps: "Hits landed on the quarterback, per 100 defensive snaps.",
+  tackle_depth: "Average yards gained on the running plays he helped tackle.",
   tfl_per_100_snaps: "Tackles behind the line of scrimmage, per 100 defensive snaps.",
   tackles_per_100_snaps: "Tackles made, per 100 defensive snaps.",
-  missed_tackle_pct: `Share of his tackle attempts that he missed. ${LOWER_IS_BETTER}`,
+  missed_tackle_pct: "Share of his tackle attempts that he missed.",
   defense_snap_pct: "Share of his team's defensive snaps he's on the field for, in games he played.",
-  yards_per_target_allowed: `Receiving yards given up each time a pass is thrown his way. ${LOWER_IS_BETTER}`,
-  passer_rating_allowed: `The passer rating quarterbacks have when throwing at him. ${LOWER_IS_BETTER}`,
-  completion_pct_allowed: `How often a pass thrown his way is caught. ${LOWER_IS_BETTER}`,
+  yards_per_target_allowed: "Receiving yards given up each time a pass is thrown his way.",
+  passer_rating_allowed: "The passer rating quarterbacks have when throwing at him.",
+  completion_pct_allowed: "How often a pass thrown his way is caught.",
   ball_production:
     "How often he gets a hand on the ball - a pass broken up or intercepted - when it's thrown his way.",
 }

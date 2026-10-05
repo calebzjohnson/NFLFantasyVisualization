@@ -16,11 +16,15 @@ export type RawPlayerRow = Record<string, string | number | null> & {
 // list means adding a matching LEADER_CATEGORIES entry - the toggle and Stat
 // Leaders panel both read from this one list. K and P are split out of
 // nflverse's combined "SPEC" group by the backend.
-export const POSITION_GROUPS = ["QB", "RB", "WR", "TE", "DL", "LB", "DB", "OL", "K", "P"] as const
+export const POSITION_GROUPS = ["QB", "RB", "WR", "TE", "EDGE", "DL", "LB", "DB", "OL", "K", "P"] as const
 export type PositionGroup = (typeof POSITION_GROUPS)[number]
 
 // "QBs", "DBs", ... - except where the abbreviation doesn't pluralize readably.
-const PLURALS: Partial<Record<PositionGroup, string>> = { K: "kickers", P: "punters" }
+const PLURALS: Partial<Record<PositionGroup, string>> = {
+  K: "kickers",
+  P: "punters",
+  EDGE: "edge rushers",
+}
 
 export function positionPlural(position: PositionGroup): string {
   return PLURALS[position] ?? `${position}s`
@@ -95,6 +99,49 @@ function receivingCategory(position: "WR" | "TE"): LeaderCategoryConfig {
         fum: Number(row.fumbles_lost_total),
       }
     },
+  }
+}
+
+// Edge rushers and interior linemen share a leaderboard shape - both are
+// judged on getting to the quarterback - so only the position filter differs.
+function passRushCategory(position: "EDGE" | "DL"): LeaderCategoryConfig {
+  return {
+    key: `${position.toLowerCase()}-pass-rush`,
+    position,
+    label: "Pass Rush",
+    path: playersPath(
+      "-def_sacks",
+      [
+        ...IDENTITY_FIELDS,
+        ...TACKLE_FIELDS,
+        "def_tackles_for_loss",
+        "def_sacks",
+        "def_qb_hits",
+        "def_pressures",
+        "def_fumbles_forced",
+        "penalties",
+      ],
+      position,
+    ),
+    columns: [
+      { key: "tkl", label: "TKL" },
+      { key: "tfl", label: "TFL" },
+      { key: "sack", label: "SACK", tone: "positive" },
+      { key: "qbHit", label: "QB HIT" },
+      { key: "press", label: "PRESS" },
+      { key: "ff", label: "FF", tone: "positive" },
+      { key: "pen", label: "PEN", tone: "negative" },
+    ],
+    defaultSortKey: "sack",
+    toStats: (row) => ({
+      tkl: totalTackles(row),
+      tfl: Number(row.def_tackles_for_loss),
+      sack: Number(row.def_sacks),
+      qbHit: Number(row.def_qb_hits),
+      press: Number(row.def_pressures),
+      ff: Number(row.def_fumbles_forced),
+      pen: Number(row.penalties),
+    }),
   }
 }
 
@@ -198,44 +245,8 @@ export const LEADER_CATEGORIES: LeaderCategoryConfig[] = [
       }
     },
   },
-  {
-    key: "pass-rush",
-    position: "DL",
-    label: "Pass Rush",
-    path: playersPath(
-      "-def_sacks",
-      [
-        ...IDENTITY_FIELDS,
-        ...TACKLE_FIELDS,
-        "def_tackles_for_loss",
-        "def_sacks",
-        "def_qb_hits",
-        "def_pressures",
-        "def_fumbles_forced",
-        "penalties",
-      ],
-      "DL",
-    ),
-    columns: [
-      { key: "tkl", label: "TKL" },
-      { key: "tfl", label: "TFL" },
-      { key: "sack", label: "SACK", tone: "positive" },
-      { key: "qbHit", label: "QB HIT" },
-      { key: "press", label: "PRESS" },
-      { key: "ff", label: "FF", tone: "positive" },
-      { key: "pen", label: "PEN", tone: "negative" },
-    ],
-    defaultSortKey: "sack",
-    toStats: (row) => ({
-      tkl: totalTackles(row),
-      tfl: Number(row.def_tackles_for_loss),
-      sack: Number(row.def_sacks),
-      qbHit: Number(row.def_qb_hits),
-      press: Number(row.def_pressures),
-      ff: Number(row.def_fumbles_forced),
-      pen: Number(row.penalties),
-    }),
-  },
+  passRushCategory("EDGE"),
+  passRushCategory("DL"),
   {
     key: "tackling",
     position: "LB",

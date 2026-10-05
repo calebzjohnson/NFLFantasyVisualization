@@ -88,6 +88,33 @@ const receivingConfig: GameLogConfig = {
   },
 }
 
+// Edge rushers and interior linemen keep separate percentile pools but log the
+// same box score.
+function defensiveLineLog(): GameLogConfig {
+  return fromCounts(
+    [
+      { key: "snaps", label: "SNAPS" },
+      { key: "tkl", label: "TKL" },
+      { key: "tfl", label: "TFL" },
+      { key: "sack", label: "SACK", tone: "positive" },
+      { key: "qbHit", label: "QB HIT" },
+      { key: "press", label: "PRESS" },
+      { key: "ff", label: "FF", tone: "positive" },
+      { key: "pen", label: "PEN", tone: "negative" },
+    ],
+    (row) => ({
+      snaps: num(row, "defense_snaps"),
+      tkl: totalTackles(row),
+      tfl: num(row, "def_tackles_for_loss"),
+      sack: num(row, "def_sacks"),
+      qbHit: num(row, "def_qb_hits"),
+      press: num(row, "def_pressures"),
+      ff: num(row, "def_fumbles_forced"),
+      pen: num(row, "penalties"),
+    }),
+  )
+}
+
 const GAME_LOG_CONFIGS: Record<PositionGroup, GameLogConfig> = {
   QB: {
     columns: [
@@ -190,28 +217,8 @@ const GAME_LOG_CONFIGS: Record<PositionGroup, GameLogConfig> = {
   // TEs are receivers first - same game log shape as WR.
   WR: receivingConfig,
   TE: receivingConfig,
-  DL: fromCounts(
-    [
-      { key: "snaps", label: "SNAPS" },
-      { key: "tkl", label: "TKL" },
-      { key: "tfl", label: "TFL" },
-      { key: "sack", label: "SACK", tone: "positive" },
-      { key: "qbHit", label: "QB HIT" },
-      { key: "press", label: "PRESS" },
-      { key: "ff", label: "FF", tone: "positive" },
-      { key: "pen", label: "PEN", tone: "negative" },
-    ],
-    (row) => ({
-      snaps: num(row, "defense_snaps"),
-      tkl: totalTackles(row),
-      tfl: num(row, "def_tackles_for_loss"),
-      sack: num(row, "def_sacks"),
-      qbHit: num(row, "def_qb_hits"),
-      press: num(row, "def_pressures"),
-      ff: num(row, "def_fumbles_forced"),
-      pen: num(row, "penalties"),
-    }),
-  ),
+  EDGE: defensiveLineLog(),
+  DL: defensiveLineLog(),
   LB: fromCounts(
     [
       { key: "snaps", label: "SNAPS" },
@@ -371,4 +378,13 @@ export function positionGroupFor(position: string | null): PositionGroup | null 
 export function gameLogConfigForPosition(position: string | null): GameLogConfig | null {
   const group = positionGroupFor(position)
   return group ? GAME_LOG_CONFIGS[group] : null
+}
+
+// Preferred over gameLogConfigForPosition wherever the server-supplied group
+// is available: a 3-4 edge rusher is listed at position "OLB", which maps to
+// the off-ball linebacker log and drops the pressure columns he's judged on.
+export function gameLogConfigForGroup(group: string | null): GameLogConfig | null {
+  return group && group in GAME_LOG_CONFIGS
+    ? GAME_LOG_CONFIGS[group as PositionGroup]
+    : null
 }

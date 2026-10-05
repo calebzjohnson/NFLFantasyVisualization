@@ -460,7 +460,7 @@ function UsageWeeklyChart({
   // nothing about one QB vs. another. The per-game rate does.
   const isTdInvolvement = usage.metric === "td_involvement"
   const perGame = usage.weekly.length > 0 ? usage.player_value / usage.weekly.length : 0
-  const stacked = usage.metric === "targets"
+  const stacked = usage.metric === "targets" || usage.metric === "pressures"
 
   // Scaled to the real data rather than a fixed 0-100 - a deep pool (tackle
   // share) rarely has anyone above 20-30%, so a full 100% axis would leave
@@ -721,7 +721,11 @@ function UsageWeeklyChart({
           </div>
         )}
       </div>
-      <p className="pt-2 text-xs text-[var(--text-muted)]">{usageCaption(usage.metric, true)}</p>
+      <p className="pt-2 text-xs text-[var(--text-muted)]">
+        {usageCaption(usage.metric, true)}
+        {usage.metric === "pressures" &&
+          " Pressures come from Pro Football Reference, which can take a day or two to post the most recent week."}
+      </p>
       <details className="px-3 pt-2 pb-1 text-xs text-[var(--text-muted)]">
         <summary className="cursor-pointer text-[var(--text-secondary)]">Legend</summary>
         <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1.5">

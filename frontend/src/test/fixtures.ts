@@ -24,6 +24,7 @@ export function playerBio(overrides: Partial<PlayerBio> = {}): PlayerBio {
     player_id: "P1",
     display_name: "Player One",
     position: "QB",
+    position_group: "QB",
     team: "KC",
     jersey_number: null,
     height_in: null,
