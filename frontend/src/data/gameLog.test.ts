@@ -10,8 +10,8 @@ function game(week: number, fields: Record<string, number | null>): GameStatsRow
 describe("positionGroupFor", () => {
   it.each([
     ["OLB", "LB"],
-    ["SAF", "DB"],
-    ["CB", "DB"],
+    ["SAF", "S"],
+    ["CB", "CB"],
     ["NT", "DL"],
     ["OT", "OL"],
     ["C", "OL"],

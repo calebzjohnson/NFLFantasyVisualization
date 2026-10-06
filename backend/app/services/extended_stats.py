@@ -16,7 +16,7 @@ REGULAR_SEASON = "REG"
 # Offense skips them - its stats don't use them, and the quiet-week rows below
 # would shift its league medians. (/players/weekly and the game log merge
 # them for every group.)
-EXTENDED_GROUPS = frozenset({"DL", "LB", "DB", "OL"})
+EXTENDED_GROUPS = frozenset({"EDGE", "DL", "LB", "CB", "S", "DB", "OL"})
 
 PFR_COLUMNS = [
     "def_pressures",
@@ -26,6 +26,7 @@ PFR_COLUMNS = [
     "def_completions_allowed",
     "def_yards_allowed",
     "def_receiving_td_allowed",
+    "def_yards_after_catch",
 ]
 SNAP_COLUMNS = [
     "offense_snaps",
@@ -49,6 +50,28 @@ def split_specialists(stats: pd.DataFrame) -> pd.DataFrame:
         return stats
     spec = stats["position_group"] == "SPEC"
     return stats.assign(position_group=stats["position_group"].where(~spec, stats["position"]))
+
+
+ALIGNED_GROUPS = ["DL", "LB", "DB"]
+
+
+def split_by_alignment(stats: pd.DataFrame, bucket_by_id: "pd.Series[str]") -> pd.DataFrame:
+    """nflverse's defensive groups are by listed position, which doesn't say
+    what a defender actually does - 3-4 edge rushers sit in LB alongside
+    off-ball linebackers, 3-4 ends sit in DL alongside true edge rushers, and
+    corners share one DB bucket with safeties. Those rows take their
+    depth-chart alignment bucket (EDGE/DL/LB/CB/S) as their group instead.
+
+    Players the depth charts don't list keep nflverse's group, which is already
+    right for the handful it affects (interior linemen listed as DT).
+    """
+    if stats.empty:
+        return stats
+    defense = stats["position_group"].isin(ALIGNED_GROUPS)
+    aligned = stats["player_id"].map(bucket_by_id)
+    return stats.assign(
+        position_group=stats["position_group"].where(~defense | aligned.isna(), aligned)
+    )
 
 
 def total_tackles(stats: pd.DataFrame) -> pd.Series:

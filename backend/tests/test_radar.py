@@ -30,7 +30,15 @@ def test_with_percentiles_ranks_lower_is_better_axes_in_reverse() -> None:
 
 @pytest.mark.parametrize(
     ("group", "bucket"),
-    [("DL", "DL"), ("LB", "LB"), ("DB", "DB"), ("FB", "RB"), ("OL", None), ("SPEC", None)],
+    [
+        ("EDGE", "EDGE"),
+        ("DL", "DL"),
+        ("LB", "LB"),
+        ("DB", "DB"),
+        ("FB", "RB"),
+        ("OL", None),
+        ("SPEC", None),
+    ],
 )
 def test_position_bucket_covers_defense_but_not_line_or_specialists(
     group: str, bucket: str | None

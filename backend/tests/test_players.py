@@ -456,7 +456,7 @@ def test_get_current_player_stats_splits_specialists_into_kickers_and_punters(
     assert [r["player_id"] for r in records] == ["K1"]
 
 
-def test_get_player_usage_share_uses_team_tackle_share_for_defensive_backs(
+def test_get_player_usage_share_uses_team_tackle_share_for_linebackers(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     tackles = dict(def_tackles_with_assist=0, def_tackle_assists=0)
@@ -478,10 +478,10 @@ def test_get_player_usage_share_uses_team_tackle_share_for_defensive_backs(
     monkeypatch.setattr("app.data.player_stats.get_week_stats", lambda s: week)
     monkeypatch.setattr("app.data.players.get_players", lambda: roster)
 
-    usage = get_player_usage_share("D1")
+    usage = get_player_usage_share("L1")
 
-    assert (usage["label"], usage["player_value"], usage["team_value"]) == ("Tackle Share", 6, 10)
-    assert usage["teammates"] == [{"player_id": "L1", "name": "L One", "value": 4}]
+    assert (usage["label"], usage["player_value"], usage["team_value"]) == ("Tackle Share", 4, 10)
+    assert usage["teammates"] == [{"player_id": "D1", "name": "D One", "value": 6}]
 
     # Weekly: one line per player in the DAL pool (D1 and L1 - X1 is on NYG,
     # a different team, and correctly excluded), not folded into an "Other"
@@ -503,8 +503,8 @@ def test_get_player_usage_share_qb_weekly_is_just_two_lines(
 ) -> None:
     """Unlike every other usage metric (one line per individual player), a
     QB's weekly TD involvement stays a simple 2-line split: this QB's own
-    involvement vs. every other touchdown lumped into "Other" - not broken
-    out by individual scorer.
+    involvement vs. every other touchdown lumped together - not broken out by
+    individual scorer.
     """
     season = pd.DataFrame([dict(player_id="Q1", player_display_name="Q One",
                                  position_group="QB", recent_team="DAL")])

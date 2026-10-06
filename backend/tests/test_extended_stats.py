@@ -3,6 +3,7 @@ import pytest
 
 from app.services.extended_stats import (
     PFR_COLUMNS,
+    split_by_alignment,
     split_specialists,
     weekly_extras,
     with_season_extras,
@@ -20,6 +21,44 @@ def test_split_specialists_gives_kickers_and_punters_their_own_group() -> None:
     )
 
     assert split_specialists(stats)["position_group"].tolist() == ["K", "P", "OL"]
+
+
+def test_split_by_alignment_buckets_by_alignment_not_listed_position() -> None:
+    """The whole point of the alignment split: nflverse's own groups put 3-4
+    edge rushers in LB next to off-ball linebackers, and 3-4 ends in DL next to
+    true edge rushers. Depth-chart alignment separates them.
+    """
+    stats = pd.DataFrame(
+        [
+            dict(player_id="E1", position="OLB", position_group="LB"),  # 3-4 edge
+            dict(player_id="I1", position="DE", position_group="DL"),  # 3-4 end, interior
+            dict(player_id="L1", position="OLB", position_group="LB"),  # 4-3 off-ball
+            dict(player_id="C1", position="DB", position_group="DB"),  # generic DB label
+            dict(player_id="S1", position="SAF", position_group="DB"),
+            dict(player_id="W1", position="WR", position_group="WR"),  # untouched
+        ]
+    )
+    aligned = pd.Series({"E1": "EDGE", "I1": "DL", "L1": "LB", "C1": "CB", "S1": "S"})
+
+    assert split_by_alignment(stats, aligned)["position_group"].tolist() == [
+        "EDGE",
+        "DL",
+        "LB",
+        "CB",
+        "S",
+        "WR",  # offense is never realigned
+    ]
+
+
+def test_split_by_alignment_keeps_the_original_group_when_unlisted() -> None:
+    """A player the depth charts don't carry keeps nflverse's group rather than
+    dropping out of every bucket.
+    """
+    stats = pd.DataFrame([dict(player_id="D1", position="DT", position_group="DL")])
+
+    result = split_by_alignment(stats, pd.Series(dtype="object"))
+
+    assert result["position_group"].tolist() == ["DL"]
 
 
 @pytest.fixture

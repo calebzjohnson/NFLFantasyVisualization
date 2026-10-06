@@ -28,11 +28,13 @@ def sample_players_roster() -> pd.DataFrame:
     (to test the fallback to the raw code) and NaN draft fields.
     """
     rows = [
-        dict(gsis_id="Q1", display_name="Q One", position="QB", latest_team="DAL",
+        dict(gsis_id="Q1", display_name="Q One", position="QB", position_group="QB",
+             latest_team="DAL",
              jersey_number="9", height=74.0, weight=225.0, birth_date="1998-05-02",
              college_name="Ohio State", status="ACT", draft_year=2020.0, draft_round=1.0,
              draft_pick=10.0, draft_team="DAL", headshot="https://example.com/q1.png"),
-        dict(gsis_id="W1", display_name="W One", position="WR", latest_team="DAL",
+        dict(gsis_id="W1", display_name="W One", position="WR", position_group="WR",
+             latest_team="DAL",
              jersey_number="80", height=72.0, weight=195.0, birth_date="1999-08-14",
              college_name="Alabama", status="XYZ", draft_year=np.nan, draft_round=np.nan,
              draft_pick=np.nan, draft_team=np.nan, headshot="https://example.com/w1.png"),

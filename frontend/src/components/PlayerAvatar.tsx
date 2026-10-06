@@ -9,13 +9,15 @@ interface PlayerAvatarProps {
   color: string
   // Tailwind size classes, e.g. "h-8 w-8" - the 192px image covers up to ~64px.
   size: string
+  // Override the downloaded width when the avatar is well under that.
+  imageSize?: number
 }
 
-function PlayerAvatar({ name, headshot, color, size }: PlayerAvatarProps) {
+function PlayerAvatar({ name, headshot, color, size, imageSize }: PlayerAvatarProps) {
   if (headshot) {
     return (
       <img
-        src={headshotUrl(headshot)}
+        src={headshotUrl(headshot, imageSize)}
         alt=""
         className={`${size} shrink-0 rounded-full object-cover`}
         style={{ backgroundColor: color }}

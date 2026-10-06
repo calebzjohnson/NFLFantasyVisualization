@@ -24,14 +24,14 @@ describe("LEADER_CATEGORIES", () => {
   )
 
   it("filters the new groups by position", () => {
-    for (const position of ["DL", "LB", "DB", "OL", "K", "P"] as const) {
+    for (const position of ["EDGE", "DL", "LB", "CB", "S", "OL", "K", "P"] as const) {
       const category = LEADER_CATEGORIES.find((c) => c.position === position)!
       expect(new URL(category.path, "http://x").searchParams.get("position_group")).toBe(position)
     }
   })
 
-  it("computes a DB's passer rating allowed from his coverage counts", () => {
-    const coverage = LEADER_CATEGORIES.find((c) => c.position === "DB")!
+  it("computes a corner.s passer rating allowed from his coverage counts", () => {
+    const coverage = LEADER_CATEGORIES.find((c) => c.position === "CB")!
     const stats = coverage.toStats({
       player_id: "D1",
       player_display_name: "D One",
@@ -55,6 +55,6 @@ describe("positionPlural", () => {
   it("spells out kickers and punters, and adds an s otherwise", () => {
     expect(positionPlural("K")).toBe("kickers")
     expect(positionPlural("P")).toBe("punters")
-    expect(positionPlural("DB")).toBe("DBs")
+    expect(positionPlural("CB")).toBe("CBs")
   })
 })

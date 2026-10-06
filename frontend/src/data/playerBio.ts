@@ -4,6 +4,7 @@ export interface PlayerBio {
   player_id: string
   display_name: string
   position: string | null
+  position_group: string | null
   team: string | null
   jersey_number: string | null
   height_in: number | null

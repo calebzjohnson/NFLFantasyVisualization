@@ -1,14 +1,20 @@
 // GameLogPanel.tsx
 // Fetches a player's game-by-game stat line and renders it as an ESPN-style
 // table, with columns picked to match their position.
-import { gameLogConfigForPosition, type GameStatsRow } from "../data/gameLog"
+import { gameLogConfigForGroup, type GameStatsRow } from "../data/gameLog"
 import { useFetch } from "../lib/useFetch"
 import GameLogTable, { type GameLogRow } from "./GameLogTable"
 import Panel from "./Panel"
 
-function GameLogPanel({ playerId, position }: { playerId: string; position: string | null }) {
+function GameLogPanel({
+  playerId,
+  positionGroup,
+}: {
+  playerId: string
+  positionGroup: string | null
+}) {
   const { data, error, loading } = useFetch<GameStatsRow[]>(`/players/${playerId}/games`)
-  const config = gameLogConfigForPosition(position)
+  const config = gameLogConfigForGroup(positionGroup)
 
   const rows: GameLogRow[] | null =
     config && data

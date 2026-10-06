@@ -330,9 +330,13 @@ export const PLAYER_METRICS: Record<PositionGroup, PlayerMetric[]> = {
   WR: WR_METRICS,
   // TEs are receivers first - same metric catalog as WR.
   TE: WR_METRICS,
+  // Edge rushers and interior linemen are separate percentile pools but share
+  // the same stat catalog - both are measured on pressure and run stops.
+  EDGE: DL_METRICS,
   DL: DL_METRICS,
   LB: LB_METRICS,
-  DB: DB_METRICS,
+  CB: DB_METRICS,
+  S: DB_METRICS,
   OL: OL_METRICS,
   K: K_METRICS,
   P: P_METRICS,
@@ -359,6 +363,18 @@ export function median(values: number[]): number {
 // separate from the metric list itself, since several metrics (rating, ypc,
 // completion %) are derived from more than one raw field.
 const IDENTITY_FIELDS = ["player_id", "player_display_name", "recent_team", "headshot_url"]
+
+const SECONDARY_FIELDS = [
+  ...TACKLE_FIELDS,
+  "def_interceptions",
+  "def_pass_defended",
+  "def_targets",
+  "def_completions_allowed",
+  "def_yards_allowed",
+  "def_receiving_td_allowed",
+  "def_missed_tackles",
+  "defense_snaps",
+]
 
 const RAW_FIELDS: Record<PositionGroup, string[]> = {
   QB: [
@@ -408,6 +424,19 @@ const RAW_FIELDS: Record<PositionGroup, string[]> = {
     "wopr",
     "fantasy_points_ppr",
   ],
+  EDGE: [
+    ...TACKLE_FIELDS,
+    "def_tackles_for_loss",
+    "def_sacks",
+    "def_qb_hits",
+    "def_pressures",
+    "def_times_hurried",
+    "def_fumbles_forced",
+    "def_pass_defended",
+    "def_missed_tackles",
+    "defense_snaps",
+    "defense_snap_pct",
+  ],
   DL: [
     ...TACKLE_FIELDS,
     "def_tackles_for_loss",
@@ -436,17 +465,8 @@ const RAW_FIELDS: Record<PositionGroup, string[]> = {
     "def_missed_tackles",
     "defense_snaps",
   ],
-  DB: [
-    ...TACKLE_FIELDS,
-    "def_interceptions",
-    "def_pass_defended",
-    "def_targets",
-    "def_completions_allowed",
-    "def_yards_allowed",
-    "def_receiving_td_allowed",
-    "def_missed_tackles",
-    "defense_snaps",
-  ],
+  CB: SECONDARY_FIELDS,
+  S: SECONDARY_FIELDS,
   OL: ["offense_snaps", "offense_snap_pct", "penalties", "penalty_yards"],
   K: ["fg_made", "fg_att", "fg_long", "fg_made_50_59", "fg_made_60_", "pat_made", "pat_att"],
   P: ["pt_att", "pt_yards", "pt_net_yards", "pt_inside_20", "pt_touchback"],
@@ -464,9 +484,11 @@ export const SNAP_SHARE_FIELD: Record<PositionGroup, string | null> = {
   WR: "offense_snap_pct",
   TE: "offense_snap_pct",
   OL: "offense_snap_pct",
+  EDGE: "defense_snap_pct",
   DL: "defense_snap_pct",
   LB: "defense_snap_pct",
-  DB: "defense_snap_pct",
+  CB: "defense_snap_pct",
+  S: "defense_snap_pct",
   K: null,
   P: null,
 }

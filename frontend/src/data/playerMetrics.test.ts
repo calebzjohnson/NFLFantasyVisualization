@@ -58,7 +58,7 @@ describe("metric catalogs", () => {
   })
 
   it("gives defenders, linemen, and specialists no fantasy points metric", () => {
-    for (const position of ["DL", "LB", "DB", "OL", "K", "P"] as const) {
+    for (const position of ["EDGE", "DL", "LB", "CB", "S", "OL", "K", "P"] as const) {
       expect(PLAYER_METRICS[position].map((m) => m.key)).not.toContain("fantasy_points_ppr")
     }
   })

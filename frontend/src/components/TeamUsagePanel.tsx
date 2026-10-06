@@ -3,10 +3,11 @@
 // line chart of this player's share of the team's touches/targets/TDs (the
 // default view, so a trend - workload growing/shrinking - is what you see
 // first) and a season-snapshot donut of the same split.
-import { useLayoutEffect, useRef, useState } from "react"
+import { useCallback, useLayoutEffect, useRef, useState } from "react"
 import type * as React from "react"
 import { useNavigate } from "react-router-dom"
 import {
+  Bar,
   CartesianGrid,
   Cell,
   ComposedChart,
@@ -97,21 +98,30 @@ const CATEGORICAL_PALETTE = [
 // case), ordered by season total descending. No team colors: the point is
 // a consistent, position-based color per rank, the same across every
 // player's page, not a color tied to which team happens to be selected.
-// Doesn't apply to QB TD involvement: that's a simple this-QB-vs-
-// everyone-else split, not a roster of individually ranked teammates - the
-// QB gets the palette's first color and "Other" a fixed neutral, since
-// "Other" isn't an individually ranked entity.
-function buildColorByKey(usage: UsageShare, playerId: string): Map<string, string> {
+// QB TD involvement is the exception, and takes the team's two colors
+// instead: it's a this-QB-vs-the-rest-of-his-team split rather than a
+// roster of individually ranked players, so a rank-based palette would be
+// encoding a ranking that isn't there.
+function buildColorByKey(
+  usage: UsageShare,
+  playerId: string,
+  teamColor: string,
+  teamColor2: string,
+): Map<string, string> {
   if (usage.metric === "td_involvement") {
     return new Map([
-      [playerId, CATEGORICAL_PALETTE[0]],
-      [OTHER_KEY, TEAMMATE_FILL],
+      [playerId, teamColor],
+      [OTHER_KEY, teamColor2],
     ])
   }
+  // Ties break on player_id, never on who the focus player is: the focus
+  // player heads the input array, so a value-only sort would float them above
+  // everyone they're tied with and shift that whole tied group's colors -
+  // the same player would change color just by opening his own page.
   const ranked = [
     { id: playerId, value: usage.player_value },
     ...usage.teammates.map((teammate) => ({ id: teammate.player_id, value: teammate.value })),
-  ].sort((a, b) => b.value - a.value)
+  ].sort((a, b) => b.value - a.value || a.id.localeCompare(b.id))
   return new Map(ranked.map((entry, index) => [entry.id, CATEGORICAL_PALETTE[index % CATEGORICAL_PALETTE.length]]))
 }
 
@@ -136,6 +146,10 @@ const USAGE_CAPTIONS: Record<string, { season: string; weekly: string }> = {
   tackles: {
     season: "Share of the team's tackles this player has made this season.",
     weekly: "Tackles this player made each week, vs. the rest of the team.",
+  },
+  targets_against: {
+    season: "Share of the passes thrown at this team's defense that came at this player.",
+    weekly: "Passes thrown at this player each week, vs. the rest of the team.",
   },
   pressures: {
     season:
@@ -342,16 +356,27 @@ function HoverDot({
 
 function HoverCard({ point }: { point: HoverPoint }) {
   return (
-    <div className="grid w-56 gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface-2)]/90 p-2.5 text-xs shadow-xl backdrop-blur-sm">
+    <div className="grid w-max max-w-56 gap-1 rounded-lg border border-[var(--border)] bg-[var(--surface-2)]/90 px-2 py-1.5 text-xs shadow-xl backdrop-blur-sm">
       <div className="font-medium text-[var(--text-primary)]">{point.week}</div>
       {point.members.map((member) => (
         <div key={member.key} className="flex items-center gap-2">
-          <PlayerAvatar
-            name={member.name}
-            headshot={member.headshotUrl}
-            color={member.color}
-            size="h-6 w-6"
-          />
+          {/* The "everyone else" bucket is a group, not a person - anything
+              in the headshot slot there reads as a teammate's missing photo,
+              so it gets the legend's small color dot instead. */}
+          {member.key === OTHER_KEY ? (
+            <span
+              className="mx-2 h-2.5 w-2.5 shrink-0 rounded-full"
+              style={{ backgroundColor: member.color }}
+            />
+          ) : (
+            <PlayerAvatar
+              name={member.name}
+              headshot={member.headshotUrl}
+              color={member.color}
+              size="h-6 w-6"
+              imageSize={64}
+            />
+          )}
           <span className="min-w-0 flex-1 truncate text-[var(--text-secondary)]">{member.name}</span>
           <span className="shrink-0 font-mono font-medium tabular-nums text-[var(--text-primary)]">
             {member.value} ({Math.round(member.sharePct)}%)
@@ -378,8 +403,11 @@ function UsageWeeklyChart({
   const containerRef = useRef<HTMLDivElement>(null)
   const cardRef = useRef<HTMLDivElement>(null)
   const [hovered, setHovered] = useState<{ point: HoverPoint; cx: number; cy: number } | null>(null)
-  const [cardStyle, setCardStyle] = useState<{ left: number; top: number }>({ left: 0, top: 0 })
 
+  // Writes straight to the node instead of going through state: the bar
+  // chart repositions this on every mousemove, and re-rendering the whole
+  // chart at that rate is what makes it feel laggy.
+  //
   // Re-measures the card itself (its height depends on how many players are
   // tied at that point) and anchors it to the dot, defaulting to the
   // top-right and only flipping to the left when genuinely near the right
@@ -387,21 +415,26 @@ function UsageWeeklyChart({
   // the chart, so a plain "would this overflow" check flips left for any
   // point at or past the middle) and only flipping down when genuinely
   // near the top.
-  useLayoutEffect(() => {
-    if (!hovered || !cardRef.current || !containerRef.current) return
+  const placeCard = useCallback((cx: number, cy: number) => {
+    if (!cardRef.current || !containerRef.current) return
     const container = containerRef.current.getBoundingClientRect()
     const card = cardRef.current.getBoundingClientRect()
     const GAP = 14
-    const nearRightEdge = hovered.cx > container.width * 0.75
+    const nearRightEdge = cx > container.width * 0.75
     const left = nearRightEdge
-      ? Math.max(hovered.cx - card.width - GAP, 8)
-      : Math.min(hovered.cx + GAP, container.width - card.width - 8)
-    const nearTopEdge = hovered.cy < container.height * 0.25
+      ? Math.max(cx - card.width - GAP, 8)
+      : Math.min(cx + GAP, container.width - card.width - 8)
+    const nearTopEdge = cy < container.height * 0.25
     const top = nearTopEdge
-      ? Math.min(hovered.cy + GAP, container.height - card.height - 8)
-      : Math.max(hovered.cy - card.height - GAP, 8)
-    setCardStyle({ left, top })
-  }, [hovered])
+      ? Math.min(cy + GAP, container.height - card.height - 8)
+      : Math.max(cy - card.height - GAP, 8)
+    cardRef.current.style.left = `${left}px`
+    cardRef.current.style.top = `${top}px`
+  }, [])
+
+  useLayoutEffect(() => {
+    if (hovered) placeCard(hovered.cx, hovered.cy)
+  }, [hovered, placeCard])
 
   // One line per teammate with a nonzero season total (usage.teammates is
   // already sorted that way - the same order buildColorByKey used, so line
@@ -426,6 +459,13 @@ function UsageWeeklyChart({
   })
   const peak = data.reduce((best, row) => (Number(row[playerId]) > Number(best[playerId]) ? row : best))
 
+  // A QB's best week is almost always 100% - most starters have some week
+  // they had a hand in every touchdown their team scored - so the peak says
+  // nothing about one QB vs. another. The per-game rate does.
+  const isTdInvolvement = usage.metric === "td_involvement"
+  const perGame = usage.weekly.length > 0 ? usage.player_value / usage.weekly.length : 0
+  const stacked = usage.metric !== "td_involvement" && usage.metric !== "touches"
+
   // Scaled to the real data rather than a fixed 0-100 - a deep pool (tackle
   // share) rarely has anyone above 20-30%, so a full 100% axis would leave
   // every line squashed into the bottom of the chart instead of using the
@@ -433,6 +473,39 @@ function UsageWeeklyChart({
   const allIds = [playerId, ...otherIds]
   const maxValue = Math.max(...data.flatMap((row) => allIds.map((key) => Number(row[key]) || 0)))
   const yMax = Math.min(100, Math.max(10, Math.ceil((maxValue * 1.15) / 10) * 10))
+
+  const stackIds = [
+    { id: playerId, value: usage.player_value },
+    ...usage.teammates.map((teammate) => ({ id: teammate.player_id, value: teammate.value })),
+  ]
+    .sort((a, b) => b.value - a.value || a.id.localeCompare(b.id))
+    .map((entry) => entry.id)
+
+  // Each week orders its own stack, biggest at the bottom. Recharts stacks in
+  // the order the <Bar>s are declared, which is global, so the bars are
+  // positional slots ("the week's 1st biggest", "2nd biggest", ...) and the
+  // player each slot holds - and therefore its color - changes per week.
+  const slotPlayers = new Map(
+    usage.weekly.map((week) => [
+      `W${week.week}`,
+      week.players
+        .filter((player) => allIds.includes(player.player_id ?? OTHER_KEY))
+        .sort(
+          (a, b) =>
+            b.value - a.value || (a.player_id ?? OTHER_KEY).localeCompare(b.player_id ?? OTHER_KEY),
+        )
+        .map((player) => player.player_id ?? OTHER_KEY),
+    ]),
+  )
+  const slots = Math.max(...[...slotPlayers.values()].map((keys) => keys.length))
+  const slotData = usage.weekly.map((week) => {
+    const label = `W${week.week}`
+    const row: WeekSharePoint = { week: label }
+    slotPlayers.get(label)?.forEach((key, slot) => {
+      row[`slot${slot}`] = Number(data.find((entry) => entry.week === label)?.[key]) || 0
+    })
+    return row
+  })
 
   // One hoverable point per (week, distinct raw value) group among the shown
   // players - two players tied on the exact same count/share that week
@@ -463,38 +536,53 @@ function UsageWeeklyChart({
     }))
   })
 
+  // Bar segments are hovered individually, so they skip the tie-grouping the
+  // line chart's points need and look their one player up directly.
+  const memberByWeekKey = new Map(
+    hoverPoints.flatMap((point) => point.members.map((member) => [`${point.week}|${member.key}`, member])),
+  )
+
   return (
     <div className="p-3">
       <div className="mb-2 flex items-start justify-between gap-4 px-1">
         <div className="flex flex-col gap-0.5">
           <span className="text-[10px] tracking-wider text-[var(--text-muted)] uppercase">
-            {usage.label.split(" vs ")[0]} - Best Week
+            {isTdInvolvement ? "TD Involvements - Average" : `${usage.label.split(" vs ")[0]} - Best Week`}
           </span>
           <div className="flex items-baseline gap-2">
             <span className="font-display text-2xl font-bold text-[var(--text-primary)]">
-              {Math.round(Number(peak[playerId]) || 0)}%
+              {isTdInvolvement ? perGame.toFixed(1) : `${Math.round(Number(peak[playerId]) || 0)}%`}
             </span>
-            <span className="text-sm text-[var(--text-secondary)]">in {peak.week}</span>
+            <span className="text-sm text-[var(--text-secondary)]">
+              {isTdInvolvement ? "per game" : `in ${peak.week}`}
+            </span>
           </div>
         </div>
-        <details className="text-xs text-[var(--text-muted)]">
-          <summary className="cursor-pointer text-[var(--text-secondary)]">Key</summary>
-          <ul className="mt-1 grid max-h-40 gap-1 overflow-y-auto pr-1">
-            {allIds.map((key) => (
-              <li key={key} className="flex items-center gap-1.5 whitespace-nowrap">
-                <span
-                  className="h-2 w-2 shrink-0 rounded-full"
-                  style={{ backgroundColor: colorByKey.get(key) }}
-                />
-                {nameByKey.get(key) ?? key}
-              </li>
-            ))}
-          </ul>
-        </details>
       </div>
-      <div ref={containerRef} className="relative">
+      {/* A bar segment is an area, not a point, so its card tracks the cursor
+          rather than pinning to one spot the way the line chart's dots do. */}
+      <div
+        ref={containerRef}
+        className="relative"
+        onMouseMove={
+          stacked
+            ? (event) => {
+                const rect = containerRef.current?.getBoundingClientRect()
+                if (!rect) return
+                // Recharts' own mouseleave doesn't fire between abutting
+                // segments, so the card would otherwise trail the cursor out
+                // over empty chart space.
+                if (!(event.target as Element).closest(".recharts-bar-rectangle")) {
+                  setHovered(null)
+                  return
+                }
+                placeCard(event.clientX - rect.left, event.clientY - rect.top)
+              }
+            : undefined
+        }
+      >
         <ChartContainer config={chartConfig} className="aspect-[4/3]">
-          <ComposedChart data={data} margin={{ top: 8, right: 8, bottom: 4, left: 4 }}>
+          <ComposedChart data={stacked ? slotData : data} margin={{ top: 8, right: 8, bottom: 4, left: 4 }}>
             <CartesianGrid stroke="var(--border)" strokeOpacity={0.5} vertical={false} />
             <XAxis
               dataKey="week"
@@ -504,14 +592,57 @@ function UsageWeeklyChart({
               tick={{ fill: "var(--text-secondary)", fontSize: 11 }}
             />
             <YAxis
-              domain={[0, yMax]}
-              tickFormatter={(value: number) => `${value}%`}
+              domain={stacked ? [0, 100] : [0, yMax]}
+              ticks={stacked ? [0, 25, 50, 75, 100] : undefined}
+              allowDecimals={false}
+              tickFormatter={(value: number) => `${Math.round(value)}%`}
               tickLine={false}
               axisLine={{ stroke: "var(--border)" }}
               width={40}
               tick={{ fill: "var(--text-secondary)", fontSize: 11 }}
             />
-            {otherIds.map((key) => (
+            {stacked &&
+              Array.from({ length: slots }, (_, slot) => (
+                <Bar
+                  key={slot}
+                  dataKey={`slot${slot}`}
+                  stackId="usage"
+                  stroke="var(--surface-1)"
+                  strokeWidth={1}
+                  radius={3}
+                  maxBarSize={40}
+                  isAnimationActive={false}
+                  className="cursor-pointer"
+                  onMouseEnter={(bar: { x?: number; y?: number; width?: number; payload?: WeekSharePoint }) => {
+                    const week = String(bar.payload?.week)
+                    const key = slotPlayers.get(week)?.[slot]
+                    const member = key && memberByWeekKey.get(`${week}|${key}`)
+                    if (!member) return
+                    setHovered({
+                      point: { week, sharePct: member.sharePct, members: [member] },
+                      cx: (bar.x ?? 0) + (bar.width ?? 0) / 2,
+                      cy: bar.y ?? 0,
+                    })
+                  }}
+                  onMouseLeave={() => setHovered(null)}
+                  onClick={(bar: { payload?: WeekSharePoint }) => {
+                    const key = slotPlayers.get(String(bar.payload?.week))?.[slot]
+                    if (key && key !== OTHER_KEY) onSelect(key)
+                  }}
+                >
+                  {slotData.map((row) => {
+                    const key = slotPlayers.get(String(row.week))?.[slot]
+                    return (
+                      <Cell
+                        key={String(row.week)}
+                        fill={key ? colorByKey.get(key) : "transparent"}
+                        fillOpacity={key === playerId ? 1 : 0.4}
+                      />
+                    )
+                  })}
+                </Bar>
+              ))}
+            {!stacked && otherIds.map((key) => (
               <Line
                 type="monotone"
                 key={key}
@@ -524,19 +655,21 @@ function UsageWeeklyChart({
                 connectNulls
               />
             ))}
-            <Line
-              type="monotone"
-              dataKey={playerId}
-              stroke={colorByKey.get(playerId)}
-              strokeWidth={3}
-              dot={false}
-              activeDot={false}
-              isAnimationActive={false}
-            />
+            {!stacked && (
+              <Line
+                type="monotone"
+                dataKey={playerId}
+                stroke={colorByKey.get(playerId)}
+                strokeWidth={3}
+                dot={false}
+                activeDot={false}
+                isAnimationActive={false}
+              />
+            )}
             {/* Invisible wide-stroke lines on top of the visible ones, one
                 per real player (not "Other") - the actual click target, so
                 the whole line is clickable, not just its discrete dots. */}
-            {otherIds
+            {!stacked && otherIds
               .filter((key) => key !== OTHER_KEY)
               .map((key) => (
                 <Line
@@ -553,42 +686,64 @@ function UsageWeeklyChart({
                   onClick={() => onSelect(key)}
                 />
               ))}
-            <Line
-              type="monotone"
-              dataKey={playerId}
-              stroke="transparent"
-              strokeWidth={12}
-              dot={false}
-              activeDot={false}
-              isAnimationActive={false}
-              className="cursor-pointer"
-              onClick={() => onSelect(playerId)}
-            />
-            <Scatter
-              data={hoverPoints}
-              dataKey="sharePct"
-              isAnimationActive={false}
-              shape={(props: { cx?: number; cy?: number; payload?: HoverPoint }) => (
-                <HoverDot
-                  {...props}
-                  focusKey={playerId}
-                  onEnter={(point) =>
-                    setHovered({ point, cx: props.cx ?? 0, cy: props.cy ?? 0 })
-                  }
-                  onLeave={() => setHovered(null)}
-                  onSelect={onSelect}
-                />
-              )}
-            />
+            {!stacked && (
+              <Line
+                type="monotone"
+                dataKey={playerId}
+                stroke="transparent"
+                strokeWidth={12}
+                dot={false}
+                activeDot={false}
+                isAnimationActive={false}
+                className="cursor-pointer"
+                onClick={() => onSelect(playerId)}
+              />
+            )}
+            {!stacked && (
+              <Scatter
+                data={hoverPoints}
+                dataKey="sharePct"
+                isAnimationActive={false}
+                shape={(props: { cx?: number; cy?: number; payload?: HoverPoint }) => (
+                  <HoverDot
+                    {...props}
+                    focusKey={playerId}
+                    onEnter={(point) =>
+                      setHovered({ point, cx: props.cx ?? 0, cy: props.cy ?? 0 })
+                    }
+                    onLeave={() => setHovered(null)}
+                    onSelect={onSelect}
+                  />
+                )}
+              />
+            )}
           </ComposedChart>
         </ChartContainer>
         {hovered && (
-          <div ref={cardRef} className="pointer-events-none absolute z-10" style={cardStyle}>
+          <div ref={cardRef} className="pointer-events-none absolute z-10">
             <HoverCard point={hovered.point} />
           </div>
         )}
       </div>
-      <p className="pt-2 text-xs text-[var(--text-muted)]">{usageCaption(usage.metric, true)}</p>
+      <p className="pt-2 text-xs text-[var(--text-muted)]">
+        {usageCaption(usage.metric, true)}
+        {(usage.metric === "pressures" || usage.metric === "targets_against") &&
+          " This comes from Pro Football Reference, which can take a day or two to post the most recent week."}
+      </p>
+      <details className="px-3 pt-2 pb-1 text-xs text-[var(--text-muted)]">
+        <summary className="cursor-pointer text-[var(--text-secondary)]">Legend</summary>
+        <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1.5">
+          {(stacked ? stackIds : allIds).map((key) => (
+            <li key={key} className="flex items-center gap-1.5 text-[11px] text-[var(--text-secondary)]">
+              <span
+                className="h-2.5 w-2.5 shrink-0 rounded-[3px]"
+                style={{ backgroundColor: colorByKey.get(key) }}
+              />
+              {nameByKey.get(key) ?? key}
+            </li>
+          ))}
+        </ul>
+      </details>
     </div>
   )
 }
@@ -603,6 +758,7 @@ function TeamUsagePanel({ playerId, playerName }: { playerId: string; playerName
   const error = usage.error ?? teams.error
   const team = teams.data?.find((t) => t.team_abbr === usage.data?.team)
   const teamColor = team?.team_color ?? "var(--accent)"
+  const teamColor2 = team?.team_color2 ?? "var(--border)"
 
   function goToPlayer(id: string) {
     navigate(`/players/${id}`)
@@ -630,7 +786,7 @@ function TeamUsagePanel({ playerId, playerName }: { playerId: string; playerName
             playerId={playerId}
             playerName={playerName}
             usage={usage.data}
-            colorByKey={buildColorByKey(usage.data, playerId)}
+            colorByKey={buildColorByKey(usage.data, playerId, teamColor, teamColor2)}
             onSelect={goToPlayer}
           />
         ))}
