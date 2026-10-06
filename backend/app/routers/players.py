@@ -37,6 +37,11 @@ def get_weekly_players(
         raise HTTPException(status_code=400, detail=str(e)) from e
 
 
+@router.get("/players/latest-week")
+def get_latest_stats_week() -> dict[str, Any]:
+    return players.get_latest_stats_week()
+
+
 @router.get("/players/{player_id}/games")
 def get_player_games(player_id: str) -> list[dict[str, Any]]:
     try:

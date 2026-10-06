@@ -119,6 +119,21 @@ def get_weekly_player_stats(
     return cast(list[dict[str, Any]], records)
 
 
+def get_latest_stats_week() -> dict[str, Any]:
+    """The newest week with any player stats (current season, or the prior one
+    before the current season starts) - tells visitors how fresh the data is.
+    Postseason weeks continue past 18, so the max week is always the newest.
+    """
+    season = nfl.get_current_season()
+    stats = player_stats.get_week_stats(season)
+    if stats.empty:
+        season -= 1
+        stats = player_stats.get_week_stats(season)
+
+    latest = stats.loc[stats["week"].idxmax()]
+    return {"season": season, "week": int(latest["week"]), "season_type": latest["season_type"]}
+
+
 def get_player_game_log(player_id: str) -> list[dict[str, Any]]:
     """Regular-season game-by-game stats for one player, current season,
     oldest week first. Falls back to the prior season if the current one
