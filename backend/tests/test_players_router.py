@@ -111,3 +111,29 @@ def test_get_player_bio_returns_404_for_unknown_player(
     response = client.get("/players/not_a_real_player/bio")
 
     assert response.status_code == 404
+
+
+def test_get_latest_stats_week(
+    monkeypatch: pytest.MonkeyPatch, sample_week_stats: pd.DataFrame
+) -> None:
+    monkeypatch.setattr("app.services.players.nfl.get_current_season", lambda: 2026)
+    monkeypatch.setattr("app.data.player_stats.get_week_stats", lambda season: sample_week_stats)
+
+    response = client.get("/players/latest-week")
+
+    assert response.status_code == 200
+    assert response.json() == {"season": 2026, "week": 19, "season_type": "POST"}
+
+
+def test_get_latest_stats_week_falls_back_to_prior_season(
+    monkeypatch: pytest.MonkeyPatch, sample_week_stats: pd.DataFrame
+) -> None:
+    monkeypatch.setattr("app.services.players.nfl.get_current_season", lambda: 2026)
+    monkeypatch.setattr(
+        "app.data.player_stats.get_week_stats",
+        lambda season: sample_week_stats if season == 2025 else sample_week_stats.iloc[0:0],
+    )
+
+    response = client.get("/players/latest-week")
+
+    assert response.json()["season"] == 2025

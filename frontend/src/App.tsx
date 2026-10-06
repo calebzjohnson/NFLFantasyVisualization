@@ -2,7 +2,7 @@
 // Root layout: navbar, the route table for every page, and the site footer.
 import { Route, Routes } from "react-router-dom"
 import Navbar from "./components/Navbar"
-import ComingSoonPage from "./pages/ComingSoonPage"
+import AboutPage from "./pages/AboutPage"
 import HomePage from "./pages/HomePage"
 import PlayerPage from "./pages/PlayerPage"
 import PlayersPage from "./pages/PlayersPage"
@@ -20,7 +20,7 @@ function App() {
           <Route path="/teams/:teamAbbr" element={<TeamPage />} />
           <Route path="/players" element={<PlayersPage />} />
           <Route path="/players/:playerId" element={<PlayerPage />} />
-          <Route path="/about" element={<ComingSoonPage title="About" />} />
+          <Route path="/about" element={<AboutPage />} />
         </Routes>
       </main>
       <footer className="mx-auto max-w-[1000px] px-6 pb-8 text-xs text-[var(--text-muted)]">

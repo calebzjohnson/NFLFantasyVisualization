@@ -12,6 +12,7 @@ A running list of what needs to be configured or changed when we actually connec
   ```
 - [ ] **API base URL.** Set `VITE_API_BASE_URL` in the Vercel project's env vars to the deployed Render backend URL. Locally it defaults to `http://localhost:8000` (see `frontend/.env.example`).
 - [ ] **Monorepo root.** Set the Vercel project's root directory to `frontend/`.
+- [ ] **Feedback email.** The About page uses a placeholder, `feedback@example.com` (`FEEDBACK_EMAIL` in `frontend/src/pages/AboutPage.tsx`, also asserted in `AboutPage.test.tsx`). Swap in the real inbox before launch. Posting a plain address publicly invites spam, so use a dedicated inbox or alias rather than a personal one.
 
 ## Backend (Render)
 
