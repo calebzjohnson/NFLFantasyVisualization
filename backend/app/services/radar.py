@@ -7,7 +7,7 @@ import pandas as pd
 from app.data import depth_charts, nextgen_stats, player_stats, snap_counts
 from app.data import pbp as pbp_data
 from app.services.extended_stats import (
-    split_front_seven,
+    split_by_alignment,
     total_tackles,
     weekly_extras,
     with_season_extras,
@@ -35,6 +35,8 @@ MIN_SAMPLE_PER_WEEK = {
     "EDGE": 15,
     "DL": 15,
     "LB": 15,
+    "CB": 15,
+    "S": 15,
     "DB": 15,
 }
 
@@ -44,6 +46,11 @@ MIN_SAMPLE_PER_WEEK = {
 # a week and their 90th percentile 1.18, so a linebacker-sized floor (1.5)
 # would leave the axis permanently empty rather than filling in over time.
 RUN_TACKLE_MIN_PER_WEEK = 0.5
+
+# Targets per week played before a corner's target rate is worth ranking. It
+# only rules out the degenerate case - a corner thrown at twice all season
+# topping an "avoidance" axis - since the median corner sees 3.25 a week.
+TARGET_MIN_PER_WEEK = 1.0
 
 
 def _min_sample(bucket: str, current_week: int) -> float:
@@ -57,6 +64,17 @@ def _current_week(season: int) -> int:
     reg = week_stats[week_stats["season_type"] == REGULAR_SEASON]
     return int(reg["week"].max()) if not reg.empty else 1
 
+
+# YAC allowed over ball production: the other coverage axes all ask whether
+# the pass was completed, and a safety's job carries on after it is.
+SECONDARY_AXES = [
+    ("passer_rating_allowed", "Rating Allowed"),
+    ("yards_per_target_allowed", "Yards / TGT Allowed"),
+    ("completion_pct_allowed", "CMP % Allowed"),
+    ("yac_allowed_per_reception", "YAC Allowed"),
+    ("tackles_per_100_snaps", "Tackle Rate"),
+    ("missed_tackle_pct", "Missed Tackle %"),
+]
 
 PASS_RUSHER_AXES = [
     ("pressure_rate", "Pressure Rate"),
@@ -119,22 +137,30 @@ RADAR_AXES: dict[str, list[tuple[str, str]]] = {
     # interior lineman's pressure rate is read against other interior linemen.
     "EDGE": PASS_RUSHER_AXES,
     "DL": PASS_RUSHER_AXES,
+    # Tackle depth over pressure rate: off-ball linebackers rarely rush, so
+    # pressure measures something most of them don't do, while nearly every
+    # run funnels through them.
     "LB": [
         ("tackles_per_100_snaps", "Tackle Rate"),
         ("tfl_per_100_snaps", "TFL Rate"),
-        ("pressure_rate", "Pressure Rate"),
+        ("tackle_depth", "Tackle Depth"),
         ("yards_per_target_allowed", "Yards / TGT Allowed"),
         ("passer_rating_allowed", "Rating Allowed"),
         ("missed_tackle_pct", "Missed Tackle %"),
     ],
-    "DB": [
-        ("passer_rating_allowed", "Rating Allowed"),
+    # Corners live on coverage, so the chart is five coverage axes plus the
+    # open-field tackling they can't avoid. Target rate is ranked inverted as
+    # an avoidance signal, though it tracks coverage quality only weakly.
+    "CB": [
+        ("target_rate", "Target Rate"),
         ("yards_per_target_allowed", "Yards / TGT Allowed"),
+        ("passer_rating_allowed", "Rating Allowed"),
+        ("pass_defended_rate", "PD Rate"),
+        ("missed_tackle_pct", "Missed Tackle %"),
         ("completion_pct_allowed", "CMP % Allowed"),
-        ("ball_production", "Ball Production"),
-        ("tackles_per_100_snaps", "Tackle Rate"),
-        ("missed_tackle_pct", "Missed Tackle %"),
     ],
+    "S": SECONDARY_AXES,
+    "DB": SECONDARY_AXES,
 }
 
 # Axes where a smaller raw value is the better result - ranked in reverse so
@@ -148,6 +174,10 @@ LOWER_IS_BETTER = frozenset(
         # Meeting the ball carrier at or behind the line beats catching him
         # five yards downfield.
         "tackle_depth",
+        # Quarterbacks throwing away from a corner is the avoidance signal.
+        "target_rate",
+        # Dropping the catch immediately beats letting it run.
+        "yac_allowed_per_reception",
     }
 )
 
@@ -159,7 +189,7 @@ def _position_bucket(position_group: str) -> str | None:
         return "RB"
     if position_group == "WR":
         return "WR"
-    if position_group in ("TE", "EDGE", "DL", "LB", "DB"):
+    if position_group in ("TE", "EDGE", "DL", "LB", "CB", "S", "DB"):
         return position_group
     return None
 
@@ -437,7 +467,7 @@ def _defense_metrics(
     """
     # Extras first, then the bucket filter - see with_season_extras.
     defense = with_season_extras(stats, weekly_extras(season))
-    defense = split_front_seven(defense, depth_charts.get_alignment_bucket(season))
+    defense = split_by_alignment(defense, depth_charts.get_alignment_bucket(season))
     defense = defense[defense["position_group"] == bucket]
     defense = defense[defense["defense_snaps"] >= _min_sample(bucket, current_week)].copy()
 
@@ -476,6 +506,13 @@ def _defense_metrics(
     # Passes defended already includes interceptions (every INT play credits
     # the intercepting player with a pass defended), so it isn't added again.
     defense["ball_production"] = _clean(defense["def_pass_defended"] / targets * 100)
+    defense["yac_allowed_per_reception"] = _clean(
+        defense["def_yards_after_catch"] / defense["def_completions_allowed"]
+    )
+    defense["pass_defended_rate"] = _clean(defense["def_pass_defended"] / snaps * 100)
+
+    defense["target_rate"] = _clean(targets / snaps * 100)
+    defense.loc[targets.fillna(0) < TARGET_MIN_PER_WEEK * current_week, "target_rate"] = np.nan
 
     return defense
 

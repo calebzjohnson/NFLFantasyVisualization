@@ -10,7 +10,7 @@ import PlayerPage from "./PlayerPage"
 vi.mock("../lib/api", () => ({ fetchJson: vi.fn() }))
 
 const dbPool = {
-  position: "DB",
+  position: "CB",
   axes: [{ key: "ball_production", label: "Ball Prod." }],
   players: [
     {
@@ -28,7 +28,7 @@ const dbPool = {
 function renderPlayer(playerId: string, position: string, positionGroup: string) {
   mockApi({
     "/teams": [teamInfo("KC")],
-    "/players/radar-pool?position=DB": dbPool,
+    "/players/radar-pool?position=CB": dbPool,
     [`/players/${playerId}/bio`]: playerBio({
       player_id: playerId,
       display_name: `${position} Player`,
@@ -54,7 +54,7 @@ describe("PlayerPage", () => {
   })
 
   it("shows the radar and league comparison for a defender", async () => {
-    renderPlayer("D1", "CB", "DB")
+    renderPlayer("D1", "CB", "CB")
 
     expect(await screen.findByText("Player Breakdown")).toBeInTheDocument()
     expect(screen.getByText("League Comparison")).toBeInTheDocument()
@@ -66,7 +66,7 @@ describe("PlayerPage", () => {
   })
 
   it("explains a missing radar for a player below the volume minimum", async () => {
-    renderPlayer("D2", "S", "DB")
+    renderPlayer("D2", "S", "CB")
 
     expect(await screen.findByText("Not enough season volume yet for a radar profile.")).toBeInTheDocument()
     expect(screen.getByText("Not enough season volume yet for a league comparison.")).toBeInTheDocument()

@@ -56,6 +56,9 @@ const AXIS_GLOSSARY: Record<string, string> = {
   yards_per_target_allowed: "Receiving yards given up each time a pass is thrown his way.",
   passer_rating_allowed: "The passer rating quarterbacks have when throwing at him.",
   completion_pct_allowed: "How often a pass thrown his way is caught.",
+  target_rate: "How often quarterbacks throw at him, per 100 defensive snaps.",
+  pass_defended_rate: "Passes he broke up or intercepted, per 100 defensive snaps.",
+  yac_allowed_per_reception: "Yards the receiver gained after the catch, on average, when a pass thrown his way was completed.",
   ball_production:
     "How often he gets a hand on the ball - a pass broken up or intercepted - when it's thrown his way.",
 }

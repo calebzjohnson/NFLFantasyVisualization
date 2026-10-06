@@ -115,6 +115,39 @@ function defensiveLineLog(): GameLogConfig {
   )
 }
 
+// Corners and safeties keep separate percentile pools but log the same
+// coverage box score.
+function secondaryLog(): GameLogConfig {
+  return fromCounts(
+    [
+      { key: "snaps", label: "SNAPS" },
+      { key: "tkl", label: "TKL" },
+      { key: "int", label: "INT", tone: "positive" },
+      { key: "pd", label: "PD" },
+      { key: "tgt", label: "TGT" },
+      { key: "yardsAllowed", label: "YDS ALLOWED", tone: "negative" },
+      { key: "tdAllowed", label: "TD ALLOWED", tone: "negative" },
+      { key: "ratingAllowed", label: "RTG ALLOWED" },
+    ],
+    (row) => {
+      const int = num(row, "def_interceptions")
+      const tgt = num(row, "def_targets")
+      const yardsAllowed = num(row, "def_yards_allowed")
+      const tdAllowed = num(row, "def_receiving_td_allowed")
+      return {
+        snaps: num(row, "defense_snaps"),
+        tkl: totalTackles(row),
+        int,
+        pd: num(row, "def_pass_defended"),
+        tgt,
+        yardsAllowed,
+        tdAllowed,
+        ratingAllowed: passerRating(num(row, "def_completions_allowed"), tgt, yardsAllowed, tdAllowed, int),
+      }
+    },
+  )
+}
+
 const GAME_LOG_CONFIGS: Record<PositionGroup, GameLogConfig> = {
   QB: {
     columns: [
@@ -241,34 +274,8 @@ const GAME_LOG_CONFIGS: Record<PositionGroup, GameLogConfig> = {
       miss: num(row, "def_missed_tackles"),
     }),
   ),
-  DB: fromCounts(
-    [
-      { key: "snaps", label: "SNAPS" },
-      { key: "tkl", label: "TKL" },
-      { key: "int", label: "INT", tone: "positive" },
-      { key: "pd", label: "PD" },
-      { key: "tgt", label: "TGT" },
-      { key: "yardsAllowed", label: "YDS ALLOWED", tone: "negative" },
-      { key: "tdAllowed", label: "TD ALLOWED", tone: "negative" },
-      { key: "ratingAllowed", label: "RTG ALLOWED" },
-    ],
-    (row) => {
-      const int = num(row, "def_interceptions")
-      const tgt = num(row, "def_targets")
-      const yardsAllowed = num(row, "def_yards_allowed")
-      const tdAllowed = num(row, "def_receiving_td_allowed")
-      return {
-        snaps: num(row, "defense_snaps"),
-        tkl: totalTackles(row),
-        int,
-        pd: num(row, "def_pass_defended"),
-        tgt,
-        yardsAllowed,
-        tdAllowed,
-        ratingAllowed: passerRating(num(row, "def_completions_allowed"), tgt, yardsAllowed, tdAllowed, int),
-      }
-    },
-  ),
+  CB: secondaryLog(),
+  S: secondaryLog(),
   OL: fromCounts(
     [
       { key: "snaps", label: "SNAPS" },
@@ -355,12 +362,12 @@ const POSITION_BUCKET: Record<string, PositionGroup> = {
   ILB: "LB",
   MLB: "LB",
   OLB: "LB",
-  CB: "DB",
-  S: "DB",
-  SS: "DB",
-  FS: "DB",
-  SAF: "DB",
-  DB: "DB",
+  CB: "CB",
+  S: "S",
+  SS: "S",
+  FS: "S",
+  SAF: "S",
+  DB: "CB",
   T: "OL",
   OT: "OL",
   G: "OL",

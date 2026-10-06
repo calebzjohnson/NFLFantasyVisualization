@@ -147,6 +147,10 @@ const USAGE_CAPTIONS: Record<string, { season: string; weekly: string }> = {
     season: "Share of the team's tackles this player has made this season.",
     weekly: "Tackles this player made each week, vs. the rest of the team.",
   },
+  targets_against: {
+    season: "Share of the passes thrown at this team's defense that came at this player.",
+    weekly: "Passes thrown at this player each week, vs. the rest of the team.",
+  },
   pressures: {
     season:
       "Share of the team's quarterback pressures (sacks, hits, and hurries) this player has created this season.",
@@ -460,7 +464,7 @@ function UsageWeeklyChart({
   // nothing about one QB vs. another. The per-game rate does.
   const isTdInvolvement = usage.metric === "td_involvement"
   const perGame = usage.weekly.length > 0 ? usage.player_value / usage.weekly.length : 0
-  const stacked = usage.metric === "targets" || usage.metric === "pressures"
+  const stacked = usage.metric !== "td_involvement" && usage.metric !== "touches"
 
   // Scaled to the real data rather than a fixed 0-100 - a deep pool (tackle
   // share) rarely has anyone above 20-30%, so a full 100% axis would leave
@@ -723,8 +727,8 @@ function UsageWeeklyChart({
       </div>
       <p className="pt-2 text-xs text-[var(--text-muted)]">
         {usageCaption(usage.metric, true)}
-        {usage.metric === "pressures" &&
-          " Pressures come from Pro Football Reference, which can take a day or two to post the most recent week."}
+        {(usage.metric === "pressures" || usage.metric === "targets_against") &&
+          " This comes from Pro Football Reference, which can take a day or two to post the most recent week."}
       </p>
       <details className="px-3 pt-2 pb-1 text-xs text-[var(--text-muted)]">
         <summary className="cursor-pointer text-[var(--text-secondary)]">Legend</summary>

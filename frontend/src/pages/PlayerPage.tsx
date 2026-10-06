@@ -15,7 +15,7 @@ import { useFetch } from "../lib/useFetch"
 
 // Groups the backend builds radar and usage profiles for. Offensive linemen
 // and specialists have no per-player stats worth a percentile profile.
-const PROFILE_GROUPS = new Set<string>(["QB", "RB", "WR", "TE", "EDGE", "DL", "LB", "DB"])
+const PROFILE_GROUPS = new Set<string>(["QB", "RB", "WR", "TE", "EDGE", "DL", "LB", "CB", "S"])
 
 function PlayerPage() {
   const { playerId } = useParams<{ playerId: string }>()

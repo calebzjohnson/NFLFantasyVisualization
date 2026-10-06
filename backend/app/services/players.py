@@ -7,8 +7,9 @@ from app.data import depth_charts, player_stats, schedules
 from app.data import pbp as pbp_data
 from app.data import players as players_data
 from app.services.extended_stats import (
+    ALIGNED_GROUPS,
     EXTENDED_GROUPS,
-    split_front_seven,
+    split_by_alignment,
     split_specialists,
     total_tackles,
     weekly_extras,
@@ -55,7 +56,7 @@ def get_current_player_stats(
 
     if position_group is not None:
         stats = split_specialists(stats)
-        stats = split_front_seven(stats, depth_charts.get_alignment_bucket(season))
+        stats = split_by_alignment(stats, depth_charts.get_alignment_bucket(season))
         if position_group in EXTENDED_GROUPS:
             stats = with_season_extras(stats, weekly_extras(season))
         stats = stats[stats["position_group"] == position_group]
@@ -100,7 +101,7 @@ def get_weekly_player_stats(
 
     if position_group is not None:
         stats = split_specialists(stats)
-        stats = split_front_seven(stats, depth_charts.get_alignment_bucket(season))
+        stats = split_by_alignment(stats, depth_charts.get_alignment_bucket(season))
         # Every group, not just EXTENDED_GROUPS: the trending chart needs snap
         # share to tell a full game from one cut short by injury, and a week
         # played without a box-score event is a real game for a trend.
@@ -156,7 +157,7 @@ def _bio_position_group(player: pd.Series) -> str | None:
     group = player["position_group"]
     if group == "SPEC":
         return cast(str | None, player["position"])
-    if group in ("DL", "LB"):
+    if group in ALIGNED_GROUPS:
         aligned = depth_charts.get_alignment_bucket(nfl.get_current_season())
         return cast(str, aligned.get(player["gsis_id"], group))
     return cast(str | None, group)
@@ -214,8 +215,15 @@ USAGE_METRIC_BY_POSITION_GROUP = {
     "EDGE": ("pressures", "Pressure Share"),
     "DL": ("pressures", "Pressure Share"),
     "LB": ("tackles", "Tackle Share"),
-    "DB": ("tackles", "Tackle Share"),
+    "CB": ("targets_against", "Targets Against Share"),
+    "S": ("targets_against", "Targets Against Share"),
+    "DB": ("targets_against", "Targets Against Share"),
 }
+
+
+# Metrics whose counts come from PFR's advanced defense rather than
+# nflverse's own columns, so the pool needs those extras merged on first.
+PFR_METRICS = frozenset({"pressures", "targets_against"})
 
 
 def _usage_amount(stats: pd.DataFrame, metric: str) -> pd.Series:
@@ -225,6 +233,8 @@ def _usage_amount(stats: pd.DataFrame, metric: str) -> pd.Series:
         return total_tackles(stats).fillna(0)
     if metric == "pressures":
         return stats["def_pressures"].fillna(0)
+    if metric == "targets_against":
+        return stats["def_targets"].fillna(0)
     return stats["targets"]
 
 
@@ -255,13 +265,16 @@ def _weekly_player_lines(
     focus_player_id: str,
 ) -> list[dict[str, Any]]:
     """Every week's amount broken out by player - one line per player in the
-    pool (the focus player included), ordered by season total descending so
-    the chart's legend/line order is stable and meaningful. weekly_totals
-    and season_totals are both indexed by player_id (weekly_totals
-    additionally by week).
+    pool, biggest season total first. The focus player takes whatever rank he
+    earned rather than being pinned to the front, so the order says something
+    about the pool. weekly_totals and season_totals are both indexed by
+    player_id (weekly_totals additionally by week).
     """
-    all_ids = [focus_player_id, *season_totals.drop(index=focus_player_id, errors="ignore")
-               .sort_values(ascending=False).index]
+    all_ids = list(
+        season_totals.sort_values(ascending=False, kind="stable").index
+        if focus_player_id in season_totals.index
+        else [focus_player_id, *season_totals.sort_values(ascending=False, kind="stable").index]
+    )
 
     weeks = sorted({week for week, _ in weekly_totals.index})
     rows = []
@@ -386,7 +399,7 @@ def _usage_weekly(team: str, season: int, player_id: str, metric: str) -> list[d
         week_stats = player_stats.get_week_stats(season - 1)
     is_regular_season = week_stats["season_type"] == REGULAR_SEASON
     week_stats = week_stats[is_regular_season & (week_stats["team"] == team)]
-    if metric == "pressures":
+    if metric in PFR_METRICS:
         extras = weekly_extras(season)
         week_stats = with_weekly_extras(week_stats, extras[extras["team"] == team])
 
@@ -417,7 +430,7 @@ def get_player_usage_share(player_id: str) -> dict[str, Any]:
         season -= 1
         stats = player_stats.get_season_stats(season)
 
-    stats = split_front_seven(stats, depth_charts.get_alignment_bucket(season))
+    stats = split_by_alignment(stats, depth_charts.get_alignment_bucket(season))
 
     player_rows = stats[stats["player_id"] == player_id]
     if player_rows.empty:
@@ -435,7 +448,7 @@ def get_player_usage_share(player_id: str) -> dict[str, Any]:
     metric, label = usage
 
     team_stats = stats[stats["recent_team"] == player["recent_team"]]
-    if metric == "pressures":
+    if metric in PFR_METRICS:
         extras = weekly_extras(season)
         team_stats = with_season_extras(team_stats, extras[extras["team"] == player["recent_team"]])
         player_rows = team_stats[team_stats["player_id"] == player_id]

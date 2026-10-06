@@ -8,6 +8,8 @@ import pandas as pd
 # 3-4 outside linebacker (T.J. Watt) rushes off the edge while a 4-3 one
 # (Demario Davis) plays off the ball, and a 3-4 end (Chris Jones) lines up
 # inside while a 4-3 end (Nick Bosa) rushes off the edge.
+SCHEMES = ("Base 4-3 D", "Base 3-4 D")
+
 BUCKET_BY_ALIGNMENT = {
     # Edge rushers
     ("Base 4-3 D", "LDE"): "EDGE",
@@ -27,6 +29,10 @@ BUCKET_BY_ALIGNMENT = {
     ("Base 4-3 D", "MLB"): "LB",
     ("Base 3-4 D", "LILB"): "LB",
     ("Base 3-4 D", "RILB"): "LB",
+    # Secondary. Alignment also settles the players nflverse labels with a
+    # bare "DB", which `position` can't place on its own.
+    **{(scheme, slot): "CB" for scheme in SCHEMES for slot in ("LCB", "RCB", "NB")},
+    **{(scheme, slot): "S" for scheme in SCHEMES for slot in ("FS", "SS")},
 }
 
 
@@ -44,10 +50,9 @@ def get_latest_depth_chart(season: int) -> pd.DataFrame:
 
 
 def get_alignment_bucket(season: int) -> "pd.Series[str]":
-    """gsis_id -> "EDGE" | "DL" | "LB" for front-seven defenders, from where
-    they're listed in their team's base defense. Anyone outside the front seven
-    (and anyone the depth charts don't list) is absent, so callers fall back to
-    nflverse's own position_group for them.
+    """gsis_id -> "EDGE" | "DL" | "LB" | "CB" | "S", from where a defender is
+    listed in his team's base defense. Anyone the depth charts don't list is
+    absent, so callers fall back to nflverse's own position_group for them.
 
     A player listed at several slots is kept once: the slots one player holds
     always agree on the bucket (LDE and RDE, say), so any of them will do.

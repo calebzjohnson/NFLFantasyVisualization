@@ -16,7 +16,7 @@ export type RawPlayerRow = Record<string, string | number | null> & {
 // list means adding a matching LEADER_CATEGORIES entry - the toggle and Stat
 // Leaders panel both read from this one list. K and P are split out of
 // nflverse's combined "SPEC" group by the backend.
-export const POSITION_GROUPS = ["QB", "RB", "WR", "TE", "EDGE", "DL", "LB", "DB", "OL", "K", "P"] as const
+export const POSITION_GROUPS = ["QB", "RB", "WR", "TE", "EDGE", "DL", "LB", "CB", "S", "OL", "K", "P"] as const
 export type PositionGroup = (typeof POSITION_GROUPS)[number]
 
 // "QBs", "DBs", ... - except where the abbreviation doesn't pluralize readably.
@@ -24,6 +24,7 @@ const PLURALS: Partial<Record<PositionGroup, string>> = {
   K: "kickers",
   P: "punters",
   EDGE: "edge rushers",
+  S: "safeties",
 }
 
 export function positionPlural(position: PositionGroup): string {
@@ -142,6 +143,55 @@ function passRushCategory(position: "EDGE" | "DL"): LeaderCategoryConfig {
       ff: Number(row.def_fumbles_forced),
       pen: Number(row.penalties),
     }),
+  }
+}
+
+// Corners and safeties are ranked in their own pools but judged on the same
+// coverage line, so only the position filter differs.
+function coverageCategory(position: "CB" | "S"): LeaderCategoryConfig {
+  return {
+    key: `${position.toLowerCase()}-coverage`,
+    position,
+    label: "Coverage",
+    path: playersPath(
+      "-def_pass_defended",
+      [
+        ...IDENTITY_FIELDS,
+        ...TACKLE_FIELDS,
+        "def_interceptions",
+        "def_pass_defended",
+        "def_targets",
+        "def_completions_allowed",
+        "def_yards_allowed",
+        "def_receiving_td_allowed",
+      ],
+      position,
+    ),
+    columns: [
+      { key: "tkl", label: "TKL" },
+      { key: "int", label: "INT", tone: "positive" },
+      { key: "pd", label: "PD" },
+      { key: "tgt", label: "TGT" },
+      { key: "yardsAllowed", label: "YDS ALLOWED", tone: "negative" },
+      { key: "tdAllowed", label: "TD ALLOWED", tone: "negative" },
+      { key: "ratingAllowed", label: "RTG ALLOWED" },
+    ],
+    defaultSortKey: "pd",
+    toStats: (row) => {
+      const int = Number(row.def_interceptions)
+      const tgt = Number(row.def_targets)
+      const yardsAllowed = Number(row.def_yards_allowed)
+      const tdAllowed = Number(row.def_receiving_td_allowed)
+      return {
+        tkl: totalTackles(row),
+        int,
+        pd: Number(row.def_pass_defended),
+        tgt,
+        yardsAllowed,
+        tdAllowed,
+        ratingAllowed: passerRating(Number(row.def_completions_allowed), tgt, yardsAllowed, tdAllowed, int),
+      }
+    },
   }
 }
 
@@ -287,50 +337,8 @@ export const LEADER_CATEGORIES: LeaderCategoryConfig[] = [
       miss: Number(row.def_missed_tackles),
     }),
   },
-  {
-    key: "coverage",
-    position: "DB",
-    label: "Coverage",
-    path: playersPath(
-      "-def_pass_defended",
-      [
-        ...IDENTITY_FIELDS,
-        ...TACKLE_FIELDS,
-        "def_interceptions",
-        "def_pass_defended",
-        "def_targets",
-        "def_completions_allowed",
-        "def_yards_allowed",
-        "def_receiving_td_allowed",
-      ],
-      "DB",
-    ),
-    columns: [
-      { key: "tkl", label: "TKL" },
-      { key: "int", label: "INT", tone: "positive" },
-      { key: "pd", label: "PD" },
-      { key: "tgt", label: "TGT" },
-      { key: "yardsAllowed", label: "YDS ALLOWED", tone: "negative" },
-      { key: "tdAllowed", label: "TD ALLOWED", tone: "negative" },
-      { key: "ratingAllowed", label: "RTG ALLOWED" },
-    ],
-    defaultSortKey: "pd",
-    toStats: (row) => {
-      const int = Number(row.def_interceptions)
-      const tgt = Number(row.def_targets)
-      const yardsAllowed = Number(row.def_yards_allowed)
-      const tdAllowed = Number(row.def_receiving_td_allowed)
-      return {
-        tkl: totalTackles(row),
-        int,
-        pd: Number(row.def_pass_defended),
-        tgt,
-        yardsAllowed,
-        tdAllowed,
-        ratingAllowed: passerRating(Number(row.def_completions_allowed), tgt, yardsAllowed, tdAllowed, int),
-      }
-    },
-  },
+  coverageCategory("CB"),
+  coverageCategory("S"),
   {
     key: "offensive-line",
     position: "OL",
