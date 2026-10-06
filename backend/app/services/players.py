@@ -130,7 +130,7 @@ def get_latest_stats_week() -> dict[str, Any]:
         season -= 1
         stats = player_stats.get_week_stats(season)
 
-    latest = stats.loc[stats["week"].idxmax()]
+    latest = stats.sort_values("week").iloc[-1]
     return {"season": season, "week": int(latest["week"]), "season_type": latest["season_type"]}
 
 
