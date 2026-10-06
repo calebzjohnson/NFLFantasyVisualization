@@ -21,6 +21,7 @@ const RELEASES = [
       "Home page with weekly scores, division standings, stat leaders, and trending players.",
       "Team pages with scoring breakdowns, team radar charts, and league-wide efficiency comparisons.",
       "Player pages with game logs, position-specific radar charts, and usage share over the season.",
+      "Defensive players grouped by the role they actually play (edge rusher, interior line, linebacker, cornerback, safety), each with their own radar chart.",
       "Search across every team and player.",
     ],
   },
@@ -118,7 +119,11 @@ function AboutPage() {
             <ExternalLink href="https://github.com/nflverse/nflreadpy">nflreadpy</ExternalLink>.
           </p>
           <ul className="list-disc space-y-1 pl-5">
-            <li>Data refreshes about once a day, so stats can lag a game by up to 24 hours.</li>
+            <li>Data refreshes about once a day, so most stats can lag a game by up to 24 hours.</li>
+            <li>
+              Advanced defensive stats (pressures, targets against) come from Pro Football Reference and can take a
+              few days to arrive, so the most recent week may be incomplete.
+            </li>
             <li>Fantasy points use full PPR scoring (one point per reception).</li>
             <li>Player headshots and team logos come from links nflverse provides (hosted by the NFL and ESPN).</li>
           </ul>
