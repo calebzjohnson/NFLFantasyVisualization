@@ -182,7 +182,7 @@ function LeagueComparisonBeeswarm({
   const navigate = useNavigate()
   // Same path as PlayerRadarChart, so useFetch's cache serves both charts
   // from one request.
-  const pool = useFetch<RadarPool>(`/players/radar-pool?position=${position}`)
+  const pool = useFetch<RadarPool>(`/players/radar-pool?position=${encodeURIComponent(position)}`)
 
   const points = useMemo(() => {
     if (!pool.data) return null

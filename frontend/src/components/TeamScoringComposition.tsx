@@ -98,7 +98,7 @@ function ScoringLegend({ categories }: { categories: ScoringCategory[] }) {
 }
 
 function TeamScoringComposition({ teamAbbr }: { teamAbbr: string }) {
-  const { data, error, loading } = useFetch<ScoringComposition>(`/teams/${teamAbbr}/scoring`)
+  const { data, error, loading } = useFetch<ScoringComposition>(`/teams/${encodeURIComponent(teamAbbr)}/scoring`)
   const [view, setView] = useState<View>("points for")
   const containerRef = useRef<HTMLDivElement>(null)
   const [cursorPos, setCursorPos] = useState<{ x: number; y: number } | null>(null)

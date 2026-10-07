@@ -3,9 +3,12 @@ from typing import cast
 import nflreadpy as nfl
 import pandas as pd
 
+from app.cache import single_flight
+
 REGULAR_SEASON = "REG"
 
 
+@single_flight
 def get_season_schedule(season: int) -> pd.DataFrame:
     """Returns one row per game for the given season, from nflverse.
 

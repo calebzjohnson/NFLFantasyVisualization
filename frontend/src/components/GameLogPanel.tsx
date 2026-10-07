@@ -13,7 +13,7 @@ function GameLogPanel({
   playerId: string
   positionGroup: string | null
 }) {
-  const { data, error, loading } = useFetch<GameStatsRow[]>(`/players/${playerId}/games`)
+  const { data, error, loading } = useFetch<GameStatsRow[]>(`/players/${encodeURIComponent(playerId)}/games`)
   const config = gameLogConfigForGroup(positionGroup)
 
   const rows: GameLogRow[] | null =

@@ -29,7 +29,7 @@ cp .env.example .env
 uv run uvicorn app.main:app --reload
 ```
 
-Runs at http://localhost:8000. Health check: `GET /health`.
+Runs at http://localhost:8000. Health check: `GET /health`. API docs at http://localhost:8000/docs (enabled by `APP_ENABLE_API_DOCS=true` in `.env`; off in production).
 
 ### Frontend
 

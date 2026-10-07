@@ -3,6 +3,7 @@ from typing import Any, cast
 import nflreadpy as nfl
 import pandas as pd
 
+from app.cache import memoized
 from app.data import depth_charts, player_stats, schedules
 from app.data import pbp as pbp_data
 from app.data import players as players_data
@@ -42,6 +43,7 @@ STATUS_LABELS = {
 }
 
 
+@memoized
 def get_current_player_stats(
     sort: str | None = None,
     limit: int | None = None,
@@ -76,6 +78,7 @@ def get_current_player_stats(
     return cast(list[dict[str, Any]], records)
 
 
+@memoized
 def get_weekly_player_stats(
     position_group: str | None = None,
     fields: list[str] | None = None,
@@ -119,6 +122,7 @@ def get_weekly_player_stats(
     return cast(list[dict[str, Any]], records)
 
 
+@memoized
 def get_latest_stats_week() -> dict[str, Any]:
     """The newest week with any player stats (current season, or the prior one
     before the current season starts) - tells visitors how fresh the data is.
@@ -134,6 +138,7 @@ def get_latest_stats_week() -> dict[str, Any]:
     return {"season": season, "week": int(latest["week"]), "season_type": latest["season_type"]}
 
 
+@memoized
 def get_player_game_log(player_id: str) -> list[dict[str, Any]]:
     """Regular-season game-by-game stats for one player, current season,
     oldest week first. Falls back to the prior season if the current one
@@ -178,6 +183,7 @@ def _bio_position_group(player: pd.Series) -> str | None:
     return cast(str | None, group)
 
 
+@memoized
 def get_player_bio(player_id: str) -> dict[str, Any]:
     """Bio/roster info for one player - name, team, position, physical
     measurables, draft info, and status - for the page header bar.
@@ -433,6 +439,7 @@ def _usage_weekly(team: str, season: int, player_id: str, metric: str) -> list[d
     )
 
 
+@memoized
 def get_player_usage_share(player_id: str) -> dict[str, Any]:
     """This player's share of touches/targets (whichever applies to their
     position) vs. the rest of the relevant pool, or - for a QB - their

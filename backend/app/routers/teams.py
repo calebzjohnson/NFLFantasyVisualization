@@ -1,7 +1,8 @@
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 
+from app.rate_limit import heavy_limit
 from app.services import scoring_composition, team_efficiency, team_radar, teams
 
 router = APIRouter(tags=["teams"])
@@ -13,7 +14,8 @@ def get_teams() -> list[dict[str, Any]]:
 
 
 @router.get("/teams/efficiency")
-def get_team_efficiency() -> list[dict[str, Any]]:
+@heavy_limit
+def get_team_efficiency(request: Request) -> list[dict[str, Any]]:
     return team_efficiency.get_current_team_efficiency()
 
 
@@ -23,7 +25,8 @@ def get_team_game_stats() -> list[dict[str, Any]]:
 
 
 @router.get("/teams/radar-pool")
-def get_teams_radar_pool() -> dict[str, Any]:
+@heavy_limit
+def get_teams_radar_pool(request: Request) -> dict[str, Any]:
     return team_radar.get_team_radar_pool()
 
 

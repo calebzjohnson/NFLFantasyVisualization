@@ -4,6 +4,7 @@ import nflreadpy as nfl
 import numpy as np
 import pandas as pd
 
+from app.cache import memoized
 from app.data import depth_charts, nextgen_stats, player_stats, snap_counts
 from app.data import pbp as pbp_data
 from app.services.extended_stats import (
@@ -585,6 +586,7 @@ def _axis_entries(row: pd.Series, axes: list[tuple[str, str]]) -> list[dict[str,
     ]
 
 
+@memoized
 def get_position_radar_pool(position: str) -> dict[str, Any]:
     """Every qualifying player at this position with their 6 radar axes -
     the data behind the player page's radar (which picks out its own row)

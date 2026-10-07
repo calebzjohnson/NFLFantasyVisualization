@@ -20,6 +20,11 @@ def test_get_scores_for_a_specific_week(
 
     assert len(body) == 2
     assert all(g["week"] == 1 and g["status"] == "final" for g in body)
+    assert not any(
+        field in game
+        for game in body
+        for field in ("spread_line", "home_moneyline", "over_odds", "wind", "referee")
+    )
 
 
 def test_get_scores_includes_unplayed_games(

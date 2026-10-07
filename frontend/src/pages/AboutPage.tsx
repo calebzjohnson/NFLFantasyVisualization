@@ -119,7 +119,7 @@ function AboutPage() {
             <ExternalLink href="https://github.com/nflverse/nflreadpy">nflreadpy</ExternalLink>.
           </p>
           <ul className="list-disc space-y-1 pl-5">
-            <li>Data refreshes about once a day, so most stats can lag a game by up to 24 hours.</li>
+            <li>Data refreshes about once a day, so new games usually show up within a day or two.</li>
             <li>
               Advanced defensive stats (pressures, targets against) come from Pro Football Reference and can take a
               few days to arrive, so the most recent week may be incomplete.

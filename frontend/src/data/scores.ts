@@ -1,7 +1,7 @@
 // scores.ts
 // GameScore type for /scores plus kickoff formatting, sort, and bye-week helpers.
-// The /scores response has many more fields (betting lines, weather, rosters, etc.)
-// than this — only declaring the ones the UI actually reads.
+// The backend sends exactly these fields (GAME_FIELDS in backend/app/services/scores.py);
+// add a field in both places to start showing it.
 import type { TeamInfo } from "./teams"
 
 export interface GameScore {

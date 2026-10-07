@@ -3,9 +3,12 @@ from typing import Literal, cast
 import nflreadpy as nfl
 import pandas as pd
 
+from app.cache import single_flight
+
 StatType = Literal["passing", "rushing", "receiving"]
 
 
+@single_flight
 def get_season_nextgen_stats(season: int, stat_type: StatType) -> pd.DataFrame:
     """Returns one row per player: season-to-date Next Gen Stats totals.
 

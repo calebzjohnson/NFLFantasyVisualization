@@ -3,7 +3,10 @@ from typing import cast
 import nflreadpy as nfl
 import pandas as pd
 
+from app.cache import single_flight
 
+
+@single_flight
 def get_weekly_team_stats(season: int) -> pd.DataFrame:
     """Returns one row per team per game for the given season, from nflverse.
 

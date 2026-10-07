@@ -1,7 +1,8 @@
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 
+from app.rate_limit import heavy_limit
 from app.services import players, radar
 
 router = APIRouter(tags=["players"])
@@ -26,7 +27,9 @@ def get_players(
 
 
 @router.get("/players/weekly")
+@heavy_limit
 def get_weekly_players(
+    request: Request,
     fields: str | None = Query(None, description="Comma-separated column names to include"),
     position_group: str | None = Query(None),
 ) -> list[dict[str, Any]]:
@@ -67,7 +70,8 @@ def get_player_usage(player_id: str) -> dict[str, Any]:
 
 
 @router.get("/players/radar-pool")
-def get_players_radar_pool(position: str = Query(...)) -> dict[str, Any]:
+@heavy_limit
+def get_players_radar_pool(request: Request, position: str = Query(...)) -> dict[str, Any]:
     try:
         return radar.get_position_radar_pool(position)
     except radar.InvalidPositionError as e:

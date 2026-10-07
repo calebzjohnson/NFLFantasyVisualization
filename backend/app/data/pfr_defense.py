@@ -3,7 +3,10 @@ from typing import cast
 import nflreadpy as nfl
 import pandas as pd
 
+from app.cache import single_flight
 
+
+@single_flight
 def get_season_pfr_defense(season: int) -> pd.DataFrame:
     """Returns one row per defender per game: Pro Football Reference's
     advanced defensive stats (pressures, missed tackles, coverage allowed).

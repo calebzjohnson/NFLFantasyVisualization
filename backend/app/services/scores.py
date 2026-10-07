@@ -5,6 +5,7 @@ from zoneinfo import ZoneInfo
 import nflreadpy as nfl
 import pandas as pd
 
+from app.cache import memoized
 from app.data import schedules
 
 # NFL/fantasy weeks are anchored to Eastern time regardless of what
@@ -12,7 +13,24 @@ from app.data import schedules
 # roll over to "Wednesday" several hours too early).
 EASTERN = ZoneInfo("America/New_York")
 
+# What the frontend's GameScore type reads (plus `status`, added below).
+# Schedule rows also carry betting lines, weather, rosters, and officials,
+# which the site doesn't show, so they aren't sent.
+GAME_FIELDS = [
+    "game_id",
+    "game_type",
+    "week",
+    "gameday",
+    "weekday",
+    "gametime",
+    "away_team",
+    "away_score",
+    "home_team",
+    "home_score",
+]
 
+
+@memoized
 def get_week_scores(week: int | None = None, today: date | None = None) -> list[dict[str, Any]]:
     """Returns every game (regular season or postseason, played or not) for
     the given week of the current season. Defaults to the current fantasy
@@ -28,7 +46,7 @@ def get_week_scores(week: int | None = None, today: date | None = None) -> list[
     if week is None:
         week = _default_week(schedule, today)
 
-    games = schedule[schedule["week"] == week].copy()
+    games = schedule.loc[schedule["week"] == week, GAME_FIELDS].copy()
     games["status"] = games["home_score"].notna().map({True: "final", False: "scheduled"})
 
     records = games.astype(object).where(games.notna(), None).to_dict(orient="records")
