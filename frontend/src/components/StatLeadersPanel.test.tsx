@@ -23,13 +23,13 @@ const players = [1, 2, 3, 4, 5, 6, 7, 8].map((n) => ({
   fumbles_lost_total: 0,
 }))
 
-function renderPanel() {
+function renderPanel(props: { expandable?: boolean; layout?: "table" | "headshots" } = {}) {
   mockApi({
     "/teams": [{ team_abbr: "DAL", team_name: "Dallas", team_logo_espn: "", team_color: "#123456", team_color2: "#654321" }],
     "/players?sort=-passing_yards&fields=player_id%2Cplayer_display_name%2Crecent_team%2Cheadshot_url%2Ccompletions%2Cattempts%2Cpassing_yards%2Cpassing_tds%2Cpassing_interceptions%2Cfumbles_lost_total&position_group=QB":
       players,
   })
-  renderWithRouter(<StatLeadersPanel position="QB" expandable />)
+  renderWithRouter(<StatLeadersPanel position="QB" expandable {...props} />)
 }
 
 function namesInOrder(container: HTMLElement): string[] {
@@ -68,5 +68,33 @@ describe("StatLeadersPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: /show all/i }))
 
     expect(namesInOrder(screen.getByRole("dialog"))[0]).toBe("QB 8")
+  })
+
+  describe("headshots layout", () => {
+    it("shows five leaders with only the headline stat", async () => {
+      renderPanel({ layout: "headshots", expandable: false })
+      expect(await screen.findByText("QB 1")).toBeInTheDocument()
+
+      // One card per leader, each linking to that player.
+      const cards = screen.getAllByRole("link", { name: /QB \d/ })
+      expect(cards).toHaveLength(5)
+      expect(screen.queryByRole("table")).not.toBeInTheDocument()
+
+      // Passing yards is the headline, named once for the row; the other
+      // table columns are dropped.
+      expect(screen.getByText("800")).toBeInTheDocument() // QB 1's passing yards
+      expect(screen.getByRole("link", { name: "Leaders - Passing Yards" })).toBeInTheDocument()
+      expect(screen.queryByText("CMP%")).not.toBeInTheDocument()
+    })
+
+    it("links its title to the players page at this position", async () => {
+      renderPanel({ layout: "headshots", expandable: false })
+      expect(await screen.findByText("QB 1")).toBeInTheDocument()
+
+      expect(screen.getByRole("link", { name: "Leaders - Passing Yards" })).toHaveAttribute(
+        "href",
+        "/players?position=QB",
+      )
+    })
   })
 })

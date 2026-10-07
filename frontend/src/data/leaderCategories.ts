@@ -40,6 +40,9 @@ export interface LeaderCategoryConfig {
   toStats: (row: RawPlayerRow) => Record<string, number>
   // Stats column key the table is sorted by before the user picks one.
   defaultSortKey: string
+  // That stat written out, for the home page's headshot row. The table's own
+  // column abbreviations ("PD", "IN20") don't read as a caption.
+  defaultSortLabel: string
 }
 
 // Every player at the position, not a capped pool: the table shows the top 5
@@ -88,6 +91,7 @@ function receivingCategory(position: "WR" | "TE"): LeaderCategoryConfig {
       { key: "fum", label: "FUM", tone: "negative" },
     ],
     defaultSortKey: "yards",
+    defaultSortLabel: "Receiving Yards",
     toStats: (row) => {
       const rec = Number(row.receptions)
       const yards = Number(row.receiving_yards)
@@ -133,7 +137,11 @@ function passRushCategory(position: "EDGE" | "DL"): LeaderCategoryConfig {
       { key: "ff", label: "FF", tone: "positive" },
       { key: "pen", label: "PEN", tone: "negative" },
     ],
-    defaultSortKey: "sack",
+    // Interior linemen aren't sack producers - their top five is a pile of
+    // ties at 3, where pressures separate them properly. Edge rushers lead on
+    // sacks, the stat they're known by.
+    defaultSortKey: position === "DL" ? "press" : "sack",
+    defaultSortLabel: position === "DL" ? "Pressures" : "Sacks",
     toStats: (row) => ({
       tkl: totalTackles(row),
       tfl: Number(row.def_tackles_for_loss),
@@ -177,6 +185,7 @@ function coverageCategory(position: "CB" | "S"): LeaderCategoryConfig {
       { key: "ratingAllowed", label: "RTG ALLOWED" },
     ],
     defaultSortKey: "pd",
+    defaultSortLabel: "Passes Defended",
     toStats: (row) => {
       const int = Number(row.def_interceptions)
       const tgt = Number(row.def_targets)
@@ -227,6 +236,7 @@ export const LEADER_CATEGORIES: LeaderCategoryConfig[] = [
       { key: "rating", label: "RATING" },
     ],
     defaultSortKey: "yards",
+    defaultSortLabel: "Passing Yards",
     toStats: (row) => {
       const cmp = Number(row.completions)
       const att = Number(row.attempts)
@@ -280,6 +290,7 @@ export const LEADER_CATEGORIES: LeaderCategoryConfig[] = [
       { key: "fum", label: "FUM", tone: "negative" },
     ],
     defaultSortKey: "yards",
+    defaultSortLabel: "Rushing Yards",
     toStats: (row) => {
       const att = Number(row.carries)
       const yards = Number(row.rushing_yards)
@@ -327,6 +338,7 @@ export const LEADER_CATEGORIES: LeaderCategoryConfig[] = [
       { key: "miss", label: "MISS", tone: "negative" },
     ],
     defaultSortKey: "tkl",
+    defaultSortLabel: "Tackles",
     toStats: (row) => ({
       tkl: totalTackles(row),
       tfl: Number(row.def_tackles_for_loss),
@@ -356,6 +368,7 @@ export const LEADER_CATEGORIES: LeaderCategoryConfig[] = [
       { key: "penYards", label: "PEN YDS", tone: "negative" },
     ],
     defaultSortKey: "snaps",
+    defaultSortLabel: "Snaps Played",
     toStats: (row) => ({
       snaps: Number(row.offense_snaps),
       snapPct: Math.round(Number(row.offense_snap_pct) * 10) / 10,
@@ -382,6 +395,7 @@ export const LEADER_CATEGORIES: LeaderCategoryConfig[] = [
       { key: "xpa", label: "XPA" },
     ],
     defaultSortKey: "fgm",
+    defaultSortLabel: "Field Goals Made",
     toStats: (row) => {
       const fgm = Number(row.fg_made)
       const fga = Number(row.fg_att)
@@ -412,7 +426,8 @@ export const LEADER_CATEGORIES: LeaderCategoryConfig[] = [
       { key: "in20", label: "IN20", tone: "positive" },
       { key: "tb", label: "TB" },
     ],
-    defaultSortKey: "punts",
+    defaultSortKey: "in20",
+    defaultSortLabel: "Punts Inside the 20",
     toStats: (row) => {
       const punts = Number(row.pt_att)
       return {

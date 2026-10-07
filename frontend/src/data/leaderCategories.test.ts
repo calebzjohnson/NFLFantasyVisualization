@@ -51,6 +51,22 @@ describe("LEADER_CATEGORIES", () => {
   })
 })
 
+describe("default sort stats", () => {
+  function sortKey(position: string): string {
+    return LEADER_CATEGORIES.find((c) => c.position === position)!.defaultSortKey
+  }
+
+  it("leads interior linemen on pressures and edge rushers on sacks", () => {
+    // Interior sack totals bunch up at the top; pressures separate them.
+    expect(sortKey("DL")).toBe("press")
+    expect(sortKey("EDGE")).toBe("sack")
+  })
+
+  it("leads punters on punts downed inside the 20, not punt volume", () => {
+    expect(sortKey("P")).toBe("in20")
+  })
+})
+
 describe("positionPlural", () => {
   it("spells out kickers and punters, and adds an s otherwise", () => {
     expect(positionPlural("K")).toBe("kickers")
