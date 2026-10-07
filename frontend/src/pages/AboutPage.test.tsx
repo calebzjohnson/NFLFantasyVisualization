@@ -64,6 +64,12 @@ describe("AboutPage", () => {
     ).toBeInTheDocument()
   })
 
+  it("underlines links in body text so they don't rely on color alone", () => {
+    mockLatestWeek(null)
+    renderWithRouter(<AboutPage />)
+    expect(screen.getByRole("link", { name: "nflverse" })).toHaveClass("underline")
+  })
+
   it("titles the browser tab", () => {
     mockLatestWeek(null)
     renderWithRouter(<AboutPage />)

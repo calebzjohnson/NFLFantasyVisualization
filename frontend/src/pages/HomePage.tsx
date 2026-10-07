@@ -10,6 +10,7 @@ import PreviousWeekScores from "../components/PreviousWeekScores"
 import StatLeadersPanel from "../components/StatLeadersPanel"
 import TeamEfficiencyScatter from "../components/TeamEfficiencyScatter"
 import { POSITION_GROUPS, type PositionGroup } from "../data/leaderCategories"
+import { SITE_NAME } from "../lib/site"
 import { usePageTitle } from "../lib/usePageTitle"
 
 function HomePage() {
@@ -18,6 +19,9 @@ function HomePage() {
 
   return (
     <div className="flex flex-col gap-6">
+      {/* Every page needs one h1 for screen-reader navigation; the navbar
+          wordmark already shows the name visually, so this one is hidden. */}
+      <h1 className="sr-only">{SITE_NAME}</h1>
       <StatLeadersPanel
         position={position}
         layout="headshots"

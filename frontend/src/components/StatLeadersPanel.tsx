@@ -29,7 +29,9 @@ const LEADER_ROWS_SHOWN = 5
 function PlayerCell({ row }: { row: DetailedLeaderRow }) {
   return (
     <div className="flex items-center gap-3">
-      <Link to={`/players/${row.playerId}`} state={{ playerName: row.player }}>
+      {/* Duplicates the name link beside it: clickable, but kept out of the tab
+          order and the accessibility tree so it isn't a second, unnamed link. */}
+      <Link to={`/players/${row.playerId}`} state={{ playerName: row.player }} tabIndex={-1} aria-hidden="true">
         <PlayerAvatar name={row.player} headshot={row.headshot} color={row.teamColor} size="h-8 w-8" />
       </Link>
       <div>

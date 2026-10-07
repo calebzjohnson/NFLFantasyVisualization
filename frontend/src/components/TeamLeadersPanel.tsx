@@ -3,8 +3,10 @@
 // Offense/Defense toggle in the header. Any column re-sorts; stats where
 // lower is better (points allowed, turnovers) sort best-first on first click.
 import { useState } from "react"
+import { Link } from "react-router-dom"
 import type { LeaderRow } from "../data/leaderStatsTypes"
 import { TEAM_METRICS, TEAM_SIDES, type TeamSeasonRow, type TeamSide } from "../data/teamMetrics"
+import { teamPath } from "../data/teams"
 import DetailedLeaderTable from "./DetailedLeaderTable"
 import Panel from "./Panel"
 import PositionGroupToggle from "./PositionGroupToggle"
@@ -22,9 +24,11 @@ function metricsFor(side: TeamSide) {
 function TeamCell({ row }: { row: TeamLeaderRow }) {
   return (
     <div className="flex items-center gap-3">
-      <TeamLink team={row.team}>
+      {/* Duplicates the name link beside it: clickable, but kept out of the tab
+          order and the accessibility tree so it isn't a second, unnamed link. */}
+      <Link to={teamPath(row.team)} tabIndex={-1} aria-hidden="true">
         <TeamLogoBadge logo={row.logo} size="h-8 w-8" />
-      </TeamLink>
+      </Link>
       <div>
         <TeamLink team={row.team} className="font-medium text-[var(--text-primary)]">
           {row.name}

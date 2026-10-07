@@ -48,7 +48,9 @@ function freshnessLabel({ season, week, season_type }: LatestWeek): string {
     : `Stats through the ${season} postseason.`
 }
 
-const linkClass = "text-[var(--accent)] hover:underline"
+// Underlined, not just blue: inside a paragraph, color alone doesn't set a
+// link apart enough (WCAG 1.4.1; the accent is only 1.5:1 against body text).
+const linkClass = "text-[var(--accent)] underline underline-offset-2 hover:decoration-2"
 
 function ExternalLink({ href, children }: { href: string; children: ReactNode }) {
   return (

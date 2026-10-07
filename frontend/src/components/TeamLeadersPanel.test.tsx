@@ -48,6 +48,15 @@ describe("TeamLeadersPanel", () => {
     expect(screen.getByRole("link", { name: "Team 6" })).toHaveAttribute("href", "/teams/T6")
   })
 
+  it("gives every focusable link a name (the logo duplicates the name link, so it's hidden)", () => {
+    renderWithRouter(<TeamLeadersPanel rows={rows} loading={false} error={null} />)
+    for (const link of screen.getAllByRole("link")) expect(link).toHaveAccessibleName()
+    // The logo link still works for the mouse, just outside the tab order.
+    const logoLinks = document.querySelectorAll('a[aria-hidden="true"]')
+    expect(logoLinks.length).toBeGreaterThan(0)
+    logoLinks.forEach((link) => expect(link).toHaveAttribute("tabindex", "-1"))
+  })
+
   it("shows the loading state", () => {
     renderWithRouter(<TeamLeadersPanel rows={null} loading error={null} />)
     expect(screen.getByText("Loading…")).toBeInTheDocument()

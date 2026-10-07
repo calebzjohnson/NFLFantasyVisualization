@@ -18,6 +18,9 @@ dependencies = [
 
 [tool.uv]
 package = false
+# Supply-chain cooldown: ignore package versions published in the last 7 days,
+# so a freshly compromised release isn't picked up before it's caught and yanked.
+exclude-newer = "7 days"
 
 [dependency-groups]
 dev = [

@@ -1,0 +1,3 @@
+# Served as a real file (Vercel checks files before the SPA rewrite in vercel.json).
+User-agent: *
+Allow: /

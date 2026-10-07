@@ -17,6 +17,7 @@ A running list of what needs to be configured or changed when we actually connec
 
 - [ ] **CORS origins.** Set `APP_CORS_ORIGINS` to include the deployed Vercel frontend URL. Locally it only allows `http://localhost:5173` (see `backend/.env.example` and `backend/app/config.py`).
 - [ ] **Monorepo root.** Set Render's root directory to `backend/`.
+- [ ] **Dependency cooldown.** `backend/pyproject.toml` sets `exclude-newer = "7 days"`, so `uv lock`/`uv add` ignore package versions published in the last week. To take an urgent security release sooner, run `uv lock --upgrade-package <pkg> --exclude-newer-package <pkg>=<date>` or temporarily lower the window.
 - [ ] **Build/start commands.** Build: `uv sync --locked --no-dev`. Start: `uv run --no-sync uvicorn app.main:app --host 0.0.0.0 --port $PORT --no-access-log` (Render injects `$PORT`).
   - `--no-dev` keeps pytest, mypy, ruff, and httpx out of the production image; `--no-sync` stops `uv run` from re-syncing (and reinstalling the dev group) at start.
   - `--no-access-log` stops uvicorn logging every request with the visitor's IP. Error logging is unaffected: unhandled exceptions still log a full traceback through `uvicorn.error` (verified locally).
@@ -48,6 +49,18 @@ A running list of what needs to be configured or changed when we actually connec
 - [ ] **Legal review before go-live.** Go over all potential legal issues before deploying. Known ones: team logos (efficiency chart, scoreboard, standings, player page) are NFL trademarks and copyrighted art, and player headshots (stat leaders, comparison tooltip, player page) are copyrighted photos. Both are hotlinked, CDN-resized, from ESPN/NFL CDNs (see `frontend/src/lib/imageUrls.ts`). Stats and player names are fine. A "Not affiliated with or endorsed by the NFL" footer is already in place. The site is non-profit; if that changes (ads, donations), talk to an IP lawyer. Fallback if asked to remove images: team-colored abbreviations and initials, which `PlayerAvatar` already renders when a headshot is missing.
 - [ ] **Trademark check for "Plot the Pigskin" (M7, deferred legal).** The site was renamed from "Gridiron Analytics" on 2026-10-07. Run a clearance search on the new name (and check the domain, if one is bought) before launch. The name lives in `SITE_NAME` (`frontend/src/lib/site.ts`), `frontend/index.html`, the navbar wordmark, and the About page; `frontend/site.test.ts` keeps the first two in sync.
 - [ ] **Privacy page must mention IP handling (H4, deferred legal).** The rate limiter keeps each visitor's IP in process memory for the length of its window (a minute), and slowapi logs the IP in a warning whenever it returns a 429. Nothing else in the app logs IPs.
+
+## Pre-launch audit results (2026-10-07, local production build)
+
+- **CSP:** Chrome 155 loaded all six page types (home, teams, a team, players, a player, about) with the real `vercel.json` headers: zero CSP violations, console errors, failed requests, or broken images.
+- **axe (WCAG 2.1 A/AA + best practices):** two serious issues found and fixed (image-only links without names in the leader tables; About-page links distinguished by color alone). The moderate one (home page had no `<h1>`) is fixed with a visually hidden heading. axe is now clean on every page.
+- **Lighthouse (mobile):** accessibility 97-100, best practices 100, SEO 100 (was 82-83 before adding `robots.txt` and a meta description), performance 40-65.
+  - Accessibility flags (open, deferred): small touch targets on the team abbreviations under names in the leader tables (WCAG 2.2 target size; fixing it makes table rows slightly taller); trend-chart initials badges whose visible text isn't in their name (experimental rule).
+  - SEO (fixed): added a meta description and `frontend/public/robots.txt`. Without the file, the SPA rewrite answered `/robots.txt` with `index.html`.
+  - Performance: measured through an uncompressed local server, so first paint (~5.6 s on simulated slow 4G) overstates what Vercel's Brotli/CDN delivery will show. Real issues regardless: one ~1 MB JS bundle (~400 KiB unused per page; route-level code splitting would help), and layout shift as panels fill in on `/teams` (CLS 0.68) and `/players` (0.35). Re-run Lighthouse post-deploy.
+- **gitleaks:** no secrets in git history (89 non-merge commits) or the working tree, including local `.env` files.
+- **semgrep (`--config auto`):** two findings. The missing uv dependency cooldown is fixed (`exclude-newer = "7 days"` in `backend/pyproject.toml`; no locked versions changed). The non-literal `RegExp` in `contrast.test.ts` is a false positive (test-only, built from hardcoded token names).
+- **Image hosts:** neither `static.www.nfl.com` (Cloudinary/Fastly) nor `a.espncdn.com` sets cookies on image requests. Both still receive each visitor's IP address and user agent when images load (relevant to H2).
 
 ## Possible follow-ups (not scheduled)
 
