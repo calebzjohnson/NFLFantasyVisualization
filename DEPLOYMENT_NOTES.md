@@ -6,10 +6,9 @@ A running list of what needs to be configured or changed when we actually connec
 
 ## Frontend (Vercel)
 
-- [ ] **SPA routing rewrite.** The app uses `react-router-dom` with `BrowserRouter`, so routes like `/players` only exist client-side. Without a rewrite rule, a direct/refreshed load of a non-root URL will 404 on Vercel. Add `frontend/vercel.json`:
-  ```json
-  { "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }] }
-  ```
+- [x] **SPA routing rewrite.** Done in `frontend/vercel.json`: every path except `/assets/*` rewrites to `/index.html` (Vercel serves real files first), so deep links like `/players/<id>` load. Missing hashed assets still 404 instead of returning HTML.
+- [ ] **PRE-DEPLOY: put the real API origin in the CSP.** `frontend/vercel.json`'s `connect-src` holds the placeholder `https://REPLACE-WITH-RENDER-API-ORIGIN.onrender.com`. Replace it with the Render service origin (scheme + host, no path), the same origin as `VITE_API_BASE_URL`. Until then the browser blocks every API call and the site shows only errors.
+- [ ] **Security headers.** `frontend/vercel.json` sends CSP, `X-Content-Type-Options`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, and `Permissions-Policy` on every route. The CSP's `img-src` allows `static.www.nfl.com` (headshots) and `a.espncdn.com` (logos) pending the H1/H2 decision; if images are removed, drop those hosts too. Adding any new external resource (font, script, analytics, image host) needs a matching CSP entry, or it will be blocked.
 - [ ] **API base URL.** Set `VITE_API_BASE_URL` in the Vercel project's env vars (Production and Preview) to the deployed Render backend URL, e.g. `https://<service>.onrender.com`, no trailing slash. It is baked in at build time, so changing it requires a redeploy. `vite build` fails if it is missing or empty (check in `frontend/vite.config.ts`). `vite dev` still falls back to `http://localhost:8000` (see `frontend/.env.example`).
 - [ ] **Monorepo root.** Set the Vercel project's root directory to `frontend/`.
 - [ ] **Feedback email.** The About page uses a placeholder, `feedback@example.com` (`FEEDBACK_EMAIL` in `frontend/src/pages/AboutPage.tsx`, also asserted in `AboutPage.test.tsx`). Swap in the real inbox before launch. Posting a plain address publicly invites spam, so use a dedicated inbox or alias rather than a personal one.
@@ -22,6 +21,7 @@ A running list of what needs to be configured or changed when we actually connec
   - `--no-dev` keeps pytest, mypy, ruff, and httpx out of the production image; `--no-sync` stops `uv run` from re-syncing (and reinstalling the dev group) at start.
   - `--no-access-log` stops uvicorn logging every request with the visitor's IP. Error logging is unaffected: unhandled exceptions still log a full traceback through `uvicorn.error` (verified locally).
   - Confirm the build log uses Python 3.12 (pinned in `backend/.python-version`); if it doesn't, set `PYTHON_VERSION=3.12` in Render's env vars.
+- [ ] **API docs stay off.** Don't set `APP_ENABLE_API_DOCS` on Render; it defaults to off, so `/docs`, `/redoc`, and `/openapi.json` 404. (The app also reads `backend/.env` when present, which only exists locally.)
 - [ ] **Instance size: pick one with at least 2 GB RAM. 512 MB plans will run out of memory.** Measured locally on 2026-10-07 (macOS RSS, one uvicorn process, every endpoint hit once):
   | Data | Idle | Steady state with all datasets loaded | Peak (all endpoints at once, cold) |
   |---|---|---|---|
@@ -37,6 +37,9 @@ A running list of what needs to be configured or changed when we actually connec
 ## Post-deploy checks
 
 - [ ] **Rate-limit keying.** From one network, exceed the heavy limit on `/teams/efficiency` while varying a spoofed `X-Forwarded-For: <random>` header; it must still 429. Then from a second network (e.g. phone hotspot), confirm requests still succeed: if they 429 too, all visitors share one key and `APP_TRUSTED_PROXY_HOPS` is wrong.
+- [ ] **API docs** `/docs`, `/redoc`, `/openapi.json` all 404 on the live API.
+- [ ] **Security headers.** `curl -I` the live frontend (a deep link such as `/players/00-0033873` should return 200 with all five headers) and the API (`X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`). Confirm HTTPS redirects and HSTS on both.
+- [ ] **CSP in a real browser.** Load home, teams, a team page, players, a player page, and about with DevTools open; the console must show no CSP violations. This wasn't verified locally: the only Chrome on the dev machine (v119) crashes in headless mode. A static scan of the production bundle found nothing the CSP would block.
 - [ ] **`Cache-Control`** present on data responses (`curl -I <api>/teams`).
 
 ## General

@@ -1,4 +1,6 @@
-from fastapi import Depends, FastAPI, Response
+from collections.abc import Awaitable, Callable
+
+from fastapi import Depends, FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
@@ -9,7 +11,13 @@ from app.routers import players, scores, standings, teams
 
 settings = get_settings()
 
-app = FastAPI(title="NFL Fantasy Visualization API")
+docs_on = settings.enable_api_docs
+app = FastAPI(
+    title="NFL Fantasy Visualization API",
+    docs_url="/docs" if docs_on else None,
+    redoc_url="/redoc" if docs_on else None,
+    openapi_url="/openapi.json" if docs_on else None,
+)
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded)
@@ -21,6 +29,17 @@ app.add_middleware(
     allow_methods=["GET"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def security_headers(
+    request: Request, call_next: Callable[[Request], Awaitable[Response]]
+) -> Response:
+    """Outermost, so it also covers 429s and CORS preflights."""
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    return response
 
 
 def cache_control(response: Response) -> None:

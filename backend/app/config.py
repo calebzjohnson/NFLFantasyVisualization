@@ -30,7 +30,13 @@ class Settings(BaseSettings):
     # the socket peer address (no proxy).
     trusted_proxy_hops: int = 1
 
-    model_config = {"env_prefix": "APP_"}
+    # Serves /docs, /redoc, and /openapi.json. Off in production: they're
+    # unneeded public surface and load assets from jsDelivr and Google Fonts.
+    enable_api_docs: bool = False
+
+    # .env is read from the working directory (backend/ locally). Render has
+    # none, so production settings come only from its env vars.
+    model_config = {"env_prefix": "APP_", "env_file": ".env"}
 
 
 @lru_cache
