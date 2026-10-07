@@ -1,7 +1,8 @@
 // DivisionStandingsTable.tsx
-// One division's standings table, in the API's tiebreaker order.
+// One division's standings table, in the API's tiebreaker order, with arrows for teams that moved since last week.
 import { type DivisionStanding, formatPct } from "../data/standings"
 import Panel from "./Panel"
+import RankChange from "./RankChange"
 import TeamLink from "./TeamLink"
 
 // Team abbreviation -> logo URL (see logoByTeam). A team missing from it just shows its abbreviation.
@@ -12,6 +13,10 @@ function DivisionStandingsTable({ division, teams, logos }: DivisionStanding & {
         <thead>
           <tr className="text-left text-xs tracking-wider text-[var(--text-muted)] uppercase">
             <th className="w-6 px-4 py-2 font-medium">#</th>
+            {/* Its own column, beside the place it describes, so arrows line up whatever the abbreviation's width. */}
+            <th className="w-4 py-2">
+              <span className="sr-only">Change since last week</span>
+            </th>
             <th className="px-2 py-2 font-medium">Team</th>
             <th className="w-7 px-2 py-2 text-right font-medium">W</th>
             <th className="w-7 px-2 py-2 text-right font-medium">L</th>
@@ -28,6 +33,9 @@ function DivisionStandingsTable({ division, teams, logos }: DivisionStanding & {
                 }`}
               >
                 {index + 1}
+              </td>
+              <td className="py-2 align-top leading-6">
+                <RankChange previous={record.previous_place} current={index + 1} />
               </td>
               <td className="px-2 py-2 align-top font-medium text-[var(--text-primary)]">
                 <TeamLink team={record.team} className="flex items-center gap-2">

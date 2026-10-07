@@ -16,7 +16,7 @@ export function teamInfo(abbr: string, overrides: Partial<TeamInfo> = {}): TeamI
 }
 
 export function teamRecord(team: string, overrides: Partial<TeamRecord> = {}): TeamRecord {
-  return { team, wins: 0, losses: 0, ties: 0, points_for: 0, points_against: 0, win_pct: 0, ...overrides }
+  return { team, wins: 0, losses: 0, ties: 0, points_for: 0, points_against: 0, win_pct: 0, previous_place: null, ...overrides }
 }
 
 export function playerBio(overrides: Partial<PlayerBio> = {}): PlayerBio {

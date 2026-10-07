@@ -8,6 +8,8 @@ export interface TeamRecord {
   points_for: number
   points_against: number
   win_pct: number
+  // Place in the division going into the newest week; null before there's a week to compare to.
+  previous_place: number | null
 }
 
 export interface DivisionStanding {

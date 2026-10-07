@@ -163,7 +163,7 @@ def sample_weekly_team_stats() -> pd.DataFrame:
     """
     return pd.DataFrame(
         columns=[
-            "game_id", "team", "opponent_team", "passing_tds", "rushing_tds",
+            "game_id", "week", "team", "opponent_team", "passing_tds", "rushing_tds",
             "special_teams_tds", "def_tds", "fumble_recovery_tds", "pt_return_tds",
         ]
     )
