@@ -5,8 +5,10 @@
 }
 
 /* Light-only "Film Room" theme: near-white surfaces, near-black text, blue
-   accent. Text tokens are all >= 4.5:1 on surfaces 0-2; accent/positive/
-   negative are colorblind-separation checked (see index.css history). */
+   accent. Every text token and accent/positive/negative meets WCAG AA (4.5:1)
+   on surfaces 0-2; the tightest are muted (4.83:1) and accent (4.81:1) on
+   surface-2. frontend/contrast.test.ts enforces this. accent/positive/negative are
+   also colorblind-separation checked (see index.css history). */
 :root {
   color-scheme: light;
   --surface-0: #fbfbfa;
@@ -15,7 +17,7 @@
   --border: #dcdcd8;
   --text-primary: #0b0b0b;
   --text-secondary: #52514e;
-  --text-muted: #898781;
+  --text-muted: #6b6a66;
   --accent: #256abf;
   --positive: #087a08;
   --negative: #c22a5e;
