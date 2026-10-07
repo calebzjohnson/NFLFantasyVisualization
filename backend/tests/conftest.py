@@ -94,8 +94,9 @@ def sample_week_schedule() -> pd.DataFrame:
 def sample_schedule() -> pd.DataFrame:
     """Small stand-in for schedules.get_season_schedule(season): week 1 games
     are complete (have scores), week 2 games haven't been played yet (NaN
-    scores) - mirrors nflverse's real shape mid-season. The LA game's `temp`
-    is NaN (a dome game), like real weather data for indoor stadiums.
+    scores) - mirrors nflverse's real shape mid-season. Like real schedule
+    rows, each also carries betting lines, weather (the LA dome game's `temp`
+    is NaN), and starting QBs, which /scores must not pass through.
     `gameday` values let week 1's last game land on a Monday (2026-09-14)
     and week 2's on the following Monday (2026-09-21), for testing the
     Tuesday/Wednesday default-week cutover.
@@ -103,15 +104,19 @@ def sample_schedule() -> pd.DataFrame:
     rows = [
         dict(game_id="2026_01_DAL_NYG", season=2026, game_type="REG", week=1,
              away_team="DAL", home_team="NYG", away_score=20.0, home_score=28.0, temp=72.0,
-             gameday="2026-09-13"),
+             gameday="2026-09-13", weekday="Sunday", gametime="20:20"),
         dict(game_id="2026_01_SF_LA", season=2026, game_type="REG", week=1,
              away_team="SF", home_team="LA", away_score=27.0, home_score=7.0, temp=np.nan,
-             gameday="2026-09-14"),
+             gameday="2026-09-14", weekday="Monday", gametime="20:15"),
         dict(game_id="2026_02_DET_BUF", season=2026, game_type="REG", week=2,
              away_team="DET", home_team="BUF", away_score=np.nan, home_score=np.nan, temp=65.0,
-             gameday="2026-09-21"),
+             gameday="2026-09-21", weekday="Monday", gametime="20:15"),
     ]
-    return pd.DataFrame(rows)
+    return pd.DataFrame(rows).assign(
+        spread_line=3.5, away_moneyline=150, home_moneyline=-170, total_line=47.5,
+        under_odds=-110, over_odds=-110, wind=8.0, roof="outdoors",
+        away_qb_name="Away QB", home_qb_name="Home QB", referee="Ref",
+    )
 
 
 @pytest.fixture

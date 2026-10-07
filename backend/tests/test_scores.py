@@ -3,7 +3,7 @@ from datetime import UTC, date, datetime
 import pandas as pd
 import pytest
 
-from app.services.scores import _default_week, get_week_scores
+from app.services.scores import GAME_FIELDS, _default_week, get_week_scores
 
 
 def test_get_week_scores_returns_unplayed_games_too(
@@ -32,16 +32,19 @@ def test_get_week_scores_marks_played_games_final(
     assert all(g["status"] == "final" for g in games)
 
 
-def test_get_week_scores_converts_nan_to_none(
+def test_get_week_scores_returns_only_the_fields_the_site_shows(
     monkeypatch: pytest.MonkeyPatch, sample_schedule: pd.DataFrame
 ) -> None:
     monkeypatch.setattr("app.services.scores.nfl.get_current_season", lambda: 2026)
     monkeypatch.setattr("app.data.schedules.get_season_schedule", lambda season: sample_schedule)
 
     games = get_week_scores(week=1)
-    dome_game = next(g for g in games if g["home_team"] == "LA")
 
-    assert dome_game["temp"] is None
+    for game in games:
+        assert set(game) == {*GAME_FIELDS, "status"}
+        # Betting lines, weather, and rosters are in the source rows but not sent.
+        for dropped in ("spread_line", "away_moneyline", "total_line", "temp", "home_qb_name"):
+            assert dropped not in game
 
 
 def test_get_week_scores_defaults_to_current_fantasy_week(
