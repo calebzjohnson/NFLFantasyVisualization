@@ -12,6 +12,7 @@ import {
   positionPlural,
   type RawPlayerRow,
 } from "../data/leaderCategories"
+import { competitionRanks, previousRanks, weeklyLeaderPath } from "../data/leaderMovement"
 import type { DetailedLeaderRow } from "../data/leaderStatsTypes"
 import type { TeamInfo } from "../data/teams"
 import { useFetch } from "../lib/useFetch"
@@ -20,6 +21,7 @@ import ExpandButton from "./ExpandButton"
 import Modal from "./Modal"
 import Panel from "./Panel"
 import PlayerAvatar from "./PlayerAvatar"
+import RankChange from "./RankChange"
 import TeamLink from "./TeamLink"
 
 const LEADER_ROWS_SHOWN = 5
@@ -46,14 +48,33 @@ function PlayerCell({ row }: { row: DetailedLeaderRow }) {
   )
 }
 
-// The home page's showcase: one card per leader, headline stat only.
-function LeaderCard({ row, statKey }: { row: DetailedLeaderRow; statKey: string }) {
+// The home page's showcase: one card per leader, with their place, headline
+// stat only, and an arrow for how far they've moved since last week.
+function LeaderCard({
+  row,
+  statKey,
+  rank,
+  previousRank,
+}: {
+  row: DetailedLeaderRow
+  statKey: string
+  rank: number
+  previousRank: number | undefined
+}) {
   return (
     <Link
       to={`/players/${row.playerId}`}
       state={{ playerName: row.player }}
       className="flex min-w-0 flex-1 basis-32 flex-col items-center gap-1 rounded-lg px-2 py-3 text-center hover:bg-[var(--surface-2)]"
     >
+      {/* Styled like the standings' place column: the leader in the accent color. */}
+      <span
+        className={`mb-1 font-display text-base ${
+          row.rank === 1 ? "font-bold text-[var(--accent)]" : "text-[var(--text-muted)]"
+        }`}
+      >
+        {row.rank}
+      </span>
       <PlayerAvatar
         name={row.player}
         headshot={row.headshot}
@@ -65,8 +86,9 @@ function LeaderCard({ row, statKey }: { row: DetailedLeaderRow; statKey: string 
         {row.player}
       </span>
       <span className="text-xs text-[var(--text-secondary)]">{row.team}</span>
-      <span className="font-display text-2xl font-bold text-[var(--text-primary)]">
-        {row.stats[statKey]}
+      <span className="flex items-center gap-1">
+        <span className="font-display text-2xl font-bold text-[var(--text-primary)]">{row.stats[statKey]}</span>
+        <RankChange previous={previousRank} current={rank} />
       </span>
     </Link>
   )
@@ -89,6 +111,9 @@ function StatLeadersPanel({
   const { data, error, loading } = useFetch<RawPlayerRow[]>(active.path)
   const teams = useFetch<TeamInfo[]>("/teams")
   const colorByTeam = new Map(teams.data?.map((team) => [team.team_abbr, team.team_color]))
+  const showcase = layout === "headshots"
+  const weekly = useFetch<RawPlayerRow[]>(showcase ? weeklyLeaderPath(active) : null)
+  const latestWeek = useFetch<{ week: number }>(showcase ? "/players/latest-week" : null)
 
   const [sortedPosition, setSortedPosition] = useState(position)
   const [sortKey, setSortKey] = useState(active.defaultSortKey)
@@ -141,8 +166,21 @@ function StatLeadersPanel({
     )
   }
 
-  const showcase = layout === "headshots"
   const top = ranked?.slice(0, LEADER_ROWS_SHOWN)
+
+  // Compared on shared places, not `rank`, so ties don't read as movement.
+  const headline = active.defaultSortKey
+  const currentRanks = ranked && competitionRanks(new Map(ranked.map((row) => [row.playerId, row.stats[headline]])))
+  const lastWeekRanks =
+    ranked &&
+    weekly.data &&
+    latestWeek.data &&
+    previousRanks(
+      active,
+      ranked.map((row) => row.playerId),
+      weekly.data,
+      latestWeek.data.week,
+    )
 
   return (
     <>
@@ -167,7 +205,13 @@ function StatLeadersPanel({
         {top && showcase && (
           <div className="flex flex-wrap justify-center gap-1 p-3">
             {top.map((row) => (
-              <LeaderCard key={row.playerId} row={row} statKey={active.defaultSortKey} />
+              <LeaderCard
+                key={row.playerId}
+                row={row}
+                statKey={headline}
+                rank={currentRanks!.get(row.playerId)!}
+                previousRank={lastWeekRanks?.get(row.playerId)}
+              />
             ))}
           </div>
         )}

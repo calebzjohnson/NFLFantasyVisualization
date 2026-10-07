@@ -128,3 +128,50 @@ def test_get_current_standings_falls_back_when_no_games_played(
     afc_east = next(d for d in standings if d["division"] == "AFC East")
 
     assert len(afc_east["teams"]) == 4
+
+
+def test_get_current_standings_reports_places_before_the_newest_week(
+    monkeypatch: pytest.MonkeyPatch,
+    sample_standings_schedule: pd.DataFrame,
+    sample_teams: pd.DataFrame,
+    sample_weekly_team_stats: pd.DataFrame,
+) -> None:
+    monkeypatch.setattr("app.services.standings.nfl.get_current_season", lambda: 2026)
+    monkeypatch.setattr(
+        "app.data.schedules.get_season_schedule", lambda season: sample_standings_schedule
+    )
+    monkeypatch.setattr("app.data.teams.get_teams", lambda: sample_teams)
+    monkeypatch.setattr(
+        "app.data.team_stats.get_weekly_team_stats", lambda season: sample_weekly_team_stats
+    )
+
+    standings = get_current_standings()
+    previous = {t["team"]: t["previous_place"] for d in standings for t in d["teams"]}
+
+    # After week 1, NE and NYJ were tied at 0-0-1 behind BUF; NE's week 2
+    # loss is what drops it to 3rd now.
+    assert previous["BUF"] == 1
+    assert sorted([previous["NE"], previous["NYJ"]]) == [2, 3]
+    assert previous["MIA"] == 4
+    # The NFC East didn't play in week 2, so nobody there moved.
+    nfc_east = next(d for d in standings if d["division"] == "NFC East")
+    assert [t["previous_place"] for t in nfc_east["teams"]] == [1, 2, 3, 4]
+
+
+def test_get_current_standings_has_no_previous_places_after_one_week(
+    monkeypatch: pytest.MonkeyPatch,
+    sample_standings_schedule: pd.DataFrame,
+    sample_teams: pd.DataFrame,
+    sample_weekly_team_stats: pd.DataFrame,
+) -> None:
+    week_one = sample_standings_schedule[sample_standings_schedule["week"] == 1]
+    monkeypatch.setattr("app.services.standings.nfl.get_current_season", lambda: 2026)
+    monkeypatch.setattr("app.data.schedules.get_season_schedule", lambda season: week_one)
+    monkeypatch.setattr("app.data.teams.get_teams", lambda: sample_teams)
+    monkeypatch.setattr(
+        "app.data.team_stats.get_weekly_team_stats", lambda season: sample_weekly_team_stats
+    )
+
+    standings = get_current_standings()
+
+    assert all(t["previous_place"] is None for d in standings for t in d["teams"])
