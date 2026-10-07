@@ -6,11 +6,18 @@
 // from elsewhere on the page.
 import { type ReactNode, useState } from "react"
 import { Link } from "react-router-dom"
-import { LEADER_CATEGORIES, type PositionGroup, type RawPlayerRow } from "../data/leaderCategories"
+import {
+  LEADER_CATEGORIES,
+  type PositionGroup,
+  positionPlural,
+  type RawPlayerRow,
+} from "../data/leaderCategories"
 import type { DetailedLeaderRow } from "../data/leaderStatsTypes"
 import type { TeamInfo } from "../data/teams"
 import { useFetch } from "../lib/useFetch"
 import DetailedLeaderTable from "./DetailedLeaderTable"
+import ExpandButton from "./ExpandButton"
+import Modal from "./Modal"
 import Panel from "./Panel"
 import PlayerAvatar from "./PlayerAvatar"
 import TeamLink from "./TeamLink"
@@ -42,9 +49,12 @@ function PlayerCell({ row }: { row: DetailedLeaderRow }) {
 function StatLeadersPanel({
   position,
   actions,
+  expandable = false,
 }: {
   position: PositionGroup
   actions?: ReactNode
+  // Opt-in: the home page keeps a plain top 5.
+  expandable?: boolean
 }) {
   const active = LEADER_CATEGORIES.find((category) => category.position === position)!
   const { data, error, loading } = useFetch<RawPlayerRow[]>(active.path)
@@ -54,6 +64,7 @@ function StatLeadersPanel({
   const [sortedPosition, setSortedPosition] = useState(position)
   const [sortKey, setSortKey] = useState(active.defaultSortKey)
   const [sortDesc, setSortDesc] = useState(true)
+  const [expanded, setExpanded] = useState(false)
 
   // Position changed out from under us - go back to that category's own default column.
   // (Adjusting state during render, not an effect, per https://react.dev/learn/you-might-not-need-an-effect)
@@ -72,7 +83,9 @@ function StatLeadersPanel({
     }
   }
 
-  const rows: DetailedLeaderRow[] | null =
+  // Ranked across everyone at the position, so a player's rank means the same
+  // thing in the panel's top 5 and in the expanded list.
+  const ranked: DetailedLeaderRow[] | null =
     data
       ?.map((row) => ({
         playerId: String(row.player_id),
@@ -83,27 +96,49 @@ function StatLeadersPanel({
         stats: active.toStats(row),
       }))
       .sort((a, b) => (sortDesc ? b.stats[sortKey] - a.stats[sortKey] : a.stats[sortKey] - b.stats[sortKey]))
-      .slice(0, LEADER_ROWS_SHOWN)
       .map((row, index) => ({ ...row, rank: index + 1 })) ?? null
 
+  function table(rows: DetailedLeaderRow[]) {
+    return (
+      <DetailedLeaderTable
+        entityLabel="Player"
+        renderEntity={(row) => <PlayerCell row={row} />}
+        columns={active.columns}
+        rows={rows}
+        sortKey={sortKey}
+        sortDesc={sortDesc}
+        onSort={handleSort}
+      />
+    )
+  }
+
   return (
-    <Panel title={`${active.label} Leaders`} actions={actions}>
-      {loading && <p className="p-4 text-sm text-[var(--text-secondary)]">Loading…</p>}
-      {error && <p className="p-4 text-sm text-[var(--negative)]">Couldn't load leaders: {error}</p>}
-      {rows && (
-        <div className="overflow-x-auto">
-          <DetailedLeaderTable
-            entityLabel="Player"
-            renderEntity={(row) => <PlayerCell row={row} />}
-            columns={active.columns}
-            rows={rows}
-            sortKey={sortKey}
-            sortDesc={sortDesc}
-            onSort={handleSort}
-          />
-        </div>
+    <>
+      <Panel
+        title={`${active.label} Leaders`}
+        actions={
+          <div className="flex items-center gap-2">
+            {actions}
+            {expandable && ranked && (
+              <ExpandButton
+                label={`Show all ${positionPlural(position)}`}
+                expanded={expanded}
+                onClick={() => setExpanded(true)}
+              />
+            )}
+          </div>
+        }
+      >
+        {loading && <p className="p-4 text-sm text-[var(--text-secondary)]">Loading…</p>}
+        {error && <p className="p-4 text-sm text-[var(--negative)]">Couldn't load leaders: {error}</p>}
+        {ranked && <div className="overflow-x-auto">{table(ranked.slice(0, LEADER_ROWS_SHOWN))}</div>}
+      </Panel>
+      {expanded && ranked && (
+        <Modal title={`${active.label} Leaders`} onClose={() => setExpanded(false)}>
+          <div className="overflow-x-auto">{table(ranked)}</div>
+        </Modal>
       )}
-    </Panel>
+    </>
   )
 }
 
