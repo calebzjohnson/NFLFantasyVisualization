@@ -18,6 +18,7 @@ function HomePage() {
     <div className="flex flex-col gap-6">
       <StatLeadersPanel
         position={position}
+        layout="headshots"
         actions={
           <PositionGroupToggle
             options={POSITION_GROUPS}

@@ -46,15 +46,44 @@ function PlayerCell({ row }: { row: DetailedLeaderRow }) {
   )
 }
 
+// The home page's showcase: one card per leader, headline stat only.
+function LeaderCard({ row, statKey }: { row: DetailedLeaderRow; statKey: string }) {
+  return (
+    <Link
+      to={`/players/${row.playerId}`}
+      state={{ playerName: row.player }}
+      className="flex min-w-0 flex-1 basis-32 flex-col items-center gap-1 rounded-lg px-2 py-3 text-center hover:bg-[var(--surface-2)]"
+    >
+      <PlayerAvatar
+        name={row.player}
+        headshot={row.headshot}
+        color={row.teamColor}
+        size="h-20 w-20"
+        imageSize={192}
+      />
+      <span className="mt-1 w-full truncate text-sm font-medium text-[var(--text-primary)]">
+        {row.player}
+      </span>
+      <span className="text-xs text-[var(--text-secondary)]">{row.team}</span>
+      <span className="font-display text-2xl font-bold text-[var(--text-primary)]">
+        {row.stats[statKey]}
+      </span>
+    </Link>
+  )
+}
+
 function StatLeadersPanel({
   position,
   actions,
   expandable = false,
+  layout = "table",
 }: {
   position: PositionGroup
   actions?: ReactNode
   // Opt-in: the home page keeps a plain top 5.
   expandable?: boolean
+  // "headshots" is the home page's showcase; the players page keeps the table.
+  layout?: "table" | "headshots"
 }) {
   const active = LEADER_CATEGORIES.find((category) => category.position === position)!
   const { data, error, loading } = useFetch<RawPlayerRow[]>(active.path)
@@ -112,10 +141,14 @@ function StatLeadersPanel({
     )
   }
 
+  const showcase = layout === "headshots"
+  const top = ranked?.slice(0, LEADER_ROWS_SHOWN)
+
   return (
     <>
       <Panel
-        title={`${active.label} Leaders`}
+        title={showcase ? `Leaders - ${active.defaultSortLabel}` : `${active.label} Leaders`}
+        titleHref={showcase ? `/players?position=${position}` : undefined}
         actions={
           <div className="flex items-center gap-2">
             {actions}
@@ -131,7 +164,14 @@ function StatLeadersPanel({
       >
         {loading && <p className="p-4 text-sm text-[var(--text-secondary)]">Loading…</p>}
         {error && <p className="p-4 text-sm text-[var(--negative)]">Couldn't load leaders: {error}</p>}
-        {ranked && <div className="overflow-x-auto">{table(ranked.slice(0, LEADER_ROWS_SHOWN))}</div>}
+        {top && showcase && (
+          <div className="flex flex-wrap justify-center gap-1 p-3">
+            {top.map((row) => (
+              <LeaderCard key={row.playerId} row={row} statKey={active.defaultSortKey} />
+            ))}
+          </div>
+        )}
+        {top && !showcase && <div className="overflow-x-auto">{table(top)}</div>}
       </Panel>
       {expanded && ranked && (
         <Modal title={`${active.label} Leaders`} onClose={() => setExpanded(false)}>
