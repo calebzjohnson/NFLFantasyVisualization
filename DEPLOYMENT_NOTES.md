@@ -18,7 +18,10 @@ A running list of what needs to be configured or changed when we actually connec
 
 - [ ] **CORS origins.** Set `APP_CORS_ORIGINS` to include the deployed Vercel frontend URL. Locally it only allows `http://localhost:5173` (see `backend/.env.example` and `backend/app/config.py`).
 - [ ] **Monorepo root.** Set Render's root directory to `backend/`.
-- [ ] **Build/start commands.** Build: `uv sync --locked`. Start: `uv run uvicorn app.main:app --host 0.0.0.0 --port $PORT` (Render injects `$PORT`).
+- [ ] **Build/start commands.** Build: `uv sync --locked --no-dev`. Start: `uv run --no-sync uvicorn app.main:app --host 0.0.0.0 --port $PORT --no-access-log` (Render injects `$PORT`).
+  - `--no-dev` keeps pytest, mypy, ruff, and httpx out of the production image; `--no-sync` stops `uv run` from re-syncing (and reinstalling the dev group) at start.
+  - `--no-access-log` stops uvicorn logging every request with the visitor's IP. Error logging is unaffected: unhandled exceptions still log a full traceback through `uvicorn.error` (verified locally).
+  - Confirm the build log uses Python 3.12 (pinned in `backend/.python-version`); if it doesn't, set `PYTHON_VERSION=3.12` in Render's env vars.
 - [ ] **Instance size: pick one with at least 2 GB RAM. 512 MB plans will run out of memory.** Measured locally on 2026-10-07 (macOS RSS, one uvicorn process, every endpoint hit once):
   | Data | Idle | Steady state with all datasets loaded | Peak (all endpoints at once, cold) |
   |---|---|---|---|
