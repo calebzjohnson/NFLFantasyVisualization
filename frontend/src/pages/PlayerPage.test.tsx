@@ -65,6 +65,25 @@ describe("PlayerPage", () => {
     expect(poolCalls).toHaveLength(1)
   })
 
+  it("names its charts, offers their data as tables, and titles the tab with the player", async () => {
+    renderPlayer("D1", "CB", "CB")
+    await screen.findByText(/gets a hand on the ball/)
+
+    expect(
+      screen.getByRole("figure", {
+        name: "CB Player compared with every other qualifying CB this season on 1 stats, as percentile ranks where 50 is league average. Strongest: Ball Prod. (90th). Weakest: Ball Prod. (90th).",
+      }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole("figure", { name: /^Every qualifying CB this season \(1\), .* with CB Player highlighted\.$/ }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole("table", { name: "CB Player's percentile ranks among CBs" })).toHaveTextContent(
+      "Ball Prod.12.590th",
+    )
+    expect(screen.getByRole("table", { name: /Every qualifying CB's stats/ })).toHaveTextContent("12.5 (90th)")
+    expect(document.title).toBe("CB Player · Plot the Pigskin")
+  })
+
   it("encodes a player id with reserved characters in every API path", async () => {
     const playerId = "a/b?c#d"
     const encoded = "a%2Fb%3Fc%23d"

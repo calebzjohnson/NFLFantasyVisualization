@@ -15,14 +15,16 @@ function renderMarker(onSelect?: () => void) {
 }
 
 describe("TeamLogoMarker", () => {
-  it("calls onSelect on click and on Enter", () => {
+  it("calls onSelect on click, Enter, and Space", () => {
     const onSelect = vi.fn()
     renderMarker(onSelect)
     const marker = screen.getByRole("button", { name: "View the Kansas City Chiefs team page" })
 
     fireEvent.click(marker)
     fireEvent.keyDown(marker, { key: "Enter" })
-    expect(onSelect).toHaveBeenCalledTimes(2)
+    // Like a native button: Space activates and doesn't scroll the page.
+    expect(fireEvent.keyDown(marker, { key: " " })).toBe(false)
+    expect(onSelect).toHaveBeenCalledTimes(3)
   })
 
   it("isn't a button without onSelect", () => {

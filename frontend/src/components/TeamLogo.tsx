@@ -1,6 +1,6 @@
 // TeamLogo.tsx
 // Team logo on a light round badge: an HTML version (tables, tooltips) and an SVG chart marker.
-import type * as React from "react"
+import { activateOnKey } from "../lib/activateOnKey"
 
 // Each logo sits on a fixed light badge (not a theme token) - NFL logos are
 // drawn assuming a light background, so the badge has to stay light no matter
@@ -41,9 +41,7 @@ export function TeamLogoMarker({
         onClick: onSelect,
         role: "button",
         tabIndex: 0,
-        onKeyDown: (event: React.KeyboardEvent) => {
-          if (event.key === "Enter") onSelect()
-        },
+        onKeyDown: activateOnKey(onSelect),
         "aria-label": `View the ${payload.name} team page`,
       })}
       className="origin-center cursor-pointer transition-transform duration-150 [transform-box:fill-box] hover:scale-125 hover:[filter:drop-shadow(0_0_6px_rgba(37,106,191,0.45))]"

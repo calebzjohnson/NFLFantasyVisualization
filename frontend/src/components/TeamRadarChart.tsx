@@ -8,7 +8,10 @@
 // here.
 import { PolarAngleAxis, PolarGrid, PolarRadiusAxis, Radar, RadarChart } from "recharts"
 import { ordinal } from "../data/efficiency"
+import type { TeamInfo } from "../data/teams"
+import { radarRows, radarSummary } from "../lib/chartSummaries"
 import { useFetch } from "../lib/useFetch"
+import ChartDataTable from "./ChartDataTable"
 import { ChartContainer, type ChartConfig } from "./evilcharts/ui/recharts-chart"
 import { ChartTooltip } from "./evilcharts/ui/recharts-tooltip"
 import Panel from "./Panel"
@@ -71,6 +74,9 @@ function TeamRadarChart({ teamAbbr, teamColor }: { teamAbbr: string; teamColor: 
   const pool = useFetch<TeamRadarPool>("/teams/radar-pool")
   const { error, loading } = pool
   const data = pool.data?.teams.find((team) => team.team === teamAbbr)
+  // Cached by TeamPage already - just the display name for the summary.
+  const teams = useFetch<TeamInfo[]>("/teams")
+  const teamName = teams.data?.find((team) => team.team_abbr === teamAbbr)?.team_name ?? teamAbbr
 
   return (
     <Panel title="Team Breakdown">
@@ -78,7 +84,11 @@ function TeamRadarChart({ teamAbbr, teamColor }: { teamAbbr: string; teamColor: 
       {error && <p className="p-4 text-sm text-[var(--negative)]">Couldn't load radar: {error}</p>}
       {data && (
         <div className="p-3">
-          <ChartContainer config={chartConfig} className="aspect-[4/3]">
+          <ChartContainer
+            config={chartConfig}
+            className="aspect-[4/3]"
+            label={radarSummary(`The ${teamName}`, "every other team", data.axes)}
+          >
             <RadarChart data={data.axes.map((axis) => ({ ...axis, reference: 50 }))}>
               <defs>
                 {/* Brighter near the center, fading toward the points - a
@@ -132,6 +142,11 @@ function TeamRadarChart({ teamAbbr, teamColor }: { teamAbbr: string; teamColor: 
               ))}
             </dl>
           </details>
+          <ChartDataTable
+            caption={`${teamName} percentile ranks across the league`}
+            columns={["Stat", "Value", "Percentile"]}
+            rows={radarRows(data.axes)}
+          />
         </div>
       )}
     </Panel>

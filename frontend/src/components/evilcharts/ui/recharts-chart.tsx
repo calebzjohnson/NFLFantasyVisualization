@@ -1,7 +1,8 @@
 // recharts-chart.tsx
 // Chart container + config context, adapted from Evil Charts (evilcharts.com).
 // Theme tokens are mapped to this site's CSS variables, and the parts this app
-// doesn't use (loading skeleton, percent-axis formatter) are dropped.
+// doesn't use (loading skeleton, percent-axis formatter) are dropped. Every
+// chart must pass a `label` summary (its accessible name).
 // This file exports its context helpers next to the components, as upstream does;
 // that only affects hot-reload when editing this file, so the lint rule is off here.
 /* eslint-disable react/only-export-components */
@@ -85,6 +86,8 @@ interface ChartContainerProps
       | "children"
     > {
   config: ChartConfig
+  /** Plain-language summary of what the chart shows; its accessible name. */
+  label: string
   innerResponsiveContainerStyle?: React.ComponentProps<
     typeof RechartsPrimitive.ResponsiveContainer
   >["style"]
@@ -99,6 +102,7 @@ function ChartContainer({
   className,
   children,
   footer,
+  label,
   ...props
 }: Readonly<ChartContainerProps>) {
   const uniqueId = React.useId()
@@ -112,6 +116,10 @@ function ChartContainer({
       <div
         data-slot="chart"
         data-chart={chartId}
+        // A figure, not role="img": img would hide the clickable markers
+        // inside from assistive tech (its children are presentational).
+        role="figure"
+        aria-label={label}
         className={cn(
           "min-h-0 w-full flex-1",
           "[&_.recharts-cartesian-axis-tick_text]:fill-[var(--text-muted)] [&_.recharts-cartesian-grid_line[stroke='#ccc']]:stroke-[var(--border)] [&_.recharts-reference-line_[stroke='#ccc']]:stroke-[var(--border)] relative flex flex-col justify-center text-xs [&_.recharts-dot[stroke='#fff']]:stroke-transparent [&_.recharts-layer]:outline-hidden [&_.recharts-surface]:outline-hidden",

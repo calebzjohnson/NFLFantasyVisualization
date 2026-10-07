@@ -10,6 +10,7 @@ import { useNavigate } from "react-router-dom"
 import { positionPlural, type PositionGroup } from "../data/leaderCategories"
 import { PLAYER_METRICS, playersPathForPosition, type PlayerStatsRow } from "../data/playerMetrics"
 import type { TeamInfo } from "../data/teams"
+import { activateOnKey } from "../lib/activateOnKey"
 import { headshotUrl } from "../lib/imageUrls"
 import { initialsFor, readableTextColor } from "../lib/playerVisuals"
 import { useFetch } from "../lib/useFetch"
@@ -47,9 +48,7 @@ const PlayerDot = memo(function PlayerDot({
       onClick={() => onSelect?.(payload)}
       role="button"
       tabIndex={0}
-      onKeyDown={(event) => {
-        if (event.key === "Enter") onSelect?.(payload)
-      }}
+      onKeyDown={activateOnKey(() => onSelect?.(payload))}
       aria-label={`View ${payload.player_display_name}'s player page`}
       className="origin-center cursor-pointer transition-transform duration-150 [transform-box:fill-box] hover:scale-125"
     >
@@ -135,6 +134,7 @@ function PlayerComparisonScatter({ position }: { position: PositionGroup }) {
       noun="players"
       emptyText={`No ${positionPlural(position)} with stats yet.`}
       Dot={(props) => <PlayerDot {...props} onSelect={goToPlayer} />}
+      rowName={(point) => point.player_display_name}
       renderTooltipHeader={(point) => <TooltipHeader point={point} />}
       caption={
         <>

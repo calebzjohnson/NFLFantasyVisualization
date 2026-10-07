@@ -12,6 +12,7 @@ import type { PositionGroup } from "../data/leaderCategories"
 import type { PlayerBio } from "../data/playerBio"
 import type { TeamInfo } from "../data/teams"
 import { useFetch } from "../lib/useFetch"
+import { usePageTitle } from "../lib/usePageTitle"
 
 // Groups the backend builds radar and usage profiles for. Offensive linemen
 // and specialists have no per-player stats worth a percentile profile.
@@ -21,6 +22,7 @@ function PlayerPage() {
   const { playerId } = useParams<{ playerId: string }>()
   const bio = useFetch<PlayerBio>(`/players/${encodeURIComponent(playerId ?? "")}/bio`)
   const teams = useFetch<TeamInfo[]>("/teams")
+  usePageTitle(bio.data?.display_name ?? "Player")
 
   const loading = bio.loading || teams.loading
   const error = bio.error ?? teams.error

@@ -18,6 +18,7 @@ function scatter(props: Partial<Parameters<typeof MetricScatter>[0]> = {}) {
       emptyText="Nothing yet."
       caption="caption"
       Dot={() => null}
+      rowName={() => "Row"}
       renderTooltipHeader={() => null}
       {...props}
     />
@@ -45,6 +46,26 @@ describe("MetricScatter", () => {
 
     rerender(scatter({ rows: [] }))
     expect(screen.getByText("Nothing yet.")).toBeInTheDocument()
+  })
+
+  it("names the chart after its axes and lists each row in a data table", () => {
+    const rows = [
+      { name: "Alpha", games: 2, points_for: 40, points_against: 20 },
+      { name: "Beta", games: 2, points_for: 30, points_against: 50 },
+    ]
+    render(scatter({ rows, initialX: "points", initialY: "points_allowed", rowName: (row) => String(row.name) }))
+
+    expect(
+      screen.getByRole("figure", { name: /^Compare Things: 2 things plotted by Points \/ Game \(across\) and Points Allowed \/ Game \(up\)/ }),
+    ).toBeInTheDocument()
+    const table = screen.getByRole("table")
+    expect(screen.getAllByRole("columnheader").map((th) => th.textContent)).toEqual([
+      "Name",
+      "Points / Game",
+      "Points Allowed / Game",
+    ])
+    expect(table).toHaveTextContent("Alpha")
+    expect(table).toHaveTextContent("Beta")
   })
 })
 

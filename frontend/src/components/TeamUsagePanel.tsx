@@ -228,7 +228,11 @@ function UsageDonut({
   return (
     <>
       <div ref={containerRef} className="relative p-3" onMouseMove={handleMouseMove}>
-        <ChartContainer config={chartConfig} className="aspect-[4/3]">
+        <ChartContainer
+          config={chartConfig}
+          className="aspect-[4/3]"
+          label={`${playerName}'s share of the team's ${usage.label.toLowerCase()}: ${sharePct}%.`}
+        >
           <PieChart>
             <Tooltip
               content={<UsageTooltip />}
@@ -581,7 +585,11 @@ function UsageWeeklyChart({
             : undefined
         }
       >
-        <ChartContainer config={chartConfig} className="aspect-[4/3]">
+        <ChartContainer
+          config={chartConfig}
+          className="aspect-[4/3]"
+          label={`${playerName}'s share of the team's ${usage.label.toLowerCase()}, week by week.`}
+        >
           <ComposedChart data={stacked ? slotData : data} margin={{ top: 8, right: 8, bottom: 4, left: 4 }}>
             <CartesianGrid stroke="var(--border)" strokeOpacity={0.5} vertical={false} />
             <XAxis

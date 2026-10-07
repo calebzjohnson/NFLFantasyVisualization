@@ -80,6 +80,7 @@ function PreviousWeekScores() {
             <button
               type="button"
               onClick={() => setWeek(Math.max(MIN_WEEK, displayedWeek - 1))}
+              aria-label="Previous week"
               disabled={displayedWeek <= MIN_WEEK}
               className="rounded bg-[var(--surface-0)] px-2 py-0.5 text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] disabled:opacity-40"
             >
@@ -91,6 +92,7 @@ function PreviousWeekScores() {
             <button
               type="button"
               onClick={() => setWeek(Math.min(MAX_WEEK, displayedWeek + 1))}
+              aria-label="Next week"
               disabled={displayedWeek >= MAX_WEEK}
               className="rounded bg-[var(--surface-0)] px-2 py-0.5 text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] disabled:opacity-40"
             >

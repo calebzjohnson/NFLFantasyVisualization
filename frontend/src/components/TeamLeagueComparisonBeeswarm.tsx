@@ -11,7 +11,10 @@ import { useNavigate } from "react-router-dom"
 import { Scatter, ScatterChart, XAxis, YAxis } from "recharts"
 import { teamPath, type TeamInfo } from "../data/teams"
 import { ordinal } from "../data/efficiency"
+import { activateOnKey } from "../lib/activateOnKey"
+import { swarmCell } from "../lib/chartSummaries"
 import { useFetch } from "../lib/useFetch"
+import ChartDataTable from "./ChartDataTable"
 import { ChartContainer, type ChartConfig } from "./evilcharts/ui/recharts-chart"
 import { ChartTooltip } from "./evilcharts/ui/recharts-tooltip"
 import Panel from "./Panel"
@@ -116,9 +119,7 @@ const SwarmDot = memo(function SwarmDot({
       onClick={() => onSelect(payload.team.team)}
       role="button"
       tabIndex={0}
-      onKeyDown={(event) => {
-        if (event.key === "Enter") onSelect(payload.team.team)
-      }}
+      onKeyDown={activateOnKey(() => onSelect(payload.team.team))}
       aria-label={`View ${payload.team.team}'s team page`}
       className="cursor-pointer"
     >
@@ -200,7 +201,11 @@ function TeamLeagueComparisonBeeswarm({ teamAbbr, teamColor }: { teamAbbr: strin
       {error && <p className="p-4 text-sm text-[var(--negative)]">Couldn't load league comparison: {error}</p>}
       {points && pool.data && (
         <div className="p-3">
-          <ChartContainer config={chartConfig} className="aspect-auto h-[420px]">
+          <ChartContainer
+            config={chartConfig}
+            className="aspect-auto h-[420px]"
+            label={`All ${pool.data.teams.length} teams this season, placed by percentile rank on each of ${pool.data.axes.length} stats, with the ${nameByTeam.get(teamAbbr) ?? teamAbbr} highlighted.`}
+          >
             <ScatterChart margin={{ top: 8, right: 16, bottom: 8, left: 4 }}>
               <XAxis
                 type="number"
@@ -241,6 +246,11 @@ function TeamLeagueComparisonBeeswarm({ teamAbbr, teamColor }: { teamAbbr: strin
             Every team in the league this season, positioned by percentile rank on each axis - click a
             dot to view that team.
           </p>
+          <ChartDataTable
+            caption="Every team's stats with percentile ranks"
+            columns={["Team", ...pool.data.axes.map((axis) => axis.label)]}
+            rows={pool.data.teams.map((team) => [nameByTeam.get(team.team) ?? team.team, ...team.axes.map(swarmCell)])}
+          />
         </div>
       )}
     </Panel>

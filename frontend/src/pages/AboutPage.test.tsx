@@ -64,6 +64,12 @@ describe("AboutPage", () => {
     ).toBeInTheDocument()
   })
 
+  it("titles the browser tab", () => {
+    mockLatestWeek(null)
+    renderWithRouter(<AboutPage />)
+    expect(document.title).toBe("About · Plot the Pigskin")
+  })
+
   it("says postseason instead of a week number in the playoffs", () => {
     mockLatestWeek({ season: 2025, week: 20, season_type: "POST" })
     renderWithRouter(<AboutPage />)

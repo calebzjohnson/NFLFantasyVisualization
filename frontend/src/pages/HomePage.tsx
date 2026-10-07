@@ -10,8 +10,10 @@ import PreviousWeekScores from "../components/PreviousWeekScores"
 import StatLeadersPanel from "../components/StatLeadersPanel"
 import TeamEfficiencyScatter from "../components/TeamEfficiencyScatter"
 import { POSITION_GROUPS, type PositionGroup } from "../data/leaderCategories"
+import { usePageTitle } from "../lib/usePageTitle"
 
 function HomePage() {
+  usePageTitle(null) // the home page is just the site name
   const [position, setPosition] = useState<PositionGroup>(POSITION_GROUPS[0])
 
   return (

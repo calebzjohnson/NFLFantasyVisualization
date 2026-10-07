@@ -1,7 +1,7 @@
 // TeamEfficiencyScatter.test.tsx
 // Tests that the efficiency panel can be expanded into a dialog, and that the
 // control is absent when there is nothing to chart.
-import { fireEvent, screen } from "@testing-library/react"
+import { fireEvent, screen, within } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
 import type { TeamEfficiency } from "../data/efficiency"
 import { useFetch } from "../lib/useFetch"
@@ -34,6 +34,16 @@ describe("TeamEfficiencyScatter", () => {
     fireEvent.click(screen.getByRole("button", { name: /larger chart/i }))
 
     expect(screen.getByRole("dialog")).toHaveAccessibleName("Team Efficiency")
+  })
+
+  it("names the chart and offers its data as a table", () => {
+    mockFetch(efficiency)
+    renderWithRouter(<TeamEfficiencyScatter />)
+
+    expect(screen.getByRole("figure", { name: /^All 2 teams plotted by offensive EPA per play/ })).toBeInTheDocument()
+    const table = screen.getByRole("table", { name: /offensive and defensive EPA/ })
+    expect(within(table).getByRole("rowheader", { name: "KC Team" })).toBeInTheDocument()
+    expect(within(table).getAllByRole("row")[1]).toHaveTextContent("+0.201st−0.101st") // KC: best on both
   })
 
   it("offers no expand control when there are no plays to chart", () => {

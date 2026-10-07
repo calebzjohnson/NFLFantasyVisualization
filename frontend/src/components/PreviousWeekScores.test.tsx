@@ -37,6 +37,12 @@ describe("PreviousWeekScores", () => {
     expect(screen.getByText("Week 1")).toBeInTheDocument()
   })
 
+  it("names the week arrows for screen readers", async () => {
+    renderWithRouter(<PreviousWeekScores />)
+    expect(await screen.findByRole("button", { name: "Previous week" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Next week" })).toBeInTheDocument()
+  })
+
   it("lists teams without a game as on bye, also linked", async () => {
     renderWithRouter(<PreviousWeekScores />)
 
