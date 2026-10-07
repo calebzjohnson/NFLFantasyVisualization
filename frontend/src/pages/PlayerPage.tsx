@@ -19,7 +19,7 @@ const PROFILE_GROUPS = new Set<string>(["QB", "RB", "WR", "TE", "EDGE", "DL", "L
 
 function PlayerPage() {
   const { playerId } = useParams<{ playerId: string }>()
-  const bio = useFetch<PlayerBio>(`/players/${playerId}/bio`)
+  const bio = useFetch<PlayerBio>(`/players/${encodeURIComponent(playerId ?? "")}/bio`)
   const teams = useFetch<TeamInfo[]>("/teams")
 
   const loading = bio.loading || teams.loading

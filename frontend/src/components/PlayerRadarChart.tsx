@@ -107,7 +107,7 @@ function PlayerRadarChart({
 }) {
   // Same path as LeagueComparisonBeeswarm, so useFetch's cache serves both
   // charts from one request - this chart just picks out its own row.
-  const pool = useFetch<RadarPool>(`/players/radar-pool?position=${position}`)
+  const pool = useFetch<RadarPool>(`/players/radar-pool?position=${encodeURIComponent(position)}`)
   const { error, loading } = pool
   const data = pool.data?.players.find((player) => player.player_id === playerId)
   // Missing from the pool means the player hasn't hit the minimum season

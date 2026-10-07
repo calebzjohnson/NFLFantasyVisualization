@@ -750,7 +750,7 @@ function UsageWeeklyChart({
 
 function TeamUsagePanel({ playerId, playerName }: { playerId: string; playerName: string }) {
   const navigate = useNavigate()
-  const usage = useFetch<UsageShare>(`/players/${playerId}/usage`)
+  const usage = useFetch<UsageShare>(`/players/${encodeURIComponent(playerId)}/usage`)
   const teams = useFetch<TeamInfo[]>("/teams")
   const [view, setView] = useState<View>("weekly")
 

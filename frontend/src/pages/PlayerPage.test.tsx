@@ -1,6 +1,6 @@
 // PlayerPage.test.tsx
 // Tests that the player page only shows radar/usage/league panels for positions that have them.
-import { screen } from "@testing-library/react"
+import { screen, waitFor } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
 import { fetchJson } from "../lib/api"
 import { playerBio, teamInfo } from "../test/fixtures"
@@ -63,6 +63,26 @@ describe("PlayerPage", () => {
     // Radar and beeswarm read the same pool - one request, not one each.
     const poolCalls = vi.mocked(fetchJson).mock.calls.filter(([path]) => path.startsWith("/players/radar-pool"))
     expect(poolCalls).toHaveLength(1)
+  })
+
+  it("encodes a player id with reserved characters in every API path", async () => {
+    const playerId = "a/b?c#d"
+    const encoded = "a%2Fb%3Fc%23d"
+    mockApi({
+      "/teams": [teamInfo("KC")],
+      "/players/radar-pool?position=CB": dbPool,
+      [`/players/${encoded}/bio`]: playerBio({ player_id: playerId, position: "CB", position_group: "CB" }),
+      [`/players/${encoded}/games`]: [],
+    })
+    renderWithRouter(<PlayerPage />, { route: `/players/${encoded}`, path: "/players/:playerId" })
+
+    expect(await screen.findByText("Game Log")).toBeInTheDocument()
+    await waitFor(() => {
+      const paths = vi.mocked(fetchJson).mock.calls.map(([path]) => path)
+      for (const endpoint of ["bio", "games", "usage"]) {
+        expect(paths).toContain(`/players/${encoded}/${endpoint}`)
+      }
+    })
   })
 
   it("explains a missing radar for a player below the volume minimum", async () => {
