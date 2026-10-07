@@ -42,16 +42,16 @@ export interface LeaderCategoryConfig {
   defaultSortKey: string
 }
 
-// Leader tables show the top 5, but any column can become the sort key once
-// data reaches the browser (see StatLeadersPanel). Fetch a wider pool sorted
-// by the category's default stat so re-sorting client-side by another stat
-// still has real contenders to pick from, not just the top 5 by yards.
-const LEADER_POOL_SIZE = 40
-
+// Every player at the position, not a capped pool: the table shows the top 5
+// but re-sorts client-side on any column, and a pool cut by the default stat
+// loses the leaders in the others (a top-40 by sacks is missing 3 of the 10
+// best edge rushers by tackles). The full list also backs the expanded view.
+// It's cheap - 197 WRs is ~53KB, and the server builds the whole frame before
+// slicing anyway, so the limit never saved it any work.
 const IDENTITY_FIELDS = ["player_id", "player_display_name", "recent_team", "headshot_url"]
 
 function playersPath(sort: string, fields: string[], positionGroup?: PositionGroup): string {
-  const params = new URLSearchParams({ sort, limit: String(LEADER_POOL_SIZE), fields: fields.join(",") })
+  const params = new URLSearchParams({ sort, fields: fields.join(",") })
   if (positionGroup) params.set("position_group", positionGroup)
   return `/players?${params.toString()}`
 }

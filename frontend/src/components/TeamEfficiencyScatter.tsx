@@ -2,7 +2,7 @@
 // Offense vs defense EPA-per-play scatter: one team logo per point, with
 // league-average lines and quadrant labels. Clicking a logo opens that team's page. Built on the Evil Charts chart and
 // tooltip base.
-import { useMemo } from "react"
+import { useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import {
   CartesianGrid,
@@ -25,6 +25,8 @@ import { teamPath, type TeamInfo } from "../data/teams"
 import { useFetch } from "../lib/useFetch"
 import { ChartContainer, type ChartConfig } from "./evilcharts/ui/recharts-chart"
 import { ChartTooltip, ChartTooltipContent } from "./evilcharts/ui/recharts-tooltip"
+import ExpandButton from "./ExpandButton"
+import Modal from "./Modal"
 import Panel from "./Panel"
 import { TeamLogoBadge, TeamLogoMarker } from "./TeamLogo"
 
@@ -215,18 +217,41 @@ function TeamEfficiencyScatter() {
   )
   const loading = efficiency.loading || teams.loading
   const error = efficiency.error ?? teams.error
+  const hasChart = points !== null && points.length > 0
+  const [expanded, setExpanded] = useState(false)
 
   return (
-    <Panel title="Team Efficiency" className="flex min-h-[340px] flex-1 flex-col">
-      {loading && <p className="p-4 text-sm text-[var(--text-secondary)]">Loading…</p>}
-      {error && (
-        <p className="p-4 text-sm text-[var(--negative)]">Couldn't load team efficiency: {error}</p>
+    <>
+      <Panel
+        title="Team Efficiency"
+        className="flex min-h-[340px] flex-1 flex-col"
+        actions={
+          hasChart && (
+            <ExpandButton
+              label="Show a larger chart"
+              expanded={expanded}
+              onClick={() => setExpanded(true)}
+            />
+          )
+        }
+      >
+        {loading && <p className="p-4 text-sm text-[var(--text-secondary)]">Loading…</p>}
+        {error && (
+          <p className="p-4 text-sm text-[var(--negative)]">Couldn't load team efficiency: {error}</p>
+        )}
+        {points && points.length === 0 && (
+          <p className="p-4 text-sm text-[var(--text-secondary)]">No plays to chart yet.</p>
+        )}
+        {hasChart && <EfficiencyChart points={points} />}
+      </Panel>
+      {expanded && hasChart && (
+        <Modal title="Team Efficiency" onClose={() => setExpanded(false)}>
+          <div className="flex h-[70vh] flex-col">
+            <EfficiencyChart points={points} />
+          </div>
+        </Modal>
       )}
-      {points && points.length === 0 && (
-        <p className="p-4 text-sm text-[var(--text-secondary)]">No plays to chart yet.</p>
-      )}
-      {points && points.length > 0 && <EfficiencyChart points={points} />}
-    </Panel>
+    </>
   )
 }
 

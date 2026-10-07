@@ -43,7 +43,7 @@ function PlayersPage() {
           <SearchBar placeholder="Search players..." scope="players" />
         </div>
       </div>
-      <StatLeadersPanel position={position} />
+      <StatLeadersPanel position={position} expandable />
       <PlayerComparisonScatter position={position} />
       <TrendingPlayersChart position={position} />
     </div>

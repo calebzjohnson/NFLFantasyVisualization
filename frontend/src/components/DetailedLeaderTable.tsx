@@ -29,7 +29,9 @@ function DetailedLeaderTable<Row extends LeaderRow>({
 }: DetailedLeaderTableProps<Row>) {
   return (
     <table className="w-full text-sm">
-      <thead>
+      {/* Sticky so the columns stay readable when the expanded view scrolls a
+          full position group. */}
+      <thead className="sticky top-0 z-10 bg-[var(--surface-1)]">
         <tr className="text-left text-xs tracking-wider text-[var(--text-muted)] uppercase">
           <th className="w-8 px-4 py-2 font-medium">#</th>
           <th className="px-2 py-2 font-medium">{entityLabel}</th>
