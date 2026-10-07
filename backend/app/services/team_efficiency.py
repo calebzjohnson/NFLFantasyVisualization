@@ -2,12 +2,14 @@ from typing import Any, cast
 
 import nflreadpy as nfl
 
+from app.cache import memoized
 from app.data import pbp as pbp_data
 
 REGULAR_SEASON = "REG"
 SCRIMMAGE_PLAYS = {"pass", "run"}
 
 
+@memoized
 def get_current_team_efficiency() -> list[dict[str, Any]]:
     """Offensive and defensive EPA per play for every team in the current
     season, computed directly from play-by-play data (not garbage-time

@@ -3,7 +3,10 @@ from typing import cast
 import nflreadpy as nfl
 import pandas as pd
 
+from app.cache import single_flight
 
+
+@single_flight
 def get_teams() -> pd.DataFrame:
     """Returns nflverse's team registry (abbreviation, conference, division).
 

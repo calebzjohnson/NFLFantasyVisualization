@@ -3,6 +3,7 @@ from typing import Any
 import nflreadpy as nfl
 import pandas as pd
 
+from app.cache import memoized
 from app.data import pbp as pbp_data
 
 REGULAR_SEASON = "REG"
@@ -144,6 +145,7 @@ def _axis_entries(row: pd.Series, axes: list[tuple[str, str]]) -> list[dict[str,
     ]
 
 
+@memoized
 def get_team_radar_pool() -> dict[str, Any]:
     """Every team with its 6 radar axes - the data behind the team radar
     (which picks out its own row) and the team-vs-league beeswarm, matching

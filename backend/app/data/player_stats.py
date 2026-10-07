@@ -3,7 +3,10 @@ from typing import cast
 import nflreadpy as nfl
 import pandas as pd
 
+from app.cache import single_flight
 
+
+@single_flight
 def get_season_stats(season: int) -> pd.DataFrame:
     """Returns one row per player: season-to-date totals for the given season.
 
@@ -18,6 +21,7 @@ def get_season_stats(season: int) -> pd.DataFrame:
     return cast(pd.DataFrame, season_data.to_pandas())
 
 
+@single_flight
 def get_week_stats(season: int) -> pd.DataFrame:
     """Returns one row per player per game played in the given season.
 

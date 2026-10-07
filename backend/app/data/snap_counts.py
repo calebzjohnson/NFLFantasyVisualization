@@ -3,9 +3,11 @@ from typing import cast
 import nflreadpy as nfl
 import pandas as pd
 
+from app.cache import single_flight
 from app.data import players
 
 
+@single_flight
 def get_season_snap_counts(season: int) -> pd.DataFrame:
     """Returns one row per player per game played, with offensive/defensive/
     special-teams snap counts and percentages. Sourced from Pro Football

@@ -3,7 +3,10 @@ from typing import cast
 import nflreadpy as nfl
 import pandas as pd
 
+from app.cache import single_flight
 
+
+@single_flight
 def get_players() -> pd.DataFrame:
     """Returns nflverse's player registry: one row per player, with bio/roster
     fields (height, weight, birth date, college, draft info, status) rather

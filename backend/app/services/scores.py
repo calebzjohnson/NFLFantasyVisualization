@@ -5,6 +5,7 @@ from zoneinfo import ZoneInfo
 import nflreadpy as nfl
 import pandas as pd
 
+from app.cache import memoized
 from app.data import schedules
 
 # NFL/fantasy weeks are anchored to Eastern time regardless of what
@@ -13,6 +14,7 @@ from app.data import schedules
 EASTERN = ZoneInfo("America/New_York")
 
 
+@memoized
 def get_week_scores(week: int | None = None, today: date | None = None) -> list[dict[str, Any]]:
     """Returns every game (regular season or postseason, played or not) for
     the given week of the current season. Defaults to the current fantasy

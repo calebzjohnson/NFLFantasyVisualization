@@ -2,7 +2,18 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from app.cache import clear_caches
+from app.rate_limit import limiter
 from app.services.extended_stats import PFR_COLUMNS
+
+
+@pytest.fixture(autouse=True)
+def fresh_caches_and_limits() -> None:
+    """Tests stub the data loaders differently for the same endpoint, so no
+    memoized result or rate-limit count may carry over between tests.
+    """
+    clear_caches()
+    limiter.reset()
 
 
 @pytest.fixture

@@ -12,6 +12,7 @@ dependencies = [
     "pandas>=2.2",
     "pyarrow>=18.0",
     "pydantic-settings>=2.15.0",
+    "slowapi>=0.1.10",
     "uvicorn[standard]>=0.53.0",
 ]
 

@@ -56,6 +56,14 @@ describe("AboutPage", () => {
     expect(screen.getByText("Stats through Week 5 of the 2026 season.")).toBeInTheDocument()
   })
 
+  it("sets a refresh expectation without promising an exact lag", () => {
+    mockLatestWeek(null)
+    renderWithRouter(<AboutPage />)
+    expect(
+      screen.getByText("Data refreshes about once a day, so new games usually show up within a day or two."),
+    ).toBeInTheDocument()
+  })
+
   it("says postseason instead of a week number in the playoffs", () => {
     mockLatestWeek({ season: 2025, week: 20, season_type: "POST" })
     renderWithRouter(<AboutPage />)

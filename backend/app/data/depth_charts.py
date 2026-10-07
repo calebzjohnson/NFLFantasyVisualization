@@ -3,6 +3,8 @@ from typing import cast
 import nflreadpy as nfl
 import pandas as pd
 
+from app.cache import single_flight
+
 # Scheme plus alignment -> the functional bucket a front-seven defender
 # belongs in. Neither of nflverse's own fields can express this on its own: a
 # 3-4 outside linebacker (T.J. Watt) rushes off the edge while a 4-3 one
@@ -36,6 +38,7 @@ BUCKET_BY_ALIGNMENT = {
 }
 
 
+@single_flight
 def get_latest_depth_chart(season: int) -> pd.DataFrame:
     """Every team's current depth chart - one row per player per listed slot.
 

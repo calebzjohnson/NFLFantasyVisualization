@@ -3,6 +3,7 @@ from typing import Any
 import nflreadpy as nfl
 import pandas as pd
 
+from app.cache import memoized
 from app.data import team_stats
 
 REGULAR_SEASON = "REG"
@@ -69,6 +70,7 @@ class TeamNotFoundError(ValueError):
     """Raised when a team abbreviation has no games in the current season."""
 
 
+@memoized
 def get_team_scoring_composition(team: str) -> dict[str, Any]:
     """This team's points this season, broken down by unit (passing,
     rushing, defense/special teams, kicking) - both for its own offense and

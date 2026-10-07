@@ -2,6 +2,7 @@ from typing import Any, cast
 
 import nflreadpy as nfl
 
+from app.cache import memoized
 from app.data import schedules, team_stats, teams
 
 REGULAR_SEASON = "REG"
@@ -35,6 +36,7 @@ ALLOWED_COLUMNS = [
 ]
 
 
+@memoized
 def get_current_teams() -> list[dict[str, Any]]:
     """Returns nflverse's team registry, filtered to teams that actually
     appear in the current season's schedule.
@@ -63,6 +65,7 @@ def _team_codes_in_schedule(season: int) -> set[str]:
     return set(schedule["home_team"]) | set(schedule["away_team"])
 
 
+@memoized
 def get_team_game_stats() -> list[dict[str, Any]]:
     """One row per team per played regular-season game this season: the
     team's own OWN_COLUMNS, the opponent's ALLOWED_COLUMNS (suffixed

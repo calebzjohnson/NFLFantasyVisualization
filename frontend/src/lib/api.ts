@@ -4,6 +4,10 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000
 
 export async function fetchJson<T>(path: string): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`)
+  if (response.status === 429) {
+    // The backend's per-visitor limits reset each minute.
+    throw new Error("Too many requests. Wait a minute, then reload the page.")
+  }
   if (!response.ok) {
     throw new Error(`Request to ${path} failed (${response.status})`)
   }

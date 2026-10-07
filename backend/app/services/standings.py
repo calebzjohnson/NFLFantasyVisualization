@@ -3,6 +3,7 @@ from typing import Any, cast
 import nflreadpy as nfl
 import pandas as pd
 
+from app.cache import memoized
 from app.data import schedules, team_stats, teams
 from app.services import tiebreakers
 
@@ -18,6 +19,7 @@ DIVISION_ORDER = [
 ]
 
 
+@memoized
 def get_current_standings() -> list[dict[str, Any]]:
     season = nfl.get_current_season()
     game_log = schedules.get_team_game_log(season)
