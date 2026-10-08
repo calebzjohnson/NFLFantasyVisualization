@@ -137,7 +137,11 @@ function TeamScoringComposition({ teamAbbr }: { teamAbbr: string }) {
       {side && (
         <>
           <div ref={containerRef} className="relative p-3" onMouseMove={handleMouseMove}>
-            <ChartContainer config={chartConfig} className="aspect-[4/3]">
+            <ChartContainer
+              config={chartConfig}
+              className="aspect-[4/3]"
+              label={`How ${data!.team}'s ${view} break down by type of score.`}
+            >
               <PieChart>
                 <Tooltip
                   content={<ScoringTooltip totalPoints={side.total_points} />}

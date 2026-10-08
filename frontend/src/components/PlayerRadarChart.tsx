@@ -6,7 +6,9 @@
 // value and rank.
 import { PolarAngleAxis, PolarGrid, PolarRadiusAxis, Radar, RadarChart } from "recharts"
 import { ordinal } from "../data/efficiency"
+import { radarRows, radarSummary } from "../lib/chartSummaries"
 import { useFetch } from "../lib/useFetch"
+import ChartDataTable from "./ChartDataTable"
 import { ChartContainer, type ChartConfig } from "./evilcharts/ui/recharts-chart"
 import { ChartTooltip } from "./evilcharts/ui/recharts-tooltip"
 import Panel from "./Panel"
@@ -21,7 +23,7 @@ interface RadarAxis {
 // Only the fields this chart reads - the pool is shared with (and fetched
 // for) LeagueComparisonBeeswarm, which uses the rest.
 interface RadarPool {
-  players: { player_id: string; axes: RadarAxis[] }[]
+  players: { player_id: string; name: string; axes: RadarAxis[] }[]
 }
 
 // Plain-language explanations for the footnote, keyed by axis key (labels
@@ -130,7 +132,11 @@ function PlayerRadarChart({
       )}
       {data && (
         <div className="p-3">
-          <ChartContainer config={chartConfig} className="aspect-[4/3]">
+          <ChartContainer
+            config={chartConfig}
+            className="aspect-[4/3]"
+            label={radarSummary(data.name, `every other qualifying ${position}`, data.axes)}
+          >
             <RadarChart data={data.axes.map((axis) => ({ ...axis, reference: 50 }))}>
               <defs>
                 {/* Brighter near the center, fading toward the points - a
@@ -191,6 +197,11 @@ function PlayerRadarChart({
               </p>
             )}
           </details>
+          <ChartDataTable
+            caption={`${data.name}'s percentile ranks among ${position}s`}
+            columns={["Stat", "Value", "Percentile"]}
+            rows={radarRows(data.axes)}
+          />
         </div>
       )}
     </Panel>

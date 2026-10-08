@@ -1,4 +1,4 @@
-# NFL Fantasy Visualization
+# Plot the Pigskin
 
 A public, read-only site for visualizing NFL usage data relevant to fantasy football — starting with weekly and season-long rush attempt shares among a team's running backs, and target shares among its receivers.
 

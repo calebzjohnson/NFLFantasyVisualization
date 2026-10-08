@@ -9,7 +9,10 @@ import { memo, useMemo } from "react"
 import { useNavigate } from "react-router-dom"
 import { Scatter, ScatterChart, XAxis, YAxis } from "recharts"
 import { ordinal } from "../data/efficiency"
+import { activateOnKey } from "../lib/activateOnKey"
+import { swarmCell } from "../lib/chartSummaries"
 import { useFetch } from "../lib/useFetch"
+import ChartDataTable from "./ChartDataTable"
 import { ChartContainer, type ChartConfig } from "./evilcharts/ui/recharts-chart"
 import { ChartTooltip } from "./evilcharts/ui/recharts-tooltip"
 import Panel from "./Panel"
@@ -123,9 +126,7 @@ const SwarmDot = memo(function SwarmDot({
       onClick={() => onSelect(payload.player.player_id)}
       role="button"
       tabIndex={0}
-      onKeyDown={(event) => {
-        if (event.key === "Enter") onSelect(payload.player.player_id)
-      }}
+      onKeyDown={activateOnKey(() => onSelect(payload.player.player_id))}
       aria-label={`View ${payload.player.name}'s player page`}
       className="cursor-pointer"
     >
@@ -199,6 +200,8 @@ function LeagueComparisonBeeswarm({
   const ngsAxisLabels =
     pool.data?.axes.filter((axis) => NGS_AXES.has(axis.key)).map((axis) => axis.label) ?? []
 
+  const highlightedName = pool.data?.players.find((player) => player.player_id === playerId)?.name
+
   function goToPlayer(id: string) {
     navigate(`/players/${id}`)
   }
@@ -216,7 +219,11 @@ function LeagueComparisonBeeswarm({
       )}
       {points && pool.data && !notEnoughVolume && (
         <div className="p-3">
-          <ChartContainer config={chartConfig} className="aspect-auto h-[420px]">
+          <ChartContainer
+            config={chartConfig}
+            className="aspect-auto h-[420px]"
+            label={`Every qualifying ${pool.data.position} this season (${pool.data.players.length}), placed by percentile rank on each of ${pool.data.axes.length} stats, with ${highlightedName} highlighted.`}
+          >
             <ScatterChart margin={{ top: 8, right: 16, bottom: 8, left: 4 }}>
               <XAxis
                 type="number"
@@ -259,6 +266,11 @@ function LeagueComparisonBeeswarm({
             {ngsAxisLabels.length > 0 &&
               ` ${ngsAxisLabels.join(" and ")} ${ngsAxisLabels.length > 1 ? "are" : "is"} sourced from NFL Next Gen Stats, which can take time to update or require higher minimum touches to appear, so ${ngsAxisLabels.length > 1 ? "those columns" : "that column"} may have fewer dots.`}
           </p>
+          <ChartDataTable
+            caption={`Every qualifying ${pool.data.position}'s stats with percentile ranks`}
+            columns={["Player", "Team", ...pool.data.axes.map((axis) => axis.label)]}
+            rows={pool.data.players.map((player) => [player.name, player.team, ...player.axes.map(swarmCell)])}
+          />
         </div>
       )}
     </Panel>

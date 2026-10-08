@@ -64,6 +64,18 @@ describe("AboutPage", () => {
     ).toBeInTheDocument()
   })
 
+  it("underlines links in body text so they don't rely on color alone", () => {
+    mockLatestWeek(null)
+    renderWithRouter(<AboutPage />)
+    expect(screen.getByRole("link", { name: "nflverse" })).toHaveClass("underline")
+  })
+
+  it("titles the browser tab", () => {
+    mockLatestWeek(null)
+    renderWithRouter(<AboutPage />)
+    expect(document.title).toBe("About · Plot the Pigskin")
+  })
+
   it("says postseason instead of a week number in the playoffs", () => {
     mockLatestWeek({ season: 2025, week: 20, season_type: "POST" })
     renderWithRouter(<AboutPage />)

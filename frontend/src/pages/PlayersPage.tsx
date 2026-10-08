@@ -10,12 +10,14 @@ import SearchBar from "../components/SearchBar"
 import StatLeadersPanel from "../components/StatLeadersPanel"
 import TrendingPlayersChart from "../components/TrendingPlayersChart"
 import { POSITION_GROUPS, type PositionGroup } from "../data/leaderCategories"
+import { usePageTitle } from "../lib/usePageTitle"
 
 function isPositionGroup(value: string | null): value is PositionGroup {
   return POSITION_GROUPS.includes(value as PositionGroup)
 }
 
 function PlayersPage() {
+  usePageTitle("Players")
   const [searchParams, setSearchParams] = useSearchParams()
   // The URL is user-editable: match case-insensitively (?position=wr works),
   // and anything unrecognized falls back to QB.

@@ -25,6 +25,7 @@ import { teamPath, type TeamInfo } from "../data/teams"
 import { useFetch } from "../lib/useFetch"
 import { ChartContainer, type ChartConfig } from "./evilcharts/ui/recharts-chart"
 import { ChartTooltip, ChartTooltipContent } from "./evilcharts/ui/recharts-tooltip"
+import ChartDataTable from "./ChartDataTable"
 import ExpandButton from "./ExpandButton"
 import Modal from "./Modal"
 import Panel from "./Panel"
@@ -97,8 +98,7 @@ function EfficiencyChart({ points }: { points: TeamPoint[] }) {
       <ChartContainer
         config={chartConfig}
         className="aspect-auto"
-        role="img"
-        aria-label="Scatter plot of each team's offensive versus defensive EPA per play."
+        label={`All ${points.length} teams plotted by offensive EPA per play (across) and defensive EPA per play allowed (up). Lines mark the league average.`}
       >
         <ScatterChart margin={{ top: 8, right: 16, bottom: 4, left: 4 }}>
           <CartesianGrid stroke="var(--border)" strokeOpacity={0.6} />
@@ -203,6 +203,17 @@ function EfficiencyChart({ points }: { points: TeamPoint[] }) {
         down, distance, and field position. Each logo is a team's average per pass or run this
         regular season; the lighter lines mark the league average.
       </p>
+      <ChartDataTable
+        caption="Each team's offensive and defensive EPA per play, with league rank"
+        columns={["Team", "Offense EPA/play", "Offense rank", "Defense EPA/play allowed", "Defense rank"]}
+        rows={points.map((point) => [
+          point.name,
+          formatEpa(point.offense),
+          ordinal(point.offenseRank),
+          formatEpa(point.defense),
+          ordinal(point.defenseRank),
+        ])}
+      />
     </div>
   )
 }

@@ -20,7 +20,7 @@ function Navbar() {
           to="/"
           className="font-display text-2xl font-bold tracking-wide text-[var(--text-primary)] uppercase"
         >
-          Gridiron <span className="text-[var(--accent)]">Analytics</span>
+          Plot the <span className="text-[var(--accent)]">Pigskin</span>
         </Link>
         <ul className="flex flex-wrap gap-x-6 gap-y-2">
           {NAV_TABS.map(({ label, to }) => (

@@ -13,7 +13,7 @@ settings = get_settings()
 
 docs_on = settings.enable_api_docs
 app = FastAPI(
-    title="NFL Fantasy Visualization API",
+    title="Plot the Pigskin API",
     docs_url="/docs" if docs_on else None,
     redoc_url="/redoc" if docs_on else None,
     openapi_url="/openapi.json" if docs_on else None,

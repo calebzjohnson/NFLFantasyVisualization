@@ -59,6 +59,13 @@ describe("StatLeadersPanel", () => {
     expect(screen.queryByText("QB 6")).not.toBeInTheDocument()
   })
 
+  it("gives every focusable link a name (the headshot duplicates the name link, so it's hidden)", async () => {
+    renderPanel()
+    await screen.findAllByRole("row")
+    for (const link of screen.getAllByRole("link")) expect(link).toHaveAccessibleName()
+    document.querySelectorAll('a[aria-hidden="true"]').forEach((link) => expect(link).toHaveAttribute("tabindex", "-1"))
+  })
+
   it("lists every player in the expanded view", async () => {
     renderPanel()
     fireEvent.click(await screen.findByRole("button", { name: /show all/i }))

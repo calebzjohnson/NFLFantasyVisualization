@@ -12,6 +12,7 @@ import { findTeamStanding, type DivisionStanding } from "../data/standings"
 import { teamGameLog, type TeamGameRow } from "../data/teamMetrics"
 import type { TeamInfo } from "../data/teams"
 import { useFetch } from "../lib/useFetch"
+import { usePageTitle } from "../lib/usePageTitle"
 
 function TeamPage() {
   const { teamAbbr = "" } = useParams<{ teamAbbr: string }>()
@@ -21,6 +22,7 @@ function TeamPage() {
   const games = useFetch<TeamGameRow[]>("/teams/weekly")
 
   const team = teams.data?.find((t) => t.team_abbr === abbr)
+  usePageTitle(team?.team_name ?? abbr)
   const standing = standings.data ? findTeamStanding(standings.data, abbr) : null
   const log = games.data && team ? teamGameLog(games.data, abbr) : null
 

@@ -13,8 +13,10 @@ import type { PlayerMetric } from "../data/playerMetrics"
 import { TEAM_METRICS, teamSeasonRows, trendingTeams, type TeamGameRow } from "../data/teamMetrics"
 import { teamPath, type TeamInfo } from "../data/teams"
 import { useFetch } from "../lib/useFetch"
+import { usePageTitle } from "../lib/usePageTitle"
 
 function TeamsPage() {
+  usePageTitle("Teams")
   const navigate = useNavigate()
   const games = useFetch<TeamGameRow[]>("/teams/weekly")
   const teams = useFetch<TeamInfo[]>("/teams")
@@ -51,6 +53,7 @@ function TeamsPage() {
         error={error}
         noun="teams"
         emptyText="No games played yet."
+        rowName={(row) => row.name}
         Dot={(props) => <TeamLogoMarker {...props} onSelect={() => props.payload && navigate(teamPath(props.payload.team))} />}
         renderTooltipHeader={(row) => (
           <div className="flex items-center gap-2">

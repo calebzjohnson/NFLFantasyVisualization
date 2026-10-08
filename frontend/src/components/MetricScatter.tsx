@@ -9,6 +9,7 @@ import { metricMedian, type PlayerMetric, type StatFields } from "../data/player
 import AxisSelect from "./AxisSelect"
 import { ChartContainer, type ChartConfig } from "./evilcharts/ui/recharts-chart"
 import { ChartTooltip, ChartTooltipContent } from "./evilcharts/ui/recharts-tooltip"
+import ChartDataTable from "./ChartDataTable"
 import Panel from "./Panel"
 
 const chartConfig = {
@@ -161,6 +162,8 @@ interface MetricScatterProps<Row extends StatFields> {
   emptyText: string
   caption: ReactNode
   Dot: (props: { cx?: number; cy?: number; payload?: Row }) => ReactElement | null
+  // Names a row in the chart's data table, e.g. the player or team name.
+  rowName: (row: Row) => string
   renderTooltipHeader: (row: Row) => ReactNode
 }
 
@@ -176,6 +179,7 @@ function MetricScatter<Row extends StatFields>({
   emptyText,
   caption,
   Dot,
+  rowName,
   renderTooltipHeader,
 }: MetricScatterProps<Row>) {
   const [xKey, setXKey] = useState(initialX)
@@ -229,7 +233,11 @@ function MetricScatter<Row extends StatFields>({
       {points && points.length === 0 && <p className="p-4 text-sm text-[var(--text-secondary)]">{emptyText}</p>}
       {points && points.length > 0 && (
         <div className="p-3">
-          <ChartContainer config={chartConfig} className="aspect-[3/2]">
+          <ChartContainer
+            config={chartConfig}
+            className="aspect-[3/2]"
+            label={`${title}: ${points.length} ${noun} plotted by ${xMetric.label} (across) and ${yMetric.label} (up). Lines mark the median in each stat.`}
+          >
             <ScatterChart margin={{ top: 8, right: 16, bottom: 24, left: 4 }}>
               <CartesianGrid stroke="var(--border)" strokeOpacity={0.6} />
               <XAxis
@@ -318,6 +326,15 @@ function MetricScatter<Row extends StatFields>({
             </ScatterChart>
           </ChartContainer>
           <p className="pt-2 text-xs text-[var(--text-muted)]">{caption}</p>
+          <ChartDataTable
+            caption={`${xMetric.label} and ${yMetric.label} for each of the ${noun}`}
+            columns={["Name", xMetric.label, yMetric.label]}
+            rows={points.map((point) => [
+              rowName(point),
+              formatValue(point.x, xMetric.unit),
+              formatValue(point.y, yMetric.unit),
+            ])}
+          />
         </div>
       )}
     </Panel>

@@ -3,6 +3,7 @@
 import type { ReactNode } from "react"
 import Panel from "../components/Panel"
 import { useFetch } from "../lib/useFetch"
+import { usePageTitle } from "../lib/usePageTitle"
 
 const DEVELOPERS = [
   { name: "Caleb Johnson", github: "calebzjohnson" },
@@ -47,7 +48,9 @@ function freshnessLabel({ season, week, season_type }: LatestWeek): string {
     : `Stats through the ${season} postseason.`
 }
 
-const linkClass = "text-[var(--accent)] hover:underline"
+// Underlined, not just blue: inside a paragraph, color alone doesn't set a
+// link apart enough (WCAG 1.4.1; the accent is only 1.5:1 against body text).
+const linkClass = "text-[var(--accent)] underline underline-offset-2 hover:decoration-2"
 
 function ExternalLink({ href, children }: { href: string; children: ReactNode }) {
   return (
@@ -58,6 +61,7 @@ function ExternalLink({ href, children }: { href: string; children: ReactNode })
 }
 
 function AboutPage() {
+  usePageTitle("About")
   const latest = useFetch<LatestWeek>("/players/latest-week")
 
   return (
@@ -74,7 +78,7 @@ function AboutPage() {
             up against the rest of the league, or how their role is changing over time.
           </p>
           <p>
-            We're math and computer science students, and we built Gridiron Analytics to turn those numbers
+            We're math and computer science students, and we built Plot the Pigskin to turn those numbers
             into visualizations that help fantasy managers actually understand player performance - usage,
             efficiency, and trends - at a glance.
           </p>
@@ -160,7 +164,7 @@ function AboutPage() {
       <Panel title="The fine print">
         <div className="flex flex-col gap-3 p-4">
           <p>
-            Gridiron Analytics is a free, non-commercial project. We are not affiliated with or endorsed by the
+            Plot the Pigskin is a free, non-commercial project. We are not affiliated with or endorsed by the
             NFL or any of its teams. Team names and logos belong to their respective owners.
           </p>
           <p>Stats are provided as-is. Use them to inform your decisions, not as a guarantee.</p>

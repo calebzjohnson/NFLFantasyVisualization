@@ -14,10 +14,12 @@ import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts"
 import type { PlayerMetric } from "../data/playerMetrics"
 import type { TeamInfo } from "../data/teams"
 import type { TrendLine } from "../data/trendingPlayers"
+import { activateOnKey } from "../lib/activateOnKey"
 import { initialsFor, readableTextColor } from "../lib/playerVisuals"
 import { useFetch } from "../lib/useFetch"
 import AxisSelect from "./AxisSelect"
 import { ChartContainer, type ChartConfig } from "./evilcharts/ui/recharts-chart"
+import ChartDataTable from "./ChartDataTable"
 import Panel from "./Panel"
 import { BADGE_FILL, TeamLogoBadge } from "./TeamLogo"
 
@@ -80,9 +82,7 @@ function makeDot(meta: LineMeta, onSelect?: () => void) {
       onClick: onSelect,
       role: "button",
       tabIndex: 0,
-      onKeyDown: (event: React.KeyboardEvent) => {
-        if (event.key === "Enter") onSelect()
-      },
+      onKeyDown: activateOnKey(onSelect),
       "aria-label": `View ${meta.line.name}'s page`,
       className: "cursor-pointer",
     }
@@ -328,7 +328,11 @@ function TrendChart({ title, metrics, plural, singular, loading, error, trends, 
           onMouseMove={handleMouseMove}
           onMouseLeave={() => setHoveredId(null)}
         >
-          <ChartContainer config={chartConfig} className="aspect-[3/2]">
+          <ChartContainer
+            config={chartConfig}
+            className="aspect-[3/2]"
+            label={`${title}: the ${lineMetas.length} ${plural} trending up or down the most in ${metric.label.toLowerCase()}, week ${weeks[0]} to week ${weeks[weeks.length - 1]}.`}
+          >
             <LineChart data={chartData} margin={{ top: 8, right: 16, bottom: 24, left: 4 }}>
               <CartesianGrid stroke="var(--border)" strokeOpacity={0.6} />
               <XAxis
@@ -410,6 +414,18 @@ function TrendChart({ title, metrics, plural, singular, loading, error, trends, 
             {weeks.length === 1 ? "" : "s"}. Hover {onSelect && "or click "}a line to see that {singular}'s
             numbers{onSelect && " and go to their page"}.
           </p>
+          <ChartDataTable
+            caption={`Weekly ${metric.label.toLowerCase()} for the ${plural} trending the most`}
+            columns={[singular[0].toUpperCase() + singular.slice(1), "Trend", ...weeks.map((week) => `Wk ${week}`)]}
+            rows={lineMetas.map((meta) => [
+              meta.line.name,
+              meta.color === UP_COLOR ? "Up" : "Down",
+              ...weeks.map((week) => {
+                const game = meta.line.games.find((g) => g.week === week)
+                return game ? formatValue(game.value, metric.unit) : null
+              }),
+            ])}
+          />
         </div>
       )}
     </Panel>
