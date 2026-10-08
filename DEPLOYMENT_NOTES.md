@@ -11,7 +11,7 @@ A running list of what needs to be configured or changed when we actually connec
 - [ ] **Security headers.** `frontend/vercel.json` sends CSP, `X-Content-Type-Options`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, and `Permissions-Policy` on every route. The CSP's `img-src` allows `static.www.nfl.com` (headshots) and `a.espncdn.com` (logos) pending the H1/H2 decision; if images are removed, drop those hosts too. Adding any new external resource (font, script, analytics, image host) needs a matching CSP entry, or it will be blocked.
 - [ ] **API base URL.** Set `VITE_API_BASE_URL` in the Vercel project's env vars (Production and Preview) to the deployed Render backend URL, e.g. `https://<service>.onrender.com`, no trailing slash. It is baked in at build time, so changing it requires a redeploy. `vite build` fails if it is missing or empty (check in `frontend/vite.config.ts`). `vite dev` still falls back to `http://localhost:8000` (see `frontend/.env.example`).
 - [ ] **Monorepo root.** Set the Vercel project's root directory to `frontend/`.
-- [ ] **Feedback email.** The About page uses a placeholder, `feedback@example.com` (`FEEDBACK_EMAIL` in `frontend/src/pages/AboutPage.tsx`, also asserted in `AboutPage.test.tsx`). Swap in the real inbox before launch. Posting a plain address publicly invites spam, so use a dedicated inbox or alias rather than a personal one.
+- [x] **Feedback email.** Done: the About page uses `plotthepigskin@gmail.com` (`FEEDBACK_EMAIL` in `frontend/src/pages/AboutPage.tsx`, also asserted in `AboutPage.test.tsx`), a dedicated inbox rather than a personal one.
 
 ## Backend (Render)
 
