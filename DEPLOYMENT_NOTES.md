@@ -15,7 +15,7 @@ A running list of what needs to be configured or changed when we actually connec
 
 ## Backend (Render)
 
-- [ ] **CORS origins.** Set `APP_CORS_ORIGINS` to include the deployed Vercel frontend URL. Locally it only allows `http://localhost:5173` (see `backend/.env.example` and `backend/app/config.py`).
+- [x] **CORS origins.** `APP_CORS_ORIGINS` on Render is a JSON array of exact origins (no wildcards, no trailing slash): `["https://www.plotthepigskin.com","https://nfl-fantasy-visualization.vercel.app"]`. The apex `plotthepigskin.com` 308-redirects to `www`, so browsers only ever send the `www` origin; listing the apex alone breaks every fetch. Vercel preview URLs aren't listed, so previews can't load data. Locally only `http://localhost:5173` is allowed (see `backend/.env.example` and `backend/app/config.py`).
 - [ ] **Monorepo root.** Set Render's root directory to `backend/`.
 - [ ] **Dependency cooldown.** `backend/pyproject.toml` sets `exclude-newer = "7 days"`, so `uv lock`/`uv add` ignore package versions published in the last week. To take an urgent security release sooner, run `uv lock --upgrade-package <pkg> --exclude-newer-package <pkg>=<date>` or temporarily lower the window.
 - [ ] **Build/start commands.** Build: `uv sync --locked --no-dev`. Start: `uv run --no-sync uvicorn app.main:app --host 0.0.0.0 --port $PORT --no-access-log` (Render injects `$PORT`).
