@@ -13,7 +13,7 @@ function ExpandButton({ label, expanded, onClick }: {
       aria-expanded={expanded}
       aria-label={label}
       title={label}
-      className="cursor-pointer rounded px-2 py-0.5 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+      className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-md border border-[var(--border)] text-xl leading-none text-[var(--text-secondary)] transition-colors hover:border-[var(--accent)] hover:bg-[var(--surface-1)] hover:text-[var(--accent)]"
     >
       ⤢
     </button>
