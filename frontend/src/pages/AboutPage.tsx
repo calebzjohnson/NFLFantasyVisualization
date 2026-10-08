@@ -11,7 +11,7 @@ const DEVELOPERS = [
 ] as const
 
 // Placeholder until the real inbox exists - see DEPLOYMENT_NOTES.md.
-const FEEDBACK_EMAIL = "feedback@example.com"
+const FEEDBACK_EMAIL = "plotthepigskin@gmail.com"
 
 // Newest first. Add an entry here with each release.
 const RELEASES = [

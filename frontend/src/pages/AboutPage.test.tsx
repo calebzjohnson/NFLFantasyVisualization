@@ -44,9 +44,9 @@ describe("AboutPage", () => {
   it("links a feedback email", () => {
     mockLatestWeek(null)
     renderWithRouter(<AboutPage />)
-    expect(screen.getByRole("link", { name: "feedback@example.com" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "plotthepigskin@gmail.com" })).toHaveAttribute(
       "href",
-      "mailto:feedback@example.com",
+      "mailto:plotthepigskin@gmail.com",
     )
   })
 

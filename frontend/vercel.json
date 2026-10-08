@@ -6,7 +6,7 @@
       "headers": [
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; img-src 'self' data: https://static.www.nfl.com https://a.espncdn.com; connect-src 'self' https://REPLACE-WITH-RENDER-API-ORIGIN.onrender.com; style-src 'self' 'unsafe-inline'; font-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'none'; object-src 'none'"
+          "value": "default-src 'self'; img-src 'self' data: https://static.www.nfl.com https://a.espncdn.com; connect-src 'self' https://plot-the-pigskin.onrender.com; style-src 'self' 'unsafe-inline'; font-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'none'; object-src 'none'"
         },
         { "key": "X-Content-Type-Options", "value": "nosniff" },
         { "key": "X-Frame-Options", "value": "DENY" },
