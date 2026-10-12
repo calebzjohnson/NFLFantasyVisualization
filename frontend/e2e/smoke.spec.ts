@@ -97,7 +97,7 @@ test("depth chart lists a quarterback room in depth order", async ({ page }) => 
 
 test("injury report names a cause and practice participation", async ({ page }) => {
   await page.goto("/teams/KC?tab=depth-chart")
-  const report = page.getByRole("heading", { name: "Injury Report" }).locator("xpath=ancestor::section")
+  const report = page.getByRole("heading", { name: "Availability" }).locator("xpath=ancestor::section")
 
   await expect(report.getByRole("columnheader", { name: "Injury" })).toBeVisible()
   await expect(report.getByRole("columnheader", { name: "Practice" })).toBeVisible()

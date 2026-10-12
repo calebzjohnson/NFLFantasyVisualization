@@ -56,7 +56,7 @@ describe("TeamDepthChartPanel", () => {
   it("tabulates every flagged player's cause and practice participation", async () => {
     renderWithRouter(<TeamDepthChartPanel teamAbbr="BUF" />)
 
-    const heading = await screen.findByRole("heading", { name: "Injury Report" })
+    const heading = await screen.findByRole("heading", { name: "Availability" })
     const table = within(heading.closest("section")!).getByRole("table")
     expect(within(table).getAllByRole("columnheader").map((h) => h.textContent)).toEqual([
       "Pos",
@@ -67,8 +67,7 @@ describe("TeamDepthChartPanel", () => {
     ])
 
     const [, reserve, questionable] = within(table).getAllByRole("row")
-    // Reserve carries no cause - the weekly report barely covers those players.
-    expect(reserve).toHaveTextContent("QBQ TwoInjury Reserve——")
+    expect(reserve).toHaveTextContent("QBQ TwoReserveShoulder—")
     expect(questionable).toHaveTextContent("WRW OneQuestionableKneeLimited Participation")
   })
 

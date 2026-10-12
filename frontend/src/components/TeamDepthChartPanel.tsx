@@ -38,7 +38,7 @@ function TeamDepthChartPanel({ teamAbbr }: { teamAbbr: string }) {
           </div>
         </Panel>
       ))}
-      <Panel title="Injury Report">
+      <Panel title="Availability">
         {report.length === 0 ? (
           <p className="p-4 text-sm text-[var(--text-secondary)]">No players carry a status.</p>
         ) : (

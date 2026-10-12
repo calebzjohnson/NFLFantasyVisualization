@@ -56,7 +56,14 @@ def test_get_team_depth_chart(depth_chart_sources: None) -> None:
     offense = body["groups"][0]
     quarterbacks = next(slot for slot in offense["slots"] if slot["position"] == "QB")
     assert [player["name"] for player in quarterbacks["players"]] == ["Q One", "Q Two"]
-    assert [row["status"] for row in body["report"]] == ["IR", "IR", "OUT", "QUESTIONABLE"]
+    assert [row["status"] for row in body["report"]] == [
+        "RESERVE",
+        "RESERVE",
+        "PUP",
+        "SUSPENDED",
+        "OUT",
+        "QUESTIONABLE",
+    ]
 
 
 def test_get_team_depth_chart_unknown_team(depth_chart_sources: None) -> None:

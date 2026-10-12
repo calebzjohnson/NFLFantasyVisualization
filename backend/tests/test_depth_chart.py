@@ -50,20 +50,42 @@ def test_reads_only_the_newest_snapshot(depth_chart_sources: None) -> None:
 
 
 def test_reserve_wins_over_a_weekly_designation(depth_chart_sources: None) -> None:
-    """Q Two is on reserve and also listed Questionable; IR is the useful one."""
+    """Q Two is on reserve and also Questionable; reserve is the useful one."""
     assert slot("DAL", "offense", "QB")["players"][1] == {
         "player_id": "Q2",
         "name": "Q Two",
         "rank": 2,
-        "status": "IR",
-        "injury": None,
+        "status": "RESERVE",
+        "injury": "Shoulder",
     }
 
 
 def test_keeps_reserve_players_at_their_listed_depth(depth_chart_sources: None) -> None:
     players = slot("DAL", "offense", "TE")["players"]
 
-    assert [(p["name"], p["rank"], p["status"]) for p in players] == [("T One", 2, "IR")]
+    assert [(p["name"], p["rank"], p["status"]) for p in players] == [("T One", 2, "RESERVE")]
+
+
+def test_names_only_the_reserve_codes_nflverse_pins_down(depth_chart_sources: None) -> None:
+    """R04 and R40 resolve; an undocumented code stays a generic "Reserve"
+    rather than claiming the player is hurt."""
+    rows = depth_chart.get_team_depth_chart("DAL")["report"]
+    report = {row["name"]: row["status"] for row in rows}
+
+    assert report["P One"] == "PUP"
+    assert report["S One"] == "SUSPENDED"
+    assert report["Q Two"] == "RESERVE"
+
+
+def test_backfills_a_reserve_cause_from_an_earlier_week(depth_chart_sources: None) -> None:
+    """T One went on reserve after being reported out with an Achilles in week
+    2; he's absent from week 3's report, so only the lookback can name it."""
+    rows = depth_chart.get_team_depth_chart("DAL")["report"]
+    report = {row["name"]: row["injury"] for row in rows}
+
+    assert report["T One"] == "Achilles"
+    # P One has never been reported on, so nothing can name his cause.
+    assert report["P One"] is None
 
 
 def test_flags_a_weekly_designation_from_the_latest_week_only(depth_chart_sources: None) -> None:
@@ -86,8 +108,10 @@ def test_report_lists_every_flagged_player_most_severe_first(depth_chart_sources
     report = depth_chart.get_team_depth_chart("DAL")["report"]
 
     assert [(row["name"], row["status"]) for row in report] == [
-        ("Q Two", "IR"),
-        ("T One", "IR"),
+        ("Q Two", "RESERVE"),
+        ("T One", "RESERVE"),
+        ("P One", "PUP"),
+        ("S One", "SUSPENDED"),
         ("X Nine", "OUT"),
         ("W One", "QUESTIONABLE"),
     ]

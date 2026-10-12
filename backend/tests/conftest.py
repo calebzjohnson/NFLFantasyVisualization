@@ -213,9 +213,12 @@ def depth_chart_sources(monkeypatch: pytest.MonkeyPatch) -> None:
     older one lists a since-departed backup QB who must not appear.
 
     Statuses are set up to pin every rule: Q2 is on reserve *and* carries a
-    Questionable designation (IR must win), W1 is Questionable only, T1 is on
-    reserve while still listed 2nd at tight end (ranks stay faithful), and X9
-    is on the report having dropped off the chart entirely.
+    Questionable designation (reserve must win), W1 is Questionable only, T1 is
+    on reserve while still listed 2nd at tight end (ranks stay faithful), and X9
+    is on the report having dropped off the chart entirely. P1 (R04) and S1
+    (R40) are the two reserve codes that resolve to something more specific
+    than "Reserve". T1 was reported hurt in week 2 before going on reserve, so
+    his cause comes from the lookback rather than the current week.
     """
     charts = pd.DataFrame(
         [
@@ -239,10 +242,18 @@ def depth_chart_sources(monkeypatch: pytest.MonkeyPatch) -> None:
     )
     rosters = pd.DataFrame(
         [
-            dict(gsis_id="Q1", team="DAL", status="ACT", full_name="Q One", position="QB"),
-            dict(gsis_id="Q2", team="DAL", status="RES", full_name="Q Two", position="QB"),
-            dict(gsis_id="T1", team="DAL", status="RES", full_name="T One", position="TE"),
-            dict(gsis_id="W1", team="DAL", status="ACT", full_name="W One", position="WR"),
+            dict(gsis_id="Q1", team="DAL", status="ACT", full_name="Q One", position="QB",
+                 status_description_abbr="A01"),
+            dict(gsis_id="Q2", team="DAL", status="RES", full_name="Q Two", position="QB",
+                 status_description_abbr="R01"),
+            dict(gsis_id="T1", team="DAL", status="RES", full_name="T One", position="TE",
+                 status_description_abbr="R48"),
+            dict(gsis_id="W1", team="DAL", status="ACT", full_name="W One", position="WR",
+                 status_description_abbr="A01"),
+            dict(gsis_id="P1", team="DAL", status="RES", full_name="P One", position="DT",
+                 status_description_abbr="R04"),
+            dict(gsis_id="S1", team="DAL", status="RES", full_name="S One", position="LB",
+                 status_description_abbr="R40"),
         ]
     )
     injuries = pd.DataFrame(
@@ -262,6 +273,9 @@ def depth_chart_sources(monkeypatch: pytest.MonkeyPatch) -> None:
             dict(gsis_id="X9", team="DAL", week=3, report_status="Out",
                  report_primary_injury="Ankle", practice_status="Did Not Participate",
                  full_name="X Nine", position="CB"),
+            dict(gsis_id="T1", team="DAL", week=2, report_status="Out",
+                 report_primary_injury="Achilles", practice_status="Did Not Participate",
+                 full_name="T One", position="TE"),
         ]
     )
     monkeypatch.setattr("app.services.depth_chart.nfl.get_current_season", lambda: 2026)

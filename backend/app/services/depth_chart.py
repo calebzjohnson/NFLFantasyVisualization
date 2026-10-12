@@ -14,8 +14,28 @@ STATUS_BY_REPORT = {
     "Questionable": "QUESTIONABLE",
 }
 
+# Reserve is not the same as injured - a suspension lands a player here too -
+# so reserve players read "Reserve" unless the roster's own code says
+# something more specific. nflverse documents neither `status` nor
+# `status_description_abbr`'s values (its dictionary gives only "a code
+# corresponding to a particular NFL status"), so only these two are decoded:
+# both are standard NFL roster designations rather than nflverse coinages, and
+# every player carrying them agrees with players.status (26/26 PUP, 2/2 SUS).
+# The other codes are left generic rather than guessed at.
+STATUS_BY_RESERVE_CODE = {
+    "R04": "PUP",
+    "R40": "SUSPENDED",
+}
+
 # Most severe first, for the status section's ordering.
-STATUS_ORDER = ("IR", "OUT", "DOUBTFUL", "QUESTIONABLE")
+STATUS_ORDER = (
+    "RESERVE",
+    "PUP",
+    "SUSPENDED",
+    "OUT",
+    "DOUBTFUL",
+    "QUESTIONABLE",
+)
 
 UNIT_ORDER = ("offense", "defense", "special_teams")
 
@@ -38,15 +58,35 @@ def _offense_rank(position: str) -> int:
     )
 
 
+def _last_reported_injury(report: pd.DataFrame) -> dict[str, str]:
+    """gsis_id -> the most recent injury named for him in any week.
+
+    A reserve player rarely appears on the current week's report but often
+    appeared on an earlier one before being placed there, so this is the only
+    way to name a cause for him. It still leaves most of them blank: roughly
+    four in five are placed before the season and never reach a weekly report.
+    """
+    named = report[report["report_primary_injury"].notna()]
+    if named.empty:
+        return {}
+    latest = named.sort_values("week").groupby("gsis_id").last()
+    return {str(key): str(value) for key, value in latest["report_primary_injury"].items()}
+
+
 def _player_status(season: int, team: str) -> dict[str, dict[str, Any]]:
     """gsis_id -> status/injury for one team, merging the two sources.
 
-    Reserve wins over a weekly designation: a player can hold both, and "IR"
-    is the more useful of the two to show. Name and position come from these
-    frames rather than the depth chart, since a player can be on the report
-    having already dropped off the chart.
+    Reserve wins over a weekly designation: a player can hold both, and the
+    reserve status is the more useful of the two to show. Name and position
+    come from these frames rather than the depth chart, since a player can be
+    on the report having already dropped off the chart.
     """
     statuses: dict[str, dict[str, Any]] = {}
+
+    report = injuries.get_season_injuries(season)
+    if not report.empty:
+        report = report[report["team"] == team]
+    history = _last_reported_injury(report) if not report.empty else {}
 
     roster = rosters.get_season_rosters(season)
     if not roster.empty:
@@ -54,17 +94,15 @@ def _player_status(season: int, team: str) -> dict[str, dict[str, Any]]:
         for row in reserve.itertuples():
             if pd.isna(row.gsis_id):
                 continue
+            code = str(row.status_description_abbr)
             statuses[str(row.gsis_id)] = {
-                "status": "IR",
-                "injury": None,
+                "status": STATUS_BY_RESERVE_CODE.get(code, "RESERVE"),
+                "injury": history.get(str(row.gsis_id)),
                 "practice_status": None,
                 "name": _cell(row.full_name),
                 "position": _cell(row.position),
             }
 
-    report = injuries.get_season_injuries(season)
-    if not report.empty:
-        report = report[report["team"] == team]
     if not report.empty:
         report = report[report["week"] == report["week"].max()]
         for row in report.itertuples():

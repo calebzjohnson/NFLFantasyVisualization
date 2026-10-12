@@ -2,7 +2,7 @@
 // Shapes /teams/{team}/depth-chart into one table per unit: a row per position
 // slot, players across in depth order.
 
-export type DepthStatus = "IR" | "OUT" | "DOUBTFUL" | "QUESTIONABLE"
+export type DepthStatus = "RESERVE" | "PUP" | "SUSPENDED" | "OUT" | "DOUBTFUL" | "QUESTIONABLE"
 
 export interface DepthChartPlayer {
   player_id: string | null
@@ -43,21 +43,30 @@ export interface DepthChartResponse {
 
 // Short badge text, then the full wording for the title and screen readers.
 export const STATUS_LABEL: Record<DepthStatus, string> = {
-  IR: "IR",
+  RESERVE: "RES",
+  PUP: "PUP",
+  SUSPENDED: "SUS",
   OUT: "OUT",
   DOUBTFUL: "D",
   QUESTIONABLE: "Q",
 }
 
+// "Reserve" rather than "Injury Reserve": a suspension puts a player on the
+// reserve list too, and nflverse doesn't document its codes well enough to
+// tell every case apart.
 export const STATUS_NAME: Record<DepthStatus, string> = {
-  IR: "Injury Reserve",
+  RESERVE: "Reserve",
+  PUP: "Physically Unable to Perform",
+  SUSPENDED: "Suspended",
   OUT: "Out",
   DOUBTFUL: "Doubtful",
   QUESTIONABLE: "Questionable",
 }
 
 export const STATUS_TONE: Record<DepthStatus, string> = {
-  IR: "text-[var(--negative)]",
+  RESERVE: "text-[var(--negative)]",
+  PUP: "text-[var(--negative)]",
+  SUSPENDED: "text-[var(--text-secondary)]",
   OUT: "text-[var(--negative)]",
   DOUBTFUL: "text-[var(--warning)]",
   QUESTIONABLE: "text-[var(--warning)]",
