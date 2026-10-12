@@ -106,6 +106,29 @@ for (const path of ["/players/00-0033873", "/teams/KC"]) {
   })
 }
 
+test("navbar fits its layout for the screen size", async ({ page }) => {
+  await page.goto("/about")
+  const logo = (await page.getByRole("link", { name: "Plot the Pigskin" }).boundingBox())!
+  const search = page.getByRole("combobox", { name: "Search teams & players..." })
+  const searchBox = (await search.boundingBox())!
+  const tab = (await page.getByRole("link", { name: "Home" }).boundingBox())!
+  const middle = (box: { y: number; height: number }) => box.y + box.height / 2
+  const besideLogo = (box: { y: number; height: number }) => Math.abs(middle(box) - middle(logo)) < logo.height / 2
+
+  expect(besideLogo(searchBox), "search sits beside the logo").toBe(true)
+  expect(searchBox.x + searchBox.width).toBeLessThanOrEqual(page.viewportSize()!.width)
+  if (page.viewportSize()!.width >= 1024) {
+    expect(besideLogo(tab), "desktop keeps logo, tabs, and search on one row").toBe(true)
+  } else {
+    expect(tab.y, "tabs drop below the logo and search").toBeGreaterThan(searchBox.y + searchBox.height)
+    // A narrow search box still gets a readable results list: logo edge to search edge.
+    await search.fill("Ma")
+    const list = (await page.getByRole("listbox").boundingBox())!
+    expect(Math.round(list.x)).toBe(Math.round(logo.x))
+    expect(Math.round(list.x + list.width)).toBe(Math.round(searchBox.x + searchBox.width))
+  }
+})
+
 test("navbar search opens a player page", async ({ page }) => {
   await page.goto("/about")
   await page.getByRole("combobox", { name: "Search teams & players..." }).fill("Mahomes")

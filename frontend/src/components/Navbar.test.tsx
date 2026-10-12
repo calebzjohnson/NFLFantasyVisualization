@@ -1,11 +1,15 @@
 // Navbar.test.tsx
-// Tests for the top bar: page tabs, the active tab, and the teams + players search.
+// Tests for the top bar: page tabs, the active tab, and the teams + players search (shortened placeholder on phones).
 import { screen } from "@testing-library/react"
-import { describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import { mockApi, renderWithRouter } from "../test/render"
 import Navbar from "./Navbar"
 
 vi.mock("../lib/api", () => ({ fetchJson: vi.fn() }))
+
+afterEach(() => {
+  vi.unstubAllGlobals()
+})
 
 describe("Navbar", () => {
   it("links every page and marks the current one", () => {
@@ -23,5 +27,13 @@ describe("Navbar", () => {
     mockApi({})
     renderWithRouter(<Navbar />)
     expect(screen.getByPlaceholderText("Search teams & players...")).toBeInTheDocument()
+  })
+
+  it("shortens the search placeholder on a phone but keeps its full name", () => {
+    vi.stubGlobal("matchMedia", () => ({ matches: true, addEventListener: () => {}, removeEventListener: () => {} }))
+    mockApi({})
+    renderWithRouter(<Navbar />)
+    const search = screen.getByRole("combobox", { name: "Search teams & players..." })
+    expect(search).toHaveAttribute("placeholder", "Search...")
   })
 })
