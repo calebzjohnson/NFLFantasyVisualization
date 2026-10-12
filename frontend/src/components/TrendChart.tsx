@@ -7,7 +7,9 @@
 // Interceptions isn't good). Hovering anywhere on a line - not just its
 // endpoint marker, which sits right at the plot's edge and was an unreliable
 // click target - shows its weekly numbers and slope; with `onSelect`,
-// clicking it does too.
+// clicking it does too. On a touchscreen, where nothing hovers, the first tap
+// on a line shows its numbers in a box below the chart (so the chart stays
+// clear to tap the next line), and a second tap or the box's button opens its page.
 import { forwardRef, useLayoutEffect, useMemo, useRef, useState } from "react"
 import type * as React from "react"
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts"
@@ -17,6 +19,7 @@ import type { TrendLine } from "../data/trendingPlayers"
 import { activateOnKey } from "../lib/activateOnKey"
 import { initialsFor, readableTextColor } from "../lib/playerVisuals"
 import { useFetch } from "../lib/useFetch"
+import { TOUCH_QUERY, useMediaQuery } from "../lib/useMediaQuery"
 import AxisSelect from "./AxisSelect"
 import { ChartContainer, type ChartConfig } from "./evilcharts/ui/recharts-chart"
 import ChartDataTable from "./ChartDataTable"
@@ -58,11 +61,10 @@ interface LineMeta {
 // A small dot at every real data point, and a badge (team-colored initials, or
 // a team logo) at each line's own last played week (which may be earlier than
 // the chart's last week, after a bye). recharts renders a Line's dots as
-// siblings of its curve, not descendants of it - a click on a dot never
-// bubbles to the <Line>'s own onClick, which is exactly why the endpoint
-// badge (sitting right at the plot's edge, where people naturally click)
-// used to be dead. So the badge gets its own click handler here too.
-// data-badge-for identifies it to the hover resolver (see resolveHoveredId).
+// siblings of its curve, not descendants of it, so the badge identifies itself
+// with data-badge-for: the chart container resolves both hover and clicks from
+// whatever is under the pointer (see resolveHoveredId), badge or line. The
+// badge only handles keyboard activation itself.
 function makeDot(meta: LineMeta, onSelect?: () => void) {
   return (props: { cx?: number; cy?: number; payload?: { week: number } & Record<string, unknown> }) => {
     const { cx, cy, payload } = props
@@ -79,7 +81,6 @@ function makeDot(meta: LineMeta, onSelect?: () => void) {
 
     const { logo } = meta.line
     const clickProps = onSelect && {
-      onClick: onSelect,
       role: "button",
       tabIndex: 0,
       onKeyDown: activateOnKey(onSelect),
@@ -125,6 +126,61 @@ function makeDot(meta: LineMeta, onSelect?: () => void) {
   }
 }
 
+// Badge (logo, or team-colored initials), name, and team - the top of both the
+// hover card and the touchscreen details box.
+function LineIdentity({ meta }: { meta: LineMeta }) {
+  const { line, teamColor } = meta
+  return (
+    <div className="flex items-center gap-2">
+      {line.logo ? (
+        <TeamLogoBadge logo={line.logo} size="h-6 w-6" />
+      ) : (
+        <span
+          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[9px] font-bold"
+          style={{ backgroundColor: teamColor, color: readableTextColor(teamColor) }}
+        >
+          {initialsFor(line.name)}
+        </span>
+      )}
+      <div className="min-w-0">
+        <div className="truncate font-medium text-[var(--text-primary)]">{line.name}</div>
+        <div className="text-[10px] tracking-wider text-[var(--text-muted)] uppercase">{line.team}</div>
+      </div>
+    </div>
+  )
+}
+
+// Touchscreen stand-in for the hover card, under the chart instead of over
+// it: weeks run in a wrapping row rather than a column, to stay short.
+function LineDetails({ meta, unit, onOpen }: { meta: LineMeta; unit?: string; onOpen?: () => void }) {
+  return (
+    <div className="space-y-1.5 text-xs">
+      <LineIdentity meta={meta} />
+      <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[var(--text-secondary)]">
+        {meta.line.games.map((game) => (
+          <span key={game.week}>
+            Wk {game.week}{" "}
+            <span className="font-mono tabular-nums text-[var(--text-primary)]">{formatValue(game.value, unit)}</span>
+          </span>
+        ))}
+        <span>
+          Slope{" "}
+          <span className="font-mono tabular-nums text-[var(--text-primary)]">{formatSlope(meta.line.slope, unit)}</span>
+        </span>
+      </div>
+      {onOpen && (
+        <button
+          type="button"
+          onClick={onOpen}
+          className="rounded-md border border-[var(--border)] bg-[var(--surface-1)] px-3 py-1.5 font-medium text-[var(--accent)] hover:bg-[var(--surface-2)]"
+        >
+          View {meta.line.name} →
+        </button>
+      )}
+    </div>
+  )
+}
+
 // Pointer-events-none: the card follows the cursor closely enough that it
 // would otherwise end up sitting right under it, and hovering the card
 // itself would keep hoveredId alive after the cursor left the actual line -
@@ -135,30 +191,19 @@ const LineHoverCard = forwardRef<
     meta: LineMeta
     unit?: string
     style?: React.CSSProperties
+    // Shown on a touchscreen when tapping the line again opens its page.
+    hint?: string
   }
->(function LineHoverCard({ meta, unit, style }, ref) {
-  const { line, teamColor } = meta
+>(function LineHoverCard({ meta, unit, style, hint }, ref) {
+  const { line } = meta
   return (
     <div
       ref={ref}
       style={{ ...style, pointerEvents: "none" }}
       className="absolute z-10 w-44 rounded-md border border-[var(--border)] bg-[var(--surface-2)]/90 p-2.5 text-xs shadow-lg backdrop-blur-sm"
     >
-      <div className="mb-1.5 flex items-center gap-2">
-        {line.logo ? (
-          <TeamLogoBadge logo={line.logo} size="h-6 w-6" />
-        ) : (
-          <span
-            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[9px] font-bold"
-            style={{ backgroundColor: teamColor, color: readableTextColor(teamColor) }}
-          >
-            {initialsFor(line.name)}
-          </span>
-        )}
-        <div className="min-w-0">
-          <div className="truncate font-medium text-[var(--text-primary)]">{line.name}</div>
-          <div className="text-[10px] tracking-wider text-[var(--text-muted)] uppercase">{line.team}</div>
-        </div>
+      <div className="mb-1.5">
+        <LineIdentity meta={meta} />
       </div>
       <div className="space-y-0.5">
         {line.games.map((game) => (
@@ -176,6 +221,7 @@ const LineHoverCard = forwardRef<
           </span>
         </div>
       </div>
+      {hint && <div className="mt-1.5 text-[10px] text-[var(--text-muted)]">{hint}</div>}
     </div>
   )
 })
@@ -200,6 +246,12 @@ function TrendChart({ title, metrics, plural, singular, loading, error, trends, 
   const [cardStyle, setCardStyle] = useState<{ left: number; top: number }>({ left: 0, top: 0 })
   const containerRef = useRef<HTMLDivElement>(null)
   const cardRef = useRef<HTMLDivElement>(null)
+  // The input behind the click about to arrive: "mouse" hovers then clicks;
+  // anything else (touch, pen) taps to show a line, then taps again to open it.
+  const pointerTypeRef = useRef("mouse")
+  // The card on show was opened by a tap, so it says a second tap opens the page.
+  const [tapped, setTapped] = useState(false)
+  const touchScreen = useMediaQuery(TOUCH_QUERY)
 
   // Hovering many crossing diagonal lines with per-element onMouseEnter/
   // onMouseLeave is unreliable - a mouseenter on one line's invisible hit
@@ -225,10 +277,19 @@ function TrendChart({ title, metrics, plural, singular, loading, error, trends, 
     return el.getAttribute("name")
   }
 
-  function handleMouseMove(event: React.MouseEvent<HTMLDivElement>) {
-    const rect = event.currentTarget.getBoundingClientRect()
+  function showLineAt(event: React.PointerEvent<HTMLDivElement> | React.MouseEvent<HTMLDivElement>) {
+    setTapped(pointerTypeRef.current !== "mouse")
+    const rect = containerRef.current!.getBoundingClientRect()
     setCursorPos({ x: event.clientX - rect.left, y: event.clientY - rect.top })
     setHoveredId(resolveHoveredId(event.clientX, event.clientY))
+  }
+
+  // Only a mouse hovers: a finger's pointermove is a scroll, and its
+  // pointerleave fires on every lift, which would hide a card just tapped open.
+  function handlePointerMove(event: React.PointerEvent<HTMLDivElement>) {
+    if (event.pointerType !== "mouse") return
+    pointerTypeRef.current = "mouse"
+    showLineAt(event)
   }
 
   // Re-measures the card itself (its height depends on how many weeks of
@@ -297,6 +358,19 @@ function TrendChart({ title, metrics, plural, singular, loading, error, trends, 
   const optionByLabel = new Map(metrics.map((m) => [m.label, m]))
   const hoveredMeta = lineMetas.find((m) => m.line.id === hoveredId)
 
+  // A click, not pointerdown, so a scroll that starts on a line never opens it.
+  function handleClick(event: React.MouseEvent<HTMLDivElement>) {
+    const id = resolveHoveredId(event.clientX, event.clientY)
+    const line = lineMetas.find((m) => m.line.id === id)?.line
+    if (pointerTypeRef.current === "mouse") {
+      if (line && onSelect) onSelect(line)
+    } else if (line && onSelect && id === hoveredId) {
+      onSelect(line)
+    } else {
+      showLineAt(event)
+    }
+  }
+
   return (
     <Panel title={title}>
       <div className="flex flex-wrap items-center justify-center gap-3 border-b border-[var(--border)] px-4 py-3">
@@ -322,97 +396,130 @@ function TrendChart({ title, metrics, plural, singular, loading, error, trends, 
         </p>
       )}
       {lineMetas.length > 0 && (
-        <div
-          ref={containerRef}
-          className="relative p-3"
-          onMouseMove={handleMouseMove}
-          onMouseLeave={() => setHoveredId(null)}
-        >
-          <ChartContainer
-            config={chartConfig}
-            className="aspect-[3/2]"
-            label={`${title}: the ${lineMetas.length} ${plural} trending up or down the most in ${metric.label.toLowerCase()}, week ${weeks[0]} to week ${weeks[weeks.length - 1]}.`}
+        <div ref={containerRef} className="relative p-3">
+          {/* Pointer handling covers the chart alone, so taps on the details
+              box, caption, or data table never count as tapping empty chart. */}
+          <div
+            onPointerDown={(event) => (pointerTypeRef.current = event.pointerType)}
+            onPointerMove={handlePointerMove}
+            onPointerLeave={(event) => event.pointerType === "mouse" && setHoveredId(null)}
+            onClick={handleClick}
           >
-            <LineChart data={chartData} margin={{ top: 8, right: 16, bottom: 24, left: 4 }}>
-              <CartesianGrid stroke="var(--border)" strokeOpacity={0.6} />
-              <XAxis
-                type="number"
-                dataKey="week"
-                domain={[weeks[0], weeks[weeks.length - 1]]}
-                ticks={weeks}
-                allowDecimals={false}
-                tickLine={false}
-                axisLine={{ stroke: "var(--border)" }}
-                label={{
-                  value: "Week",
-                  position: "insideBottom",
-                  offset: -14,
-                  fill: "var(--text-secondary)",
-                  fontSize: 11,
-                  fontWeight: 700,
-                }}
-              />
-              <YAxis
-                tickFormatter={(value) => formatValue(Number(value), metric.unit)}
-                tickLine={false}
-                axisLine={{ stroke: "var(--border)" }}
-                width={54}
-                label={{
-                  value: metric.label,
-                  angle: -90,
-                  position: "insideLeft",
-                  offset: 4,
-                  style: { textAnchor: "middle" },
-                  fill: "var(--text-secondary)",
-                  fontSize: 11,
-                  fontWeight: 700,
-                }}
-              />
-              {lineMetas.map((meta) => (
-                <Line
-                  key={meta.line.id}
-                  dataKey={meta.line.id}
-                  stroke={meta.color}
-                  strokeWidth={hoveredId === meta.line.id ? 3 : 2}
-                  strokeOpacity={hoveredId === null || hoveredId === meta.line.id ? 1 : DIMMED_OPACITY}
-                  connectNulls
-                  type="monotone"
-                  isAnimationActive={false}
-                  dot={false}
-                  activeDot={false}
-                  legendType="none"
+            <ChartContainer
+              config={chartConfig}
+              className="aspect-[3/2]"
+              label={`${title}: the ${lineMetas.length} ${plural} trending up or down the most in ${metric.label.toLowerCase()}, week ${weeks[0]} to week ${weeks[weeks.length - 1]}.`}
+            >
+              <LineChart data={chartData} margin={{ top: 8, right: 16, bottom: 24, left: 4 }}>
+                <CartesianGrid stroke="var(--border)" strokeOpacity={0.6} />
+                <XAxis
+                  type="number"
+                  dataKey="week"
+                  domain={[weeks[0], weeks[weeks.length - 1]]}
+                  ticks={weeks}
+                  allowDecimals={false}
+                  tickLine={false}
+                  axisLine={{ stroke: "var(--border)" }}
+                  label={{
+                    value: "Week",
+                    position: "insideBottom",
+                    offset: -14,
+                    fill: "var(--text-secondary)",
+                    fontSize: 11,
+                    fontWeight: 700,
+                  }}
                 />
-              ))}
-              {/* Invisible wide-stroke lines on top of the visible ones - the
-                  real hover/click target, so you don't need to land on the
-                  thin 2-3px curve exactly. `name` carries the line's id so
-                  resolveHoveredId can read it straight off the DOM instead of
-                  assuming curve order, which recharts doesn't preserve. */}
-              {lineMetas.map((meta) => (
-                <Line
-                  key={`${meta.line.id}-hit`}
-                  dataKey={meta.line.id}
-                  name={meta.line.id}
-                  stroke="transparent"
-                  strokeWidth={HIT_STROKE_WIDTH}
-                  connectNulls
-                  type="monotone"
-                  isAnimationActive={false}
-                  className={onSelect ? "cursor-pointer" : undefined}
-                  onClick={onSelect && (() => onSelect(meta.line))}
-                  dot={makeDot(meta, onSelect && (() => onSelect(meta.line)))}
-                  activeDot={false}
-                  legendType="none"
+                <YAxis
+                  tickFormatter={(value) => formatValue(Number(value), metric.unit)}
+                  tickLine={false}
+                  axisLine={{ stroke: "var(--border)" }}
+                  width={54}
+                  label={{
+                    value: metric.label,
+                    angle: -90,
+                    position: "insideLeft",
+                    offset: 4,
+                    style: { textAnchor: "middle" },
+                    fill: "var(--text-secondary)",
+                    fontSize: 11,
+                    fontWeight: 700,
+                  }}
                 />
-              ))}
-            </LineChart>
-          </ChartContainer>
-          {hoveredMeta && <LineHoverCard ref={cardRef} meta={hoveredMeta} unit={metric.unit} style={cardStyle} />}
+                {lineMetas.map((meta) => (
+                  <Line
+                    key={meta.line.id}
+                    dataKey={meta.line.id}
+                    stroke={meta.color}
+                    strokeWidth={hoveredId === meta.line.id ? 3 : 2}
+                    strokeOpacity={hoveredId === null || hoveredId === meta.line.id ? 1 : DIMMED_OPACITY}
+                    connectNulls
+                    type="monotone"
+                    isAnimationActive={false}
+                    dot={false}
+                    activeDot={false}
+                    legendType="none"
+                  />
+                ))}
+                {/* Invisible wide-stroke lines on top of the visible ones - the
+                    real hover/click target, so you don't need to land on the
+                    thin 2-3px curve exactly. `name` carries the line's id so
+                    resolveHoveredId can read it straight off the DOM instead of
+                    assuming curve order, which recharts doesn't preserve. */}
+                {lineMetas.map((meta) => (
+                  <Line
+                    key={`${meta.line.id}-hit`}
+                    dataKey={meta.line.id}
+                    name={meta.line.id}
+                    stroke="transparent"
+                    strokeWidth={HIT_STROKE_WIDTH}
+                    connectNulls
+                    type="monotone"
+                    isAnimationActive={false}
+                    className={onSelect ? "cursor-pointer" : undefined}
+                    dot={makeDot(meta, onSelect && (() => onSelect(meta.line)))}
+                    activeDot={false}
+                    legendType="none"
+                  />
+                ))}
+              </LineChart>
+            </ChartContainer>
+          </div>
+          {touchScreen && (
+            // Held at a filled box's height (109-127px with four weeks of
+            // games) even before a tap, so showing a line - or switching lines -
+            // doesn't push the caption and table around. Longer seasons wrap
+            // the week row onto more lines and grow it a little.
+            <div
+              aria-live="polite"
+              className="mt-2 flex min-h-32 flex-col justify-center rounded-md border border-[var(--border)] bg-[var(--surface-2)] p-2.5"
+            >
+              {hoveredMeta ? (
+                <LineDetails
+                  meta={hoveredMeta}
+                  unit={metric.unit}
+                  onOpen={onSelect && (() => onSelect(hoveredMeta.line))}
+                />
+              ) : (
+                <p className="text-center text-xs text-[var(--text-muted)]">Tap a line to see that {singular}'s numbers.</p>
+              )}
+            </div>
+          )}
+          {hoveredMeta && !touchScreen && (
+            <LineHoverCard
+              ref={cardRef}
+              meta={hoveredMeta}
+              unit={metric.unit}
+              style={cardStyle}
+              hint={onSelect && tapped ? "Tap the line again to open" : undefined}
+            />
+          )}
           <p className="pt-2 text-xs text-[var(--text-muted)]">
             The {lineMetas.length} {plural} trending up (blue) or down (amber) the most in{" "}
             {metric.label.toLowerCase()} over the last {weeks.length} week
-            {weeks.length === 1 ? "" : "s"}. Hover {onSelect && "or click "}a line to see that {singular}'s
-            numbers{onSelect && " and go to their page"}.
+            {weeks.length === 1 ? "" : "s"}.
+            {/* On a touchscreen the box above already says to tap a line. */}
+            {!touchScreen &&
+              ` Hover ${onSelect ? "or click " : ""}a line to see that ${singular}'s numbers${onSelect ? " and go to their page" : ""}.`}
           </p>
           <ChartDataTable
             caption={`Weekly ${metric.label.toLowerCase()} for the ${plural} trending the most`}

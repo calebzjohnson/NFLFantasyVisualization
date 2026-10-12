@@ -129,6 +129,57 @@ test("navbar fits its layout for the screen size", async ({ page }) => {
   }
 })
 
+// A mouse hovers a line for a floating card and clicks to open it. A finger
+// can't hover: a tap shows the line's numbers in a box below the chart (so the
+// chart stays clear), and the box's button or a second tap opens the page.
+test("trending chart lines preview then open, by hover or by tap", async ({ page, hasTouch }) => {
+  const chart = page.locator("section", { has: page.getByRole("heading", { name: "Trending Players" }) })
+  const figure = chart.getByRole("figure")
+  // A line's midpoint, and which player the browser actually hits there (a
+  // neighboring line can run on top).
+  async function linePoint() {
+    await page.goto("/players")
+    const hitLine = chart.locator('.recharts-line-curve[stroke="transparent"]').nth(2)
+    await hitLine.waitFor({ timeout: 60_000 })
+    await chart.scrollIntoViewIfNeeded()
+    return hitLine.evaluate((path) => {
+      const pt = path.getPointAtLength(path.getTotalLength() / 2)
+      const m = path.getScreenCTM()!
+      const screen = { x: pt.x * m.a + m.e, y: pt.y * m.d + m.f }
+      return { ...screen, id: path.ownerDocument.elementFromPoint(screen.x, screen.y)!.getAttribute("name") }
+    })
+  }
+
+  const { x, y, id } = await linePoint()
+  expect(id, "a trend line under the test point").toBeTruthy()
+
+  if (!hasTouch) {
+    await page.mouse.move(x, y)
+    await expect(chart.getByText("Slope")).toBeVisible()
+    await page.mouse.click(x, y)
+    await expect(page).toHaveURL(`/players/${id}`)
+    return
+  }
+
+  await expect(chart.getByText("Tap a line to see that player's numbers.")).toBeVisible()
+  await page.touchscreen.tap(x, y)
+  const open = chart.getByRole("button", { name: /^View .+ →$/ })
+  await expect(open).toBeVisible()
+  await expect(page).toHaveURL("/players")
+  // The details sit below the chart, not over it.
+  const chartBox = (await figure.boundingBox())!
+  expect((await open.boundingBox())!.y).toBeGreaterThanOrEqual(chartBox.y + chartBox.height)
+  await open.tap()
+  await expect(page).toHaveURL(`/players/${id}`)
+
+  // Tapping the same line a second time opens it too.
+  const again = await linePoint()
+  await page.touchscreen.tap(again.x, again.y)
+  await expect(open).toBeVisible()
+  await page.touchscreen.tap(again.x, again.y)
+  await expect(page).toHaveURL(`/players/${again.id}`)
+})
+
 test("navbar search opens a player page", async ({ page }) => {
   await page.goto("/about")
   await page.getByRole("combobox", { name: "Search teams & players..." }).fill("Mahomes")

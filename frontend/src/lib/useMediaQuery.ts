@@ -4,6 +4,8 @@ import { useCallback, useSyncExternalStore } from "react"
 
 // Tailwind's `sm` breakpoint: below it is phone-sized.
 export const PHONE_QUERY = "(max-width: 639px)"
+// The primary input can't hover (a touchscreen), so hover-only UI needs a tap equivalent.
+export const TOUCH_QUERY = "(hover: none)"
 
 export function useMediaQuery(query: string): boolean {
   const subscribe = useCallback(
