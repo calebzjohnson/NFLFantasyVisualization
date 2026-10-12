@@ -58,6 +58,18 @@ has `renderWithRouter` (for anything with links or URL params) and `mockApi`
 through their states and controls, not their rendered SVG, because jsdom
 doesn't calculate layout.
 
+End-to-end smoke tests (Playwright, in `frontend/e2e/`) load every page against
+the real local stack and fail on any error message, failed API call, or console error:
+
+```
+cd frontend
+npx playwright install chromium   # once
+npm run test:e2e
+```
+
+Playwright starts the backend and the Vite dev server itself, or reuses ones
+already running. The backend downloads live nflverse data, so the tests need network access.
+
 ## License
 
 All rights reserved. This code is public for viewing purposes only; no license is granted to use, copy, modify, or distribute it.
