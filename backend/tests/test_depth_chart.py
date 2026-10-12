@@ -92,7 +92,7 @@ def test_names_the_week_a_cause_was_last_reported(depth_chart_sources: None) -> 
 
     assert weeks["T One"] == 2
     assert weeks["W One"] == 3
-    assert weeks["P One"] is None
+    assert weeks["S One"] is None
 
 
 def test_backfills_a_reserve_cause_from_an_earlier_week(depth_chart_sources: None) -> None:
@@ -102,8 +102,16 @@ def test_backfills_a_reserve_cause_from_an_earlier_week(depth_chart_sources: Non
     report = {row["name"]: row["injury"] for row in rows}
 
     assert report["T One"] == "Achilles"
-    # P One has never been reported on, so nothing can name his cause.
-    assert report["P One"] is None
+
+
+def test_falls_back_to_the_practice_report_for_a_cause(depth_chart_sources: None) -> None:
+    """P One never got a game designation, so only his practice row names a
+    cause. S One's practice row says he was rested, which isn't an injury."""
+    rows = depth_chart.get_team_depth_chart("DAL")["report"]
+    report = {row["name"]: row["injury"] for row in rows}
+
+    assert report["P One"] == "Calf"
+    assert report["S One"] is None
 
 
 def test_flags_a_weekly_designation_from_the_latest_week_only(depth_chart_sources: None) -> None:

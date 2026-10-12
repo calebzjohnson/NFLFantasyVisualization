@@ -263,8 +263,8 @@ def depth_chart_sources(monkeypatch: pytest.MonkeyPatch) -> None:
     injuries = pd.DataFrame(
         [
             dict(gsis_id="W1", team="DAL", week=2, report_status="Out",
-                 report_primary_injury="Hamstring", practice_status="Did Not Participate",
-                 full_name="W One", position="WR"),
+                 report_primary_injury="Hamstring", practice_primary_injury="Hamstring",
+                 practice_status="Did Not Participate", full_name="W One", position="WR"),
             dict(gsis_id="W1", team="DAL", week=3, report_status="Questionable",
                  report_primary_injury="Knee", practice_status="Limited Participation",
                  full_name="W One", position="WR"),
@@ -280,6 +280,13 @@ def depth_chart_sources(monkeypatch: pytest.MonkeyPatch) -> None:
             dict(gsis_id="T1", team="DAL", week=2, report_status="Out",
                  report_primary_injury="Achilles", practice_status="Did Not Participate",
                  full_name="T One", position="TE"),
+            dict(gsis_id="P1", team="DAL", week=1, report_status=None,
+                 report_primary_injury=None, practice_primary_injury="Calf",
+                 practice_status="Did Not Participate", full_name="P One", position="DT"),
+            dict(gsis_id="S1", team="DAL", week=1, report_status=None,
+                 report_primary_injury=None,
+                 practice_primary_injury="Not injury related - resting player",
+                 practice_status="Did Not Participate", full_name="S One", position="LB"),
         ]
     )
     monkeypatch.setattr("app.services.depth_chart.nfl.get_current_season", lambda: 2026)

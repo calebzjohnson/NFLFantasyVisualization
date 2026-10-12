@@ -31,6 +31,12 @@ STATUS_BY_RESERVE_CODE = {
 
 RESERVE_FALLBACK = "IR"
 
+# practice_primary_injury is filled on nearly every row where the game-day
+# report_primary_injury is blank, and the two agree where both exist, so it
+# names a cause for players who never got a game designation. This one value
+# isn't an injury.
+RESTING = "Not injury related - resting player"
+
 # Most severe first, for the status section's ordering.
 STATUS_ORDER = (
     "IR",
@@ -72,14 +78,15 @@ def _last_reported_injury(report: pd.DataFrame) -> dict[str, tuple[str, int]]:
     can be several weeks stale. It still leaves most of them blank: roughly
     four in five are placed before the season and never reach a weekly report.
     """
-    named = report[report["report_primary_injury"].notna()]
+    practice = report["practice_primary_injury"].where(
+        report["practice_primary_injury"] != RESTING
+    )
+    named = report.assign(cause=report["report_primary_injury"].fillna(practice))
+    named = named[named["cause"].notna()]
     if named.empty:
         return {}
     latest = named.sort_values("week").groupby("gsis_id").last()
-    return {
-        str(row.Index): (str(row.report_primary_injury), int(str(row.week)))
-        for row in latest.itertuples()
-    }
+    return {str(row.Index): (str(row.cause), int(str(row.week))) for row in latest.itertuples()}
 
 
 def _player_status(season: int, team: str) -> dict[str, dict[str, Any]]:
