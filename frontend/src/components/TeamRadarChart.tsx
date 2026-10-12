@@ -137,7 +137,7 @@ function TeamRadarChart({ teamAbbr, teamColor }: { teamAbbr: string; teamColor: 
             marks the 50th percentile, or league average.
           </p>
           <details className="px-3 pb-1 pt-2 text-xs text-[var(--text-muted)]">
-            <summary className="cursor-pointer text-[var(--text-secondary)]">What do these stats mean?</summary>
+            <summary className="-my-1 cursor-pointer py-1 text-[var(--text-secondary)]">What do these stats mean?</summary>
             <dl className="mt-2 grid gap-1.5">
               {data.axes.map((axis) => (
                 <div key={axis.key}>

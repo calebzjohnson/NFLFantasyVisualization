@@ -12,7 +12,7 @@ interface ChartDataTableProps {
 function ChartDataTable({ caption, columns, rows }: ChartDataTableProps) {
   return (
     <details className="px-3 pb-1 pt-2 text-xs text-[var(--text-muted)]">
-      <summary className="cursor-pointer text-[var(--text-secondary)]">Show data as table</summary>
+      <summary className="-my-1 cursor-pointer py-1 text-[var(--text-secondary)]">Show data as table</summary>
       {/* Focusable so keyboard users can scroll a long or wide table. */}
       <div tabIndex={0} role="region" aria-label={caption} className="mt-2 max-h-80 overflow-auto">
         <table className="w-full border-collapse text-left">

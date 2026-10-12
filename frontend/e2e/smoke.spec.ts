@@ -55,6 +55,22 @@ for (const { name, path, title } of PAGES) {
       .locator("html")
       .evaluate((html) => ({ scrollWidth: html.scrollWidth, clientWidth: html.clientWidth }))
     expect(scrollWidth, "page scrolls sideways").toBeLessThanOrEqual(clientWidth)
+    // Every control is at least 24x24px, WCAG's minimum tap target. Inline text
+    // links are exempt (WCAG excepts them) and so are chart markers, which
+    // would overlap on crowded charts if enlarged.
+    const tooSmall = await page.locator("body").evaluate((body) =>
+      [...body.querySelectorAll("button, select, input, summary, [role=button]")]
+        .filter((el) => !el.closest(".sr-only, svg"))
+        .filter((el) => {
+          const box = el.getBoundingClientRect()
+          return box.width > 0 && (box.width < 24 || box.height < 24)
+        })
+        .map((el) => {
+          const box = el.getBoundingClientRect()
+          return `${el.getAttribute("aria-label") ?? el.textContent?.trim()} (${Math.round(box.width)}x${Math.round(box.height)})`
+        }),
+    )
+    expect(tooSmall, "tap targets under 24x24px").toEqual([])
   })
 }
 

@@ -739,7 +739,7 @@ function UsageWeeklyChart({
           " This comes from Pro Football Reference, which can take a day or two to post the most recent week."}
       </p>
       <details className="px-3 pt-2 pb-1 text-xs text-[var(--text-muted)]">
-        <summary className="cursor-pointer text-[var(--text-secondary)]">Legend</summary>
+        <summary className="-my-1 cursor-pointer py-1 text-[var(--text-secondary)]">Legend</summary>
         <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1.5">
           {(stacked ? stackIds : allIds).map((key) => (
             <li key={key} className="flex items-center gap-1.5 text-[11px] text-[var(--text-secondary)]">
