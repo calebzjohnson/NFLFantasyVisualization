@@ -33,7 +33,7 @@ function TeamDepthChartPanel({ teamAbbr }: { teamAbbr: string }) {
     <div className="flex flex-col gap-6">
       {groups.map((group) => (
         <Panel key={group.key} title={group.label}>
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto [contain:paint]">
             <DepthChartTable group={group} />
           </div>
         </Panel>
@@ -42,7 +42,7 @@ function TeamDepthChartPanel({ teamAbbr }: { teamAbbr: string }) {
         {report.length === 0 ? (
           <p className="p-4 text-sm text-[var(--text-secondary)]">No players carry a status.</p>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto [contain:paint]">
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-xs tracking-wider text-[var(--text-muted)] uppercase">
