@@ -207,6 +207,96 @@ def sample_pbp() -> pd.DataFrame:
 
 
 @pytest.fixture
+def depth_chart_sources(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Stubs the three loaders behind /teams/{team}/depth-chart for DAL, which
+    runs a 4-3. Two snapshots exist so the newest-`dt` filter is exercised: the
+    older one lists a since-departed backup QB who must not appear.
+
+    Statuses are set up to pin every rule: Q2 is on reserve *and* carries a
+    Questionable designation (reserve must win), W1 is Questionable only, T1 is
+    on reserve while still listed 2nd at tight end (ranks stay faithful), and X9
+    is on the report having dropped off the chart entirely. P1 (R04) and S1
+    (R40) are the two reserve codes that resolve to something more specific
+    than "Reserve". T1 was reported hurt in week 2 before going on reserve, so
+    his cause comes from the lookback rather than the current week.
+    """
+    charts = pd.DataFrame(
+        [
+            dict(dt="2026-10-01", team="DAL", pos_grp="3WR 1TE", pos_slot=9, pos_abb="QB",
+                 pos_name="Quarterback", pos_rank=2, gsis_id="QGone", player_name="Q Gone"),
+            dict(dt="2026-10-02", team="DAL", pos_grp="3WR 1TE", pos_slot=9, pos_abb="QB",
+                 pos_name="Quarterback", pos_rank=1, gsis_id="Q1", player_name="Q One"),
+            dict(dt="2026-10-02", team="DAL", pos_grp="3WR 1TE", pos_slot=9, pos_abb="QB",
+                 pos_name="Quarterback", pos_rank=2, gsis_id="Q2", player_name="Q Two"),
+            dict(dt="2026-10-02", team="DAL", pos_grp="3WR 1TE", pos_slot=1, pos_abb="WR",
+                 pos_name="Wide Receiver", pos_rank=1, gsis_id="W1", player_name="W One"),
+            dict(dt="2026-10-02", team="DAL", pos_grp="3WR 1TE", pos_slot=10, pos_abb="TE",
+                 pos_name="Tight End", pos_rank=2, gsis_id="T1", player_name="T One"),
+            dict(dt="2026-10-02", team="DAL", pos_grp="Base 4-3 D", pos_slot=1, pos_abb="LDE",
+                 pos_name="Left Defensive End", pos_rank=1, gsis_id="D1", player_name="D One"),
+            dict(dt="2026-10-02", team="DAL", pos_grp="Special Teams", pos_slot=1, pos_abb="PK",
+                 pos_name="Place Kicker", pos_rank=1, gsis_id="K1", player_name="K One"),
+            dict(dt="2026-10-02", team="NYG", pos_grp="3WR 1TE", pos_slot=9, pos_abb="QB",
+                 pos_name="Quarterback", pos_rank=1, gsis_id="Q9", player_name="Q Nine"),
+        ]
+    )
+    rosters = pd.DataFrame(
+        [
+            dict(gsis_id="Q1", team="DAL", status="ACT", full_name="Q One", position="QB",
+                 status_description_abbr="A01"),
+            dict(gsis_id="Q2", team="DAL", status="RES", full_name="Q Two", position="QB",
+                 status_description_abbr="R01"),
+            dict(gsis_id="T1", team="DAL", status="RES", full_name="T One", position="TE",
+                 status_description_abbr="R48"),
+            dict(gsis_id="W1", team="DAL", status="ACT", full_name="W One", position="WR",
+                 status_description_abbr="A01"),
+            dict(gsis_id="P1", team="DAL", status="RES", full_name="P One", position="DT",
+                 status_description_abbr="R04"),
+            dict(gsis_id="S1", team="DAL", status="RES", full_name="S One", position="LB",
+                 status_description_abbr="R40"),
+            dict(gsis_id="E1", team="DAL", status="EXE", full_name="E One", position="RB",
+                 status_description_abbr="E02"),
+            dict(gsis_id="N1", team="DAL", status="INA", full_name="N One", position="WR",
+                 status_description_abbr="A01"),
+        ]
+    )
+    injuries = pd.DataFrame(
+        [
+            dict(gsis_id="W1", team="DAL", week=2, report_status="Out",
+                 report_primary_injury="Hamstring", practice_primary_injury="Hamstring",
+                 practice_status="Did Not Participate", full_name="W One", position="WR"),
+            dict(gsis_id="W1", team="DAL", week=3, report_status="Questionable",
+                 report_primary_injury="Knee", practice_status="Limited Participation",
+                 full_name="W One", position="WR"),
+            dict(gsis_id="Q2", team="DAL", week=3, report_status="Questionable",
+                 report_primary_injury="Shoulder", practice_status=None,
+                 full_name="Q Two", position="QB"),
+            dict(gsis_id="D1", team="DAL", week=3, report_status=None,
+                 report_primary_injury=None, practice_status="Full Participation",
+                 full_name="D One", position="DE"),
+            dict(gsis_id="X9", team="DAL", week=3, report_status="Out",
+                 report_primary_injury="Ankle", practice_status="Did Not Participate",
+                 full_name="X Nine", position="CB"),
+            dict(gsis_id="T1", team="DAL", week=2, report_status="Out",
+                 report_primary_injury="Achilles", practice_status="Did Not Participate",
+                 full_name="T One", position="TE"),
+            dict(gsis_id="P1", team="DAL", week=1, report_status=None,
+                 report_primary_injury=None, practice_primary_injury="Calf",
+                 practice_status="Did Not Participate", full_name="P One", position="DT"),
+            dict(gsis_id="S1", team="DAL", week=1, report_status=None,
+                 report_primary_injury=None,
+                 practice_primary_injury="Not injury related - resting player",
+                 practice_status="Did Not Participate", full_name="S One", position="LB"),
+        ]
+    )
+    monkeypatch.setattr("app.services.depth_chart.nfl.get_current_season", lambda: 2026)
+    monkeypatch.setattr("app.data.depth_charts.get_latest_depth_chart",
+                        lambda season: charts[charts["dt"] == charts["dt"].max()])
+    monkeypatch.setattr("app.data.rosters.get_season_rosters", lambda season: rosters)
+    monkeypatch.setattr("app.data.injuries.get_season_injuries", lambda season: injuries)
+
+
+@pytest.fixture
 def week_snaps(monkeypatch: pytest.MonkeyPatch) -> None:
     """Stubs the snap-count sources /players/weekly now merges for every
     position group: Q1 (PFR id "QOne") plays every snap of DAL's weeks 1-2

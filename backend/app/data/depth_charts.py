@@ -38,6 +38,16 @@ BUCKET_BY_ALIGNMENT = {
 }
 
 
+# nflverse's `pos_grp` -> the unit a slot belongs to. Each team appears under
+# exactly one defensive scheme, so a team's rows only ever name one of the two.
+UNIT_BY_POS_GRP = {
+    "3WR 1TE": "offense",
+    "Base 4-3 D": "defense",
+    "Base 3-4 D": "defense",
+    "Special Teams": "special_teams",
+}
+
+
 @single_flight
 def get_latest_depth_chart(season: int) -> pd.DataFrame:
     """Every team's current depth chart - one row per player per listed slot.
