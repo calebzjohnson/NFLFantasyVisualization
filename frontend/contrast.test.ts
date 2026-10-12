@@ -26,7 +26,15 @@ function contrast(a: string, b: string): number {
 
 const SURFACES = ["surface-0", "surface-1", "surface-2"]
 // Colors used for text, including accent links and positive/negative values.
-const TEXT_TOKENS = ["text-primary", "text-secondary", "text-muted", "accent", "positive", "negative"]
+const TEXT_TOKENS = [
+  "text-primary",
+  "text-secondary",
+  "text-muted",
+  "accent",
+  "positive",
+  "negative",
+  "warning",
+]
 
 describe("theme contrast", () => {
   it.each(TEXT_TOKENS)("--%s is at least 4.5:1 on every surface", (name) => {

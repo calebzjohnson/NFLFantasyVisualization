@@ -36,6 +36,11 @@ const PAGES = [
   { name: "home", path: "/", title: "Plot the Pigskin" },
   { name: "teams", path: "/teams", title: "Teams · Plot the Pigskin" },
   { name: "team", path: "/teams/KC", title: "Kansas City Chiefs · Plot the Pigskin" },
+  {
+    name: "team depth chart",
+    path: "/teams/KC?tab=depth-chart",
+    title: "Kansas City Chiefs · Plot the Pigskin",
+  },
   { name: "players", path: "/players", title: "Players · Plot the Pigskin" },
   { name: "player", path: "/players/00-0033873", title: "Patrick Mahomes · Plot the Pigskin" },
   { name: "about", path: "/about", title: "About · Plot the Pigskin" },
@@ -58,4 +63,55 @@ test("navbar search opens a player page", async ({ page }) => {
   await page.getByRole("option", { name: /Patrick Mahomes/ }).click()
   await expect(page).toHaveURL("/players/00-0033873")
   await expect(page).toHaveTitle("Patrick Mahomes · Plot the Pigskin")
+})
+
+test("team page tabs swap the body and survive a reload", async ({ page }) => {
+  await page.goto("/teams/KC")
+  await expect(page.getByRole("heading", { name: "Game Log" })).toBeVisible()
+
+  await page.getByRole("button", { name: "Depth Chart" }).click()
+  await expect(page).toHaveURL("/teams/KC?tab=depth-chart")
+  await expect(page.getByRole("heading", { name: "Game Log" })).toHaveCount(0)
+
+  // The defense is headed by the team's real scheme, the offense by its
+  // personnel grouping - both come from nflverse rather than being hardcoded.
+  await expect(page.getByRole("heading", { name: /^Base [34]-[34] D$/ })).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Special Teams" })).toBeVisible()
+
+  await page.reload()
+  await expect(page.getByRole("button", { name: "Depth Chart" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  )
+  await expect(page.getByRole("heading", { name: "Game Log" })).toHaveCount(0)
+})
+
+test("depth chart lists a quarterback room in depth order", async ({ page }) => {
+  await page.goto("/teams/KC?tab=depth-chart")
+  const offense = page.getByRole("table").first()
+  const quarterbacks = offense.getByRole("row").filter({ has: page.getByRole("rowheader", { name: "QB" }) })
+
+  await expect(quarterbacks.getByRole("link").first()).toHaveAttribute("href", /^\/players\//)
+  await expect(quarterbacks.getByRole("link")).not.toHaveCount(0)
+})
+
+test("injury report names a cause and practice participation", async ({ page }) => {
+  await page.goto("/teams/KC?tab=depth-chart")
+  const report = page.getByRole("heading", { name: "Injury Report" }).locator("xpath=ancestor::section")
+
+  await expect(report.getByRole("columnheader", { name: "Injury" })).toBeVisible()
+  await expect(report.getByRole("columnheader", { name: "Practice" })).toBeVisible()
+  await expect(report.getByRole("row")).not.toHaveCount(1)
+})
+
+test("back from a tab leaves the team page rather than stepping through tabs", async ({ page }) => {
+  await page.goto("/teams")
+  await page.getByRole("link", { name: /Chiefs/ }).first().click()
+  await expect(page).toHaveURL("/teams/KC")
+
+  await page.getByRole("button", { name: "Depth Chart" }).click()
+  await expect(page).toHaveURL("/teams/KC?tab=depth-chart")
+
+  await page.goBack()
+  await expect(page).toHaveURL("/teams")
 })

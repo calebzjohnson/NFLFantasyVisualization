@@ -3,7 +3,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Request
 
 from app.rate_limit import heavy_limit
-from app.services import scoring_composition, team_efficiency, team_radar, teams
+from app.services import depth_chart, scoring_composition, team_efficiency, team_radar, teams
 
 router = APIRouter(tags=["teams"])
 
@@ -35,4 +35,12 @@ def get_team_scoring_composition(team: str) -> dict[str, Any]:
     try:
         return scoring_composition.get_team_scoring_composition(team)
     except scoring_composition.TeamNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+
+
+@router.get("/teams/{team}/depth-chart")
+def get_team_depth_chart(team: str) -> dict[str, Any]:
+    try:
+        return depth_chart.get_team_depth_chart(team)
+    except depth_chart.TeamNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e

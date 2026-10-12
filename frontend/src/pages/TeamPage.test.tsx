@@ -1,8 +1,8 @@
 // TeamPage.test.tsx
 // Tests for the team page: header and game log from the API, case-insensitive URLs, and unknown teams.
-import { screen, within } from "@testing-library/react"
+import { fireEvent, screen, within } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
-import { teamInfo, teamRecord } from "../test/fixtures"
+import { depthChart, teamInfo, teamRecord } from "../test/fixtures"
 import { mockApi, renderWithRouter } from "../test/render"
 import TeamPage from "./TeamPage"
 
@@ -31,6 +31,7 @@ describe("TeamPage", () => {
         { team: "BUF", week: 1, opponent_team: "MIA", points_for: 24, points_against: 10 },
         { team: "MIA", week: 1, opponent_team: "BUF", points_for: 10, points_against: 24 },
       ],
+      "/teams/BUF/depth-chart": depthChart(),
     })
   })
 
@@ -74,5 +75,34 @@ describe("TeamPage", () => {
   it("says so when no team matches the URL", async () => {
     renderTeamPage("/teams/XYZ")
     expect(await screen.findByText("No team found for “XYZ”.")).toBeInTheDocument()
+  })
+
+  it("opens on Overview and swaps to the depth chart, putting the tab in the URL", async () => {
+    renderTeamPage("/teams/BUF")
+
+    expect(await screen.findByRole("heading", { name: "Game Log" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Overview" })).toHaveAttribute("aria-pressed", "true")
+
+    fireEvent.click(screen.getByRole("button", { name: "Depth Chart" }))
+
+    expect(await screen.findByRole("heading", { name: "3WR 1TE" })).toBeInTheDocument()
+    expect(screen.queryByRole("heading", { name: "Game Log" })).not.toBeInTheDocument()
+  })
+
+  it("opens straight onto the depth chart when the URL names it", async () => {
+    renderTeamPage("/teams/BUF?tab=depth-chart")
+
+    expect(await screen.findByRole("heading", { name: "3WR 1TE" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Depth Chart" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    )
+  })
+
+  it("falls back to Overview for a tab it doesn't recognise", async () => {
+    renderTeamPage("/teams/BUF?tab=nonsense")
+
+    expect(await screen.findByRole("heading", { name: "Game Log" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Overview" })).toHaveAttribute("aria-pressed", "true")
   })
 })
