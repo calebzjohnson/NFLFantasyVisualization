@@ -299,7 +299,7 @@ function TrendChart({ title, metrics, plural, singular, loading, error, trends, 
 
   return (
     <Panel title={title}>
-      <div className="flex flex-nowrap items-center gap-3 overflow-x-auto border-b border-[var(--border)] px-4 py-3">
+      <div className="flex flex-wrap items-center justify-center gap-3 border-b border-[var(--border)] px-4 py-3">
         <AxisSelect
           label="Stat"
           value={metric.label}

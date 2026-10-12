@@ -8,10 +8,12 @@ import { PolarAngleAxis, PolarGrid, PolarRadiusAxis, Radar, RadarChart } from "r
 import { ordinal } from "../data/efficiency"
 import { radarRows, radarSummary } from "../lib/chartSummaries"
 import { useFetch } from "../lib/useFetch"
+import { PHONE_QUERY, useMediaQuery } from "../lib/useMediaQuery"
 import ChartDataTable from "./ChartDataTable"
 import { ChartContainer, type ChartConfig } from "./evilcharts/ui/recharts-chart"
 import { ChartTooltip } from "./evilcharts/ui/recharts-tooltip"
 import Panel from "./Panel"
+import RadarAxisTick from "./RadarAxisTick"
 
 interface RadarAxis {
   key: string
@@ -118,6 +120,9 @@ function PlayerRadarChart({
   // error.
   const notEnoughVolume = !!pool.data && !data
   const ngsAxisLabels = data?.axes.filter((axis) => NGS_AXES.has(axis.key)).map((axis) => axis.label) ?? []
+  // Recharts' default 80% leaves no room for axis labels on a phone; 70% does
+  // (with RadarAxisTick wrapping the long ones).
+  const outerRadius = useMediaQuery(PHONE_QUERY) ? "70%" : "80%"
 
   return (
     <Panel title="Player Breakdown">
@@ -137,7 +142,7 @@ function PlayerRadarChart({
             className="aspect-[4/3]"
             label={radarSummary(data.name, `every other qualifying ${position}`, data.axes)}
           >
-            <RadarChart data={data.axes.map((axis) => ({ ...axis, reference: 50 }))}>
+            <RadarChart outerRadius={outerRadius} data={data.axes.map((axis) => ({ ...axis, reference: 50 }))}>
               <defs>
                 {/* Brighter near the center, fading toward the points - a
                     soft glow rather than a flat fill. */}
@@ -147,7 +152,7 @@ function PlayerRadarChart({
                 </radialGradient>
               </defs>
               <PolarGrid stroke="var(--border)" radialLines={false} />
-              <PolarAngleAxis dataKey="label" tick={{ fill: "var(--text-secondary)", fontSize: 11 }} />
+              <PolarAngleAxis dataKey="label" tick={<RadarAxisTick />} />
               <PolarRadiusAxis domain={[0, 100]} tick={false} axisLine={false} tickCount={5} />
               <ChartTooltip content={<AxisTooltip />} cursor={false} />
               <Radar

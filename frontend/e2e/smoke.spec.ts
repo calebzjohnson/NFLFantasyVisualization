@@ -49,6 +49,44 @@ for (const { name, path, title } of PAGES) {
     await expect(page).toHaveTitle(title)
     await expect(page.getByText("Loading…")).toHaveCount(0, { timeout: 60_000 })
     await expect(page.getByText(/Couldn't load/)).toHaveCount(0)
+    // Nothing pushes the page wider than the screen. Wide tables are fine:
+    // they scroll inside their own overflow-x-auto wrapper.
+    const { scrollWidth, clientWidth } = await page
+      .locator("html")
+      .evaluate((html) => ({ scrollWidth: html.scrollWidth, clientWidth: html.clientWidth }))
+    expect(scrollWidth, "page scrolls sideways").toBeLessThanOrEqual(clientWidth)
+  })
+}
+
+// Overflow inside a panel doesn't widen the page (Panel clips it), so the
+// page-width check above can't see these; measure them directly.
+test("chart axis pickers fit on screen", async ({ page }) => {
+  await page.goto("/players")
+  const pickers = page.getByRole("combobox", { name: /axis/ })
+  await expect(pickers).toHaveCount(2, { timeout: 60_000 })
+  const screenWidth = page.viewportSize()!.width
+  for (const picker of await pickers.all()) {
+    const box = (await picker.boundingBox())!
+    expect(box.x + box.width, "axis picker runs off screen").toBeLessThanOrEqual(screenWidth)
+  }
+})
+
+for (const path of ["/players/00-0033873", "/teams/KC"]) {
+  test(`radar labels fit inside the chart on ${path}`, async ({ page }) => {
+    await page.goto(path)
+    const label = page.locator(".recharts-polar-angle-axis-tick text").first()
+    await label.waitFor({ timeout: 60_000 })
+    const clipped = await label.evaluate((first) => {
+      const svg = first.closest("svg")!
+      const chart = svg.getBoundingClientRect()
+      return [...svg.querySelectorAll(".recharts-polar-angle-axis-tick text")]
+        .filter((text) => {
+          const r = text.getBoundingClientRect()
+          return r.left < chart.left || r.right > chart.right || r.top < chart.top || r.bottom > chart.bottom
+        })
+        .map((text) => text.textContent)
+    })
+    expect(clipped, "radar labels cut off at the chart edge").toEqual([])
   })
 }
 
