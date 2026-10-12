@@ -105,6 +105,11 @@ function TeamDepthChartPanel({ teamAbbr }: { teamAbbr: string }) {
                 ))}
               </tbody>
             </table>
+            <p className="px-4 py-3 text-xs text-[var(--text-muted)]">
+              Injury and practice details come from the weekly injury report, which doesn't cover
+              most players placed on reserve, especially those placed there before the start of the
+              season.
+            </p>
           </div>
         )}
       </Panel>

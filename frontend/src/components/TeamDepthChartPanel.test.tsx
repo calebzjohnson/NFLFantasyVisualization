@@ -74,6 +74,12 @@ describe("TeamDepthChartPanel", () => {
 
   // A different team: useFetch caches per path for the whole test file, so
   // /teams/BUF/depth-chart can't answer differently here.
+  it("explains why most reserve players carry no cause", async () => {
+    renderWithRouter(<TeamDepthChartPanel teamAbbr="BUF" />)
+
+    expect(await screen.findByText(/doesn't cover most players placed on reserve/)).toBeInTheDocument()
+  })
+
   it("says so when nobody carries a status", async () => {
     mockApi({ "/teams/MIA/depth-chart": depthChart({ report: [] }) })
     renderWithRouter(<TeamDepthChartPanel teamAbbr="MIA" />)
