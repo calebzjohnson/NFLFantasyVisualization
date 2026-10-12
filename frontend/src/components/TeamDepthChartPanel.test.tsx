@@ -64,11 +64,12 @@ describe("TeamDepthChartPanel", () => {
       "Status",
       "Injury",
       "Practice",
+      "Last Report",
     ])
 
     const [, reserve, questionable] = within(table).getAllByRole("row")
-    expect(reserve).toHaveTextContent("QBQ TwoReserveShoulder—")
-    expect(questionable).toHaveTextContent("WRW OneQuestionableKneeLimited Participation")
+    expect(reserve).toHaveTextContent("QBQ TwoInjury ReserveShoulder—Week 2")
+    expect(questionable).toHaveTextContent("WRW OneQuestionableKneeLimited ParticipationWeek 5")
   })
 
   // A different team: useFetch caches per path for the whole test file, so

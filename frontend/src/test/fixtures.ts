@@ -35,7 +35,7 @@ export function depthChart(overrides: Partial<DepthChartResponse> = {}): DepthCh
             position_name: "Quarterback",
             players: [
               { player_id: "Q1", name: "Q One", rank: 1, status: null, injury: null },
-              { player_id: "Q2", name: "Q Two", rank: 2, status: "RESERVE", injury: "Shoulder" },
+              { player_id: "Q2", name: "Q Two", rank: 2, status: "IR", injury: "Shoulder" },
             ],
           },
           {
@@ -54,8 +54,9 @@ export function depthChart(overrides: Partial<DepthChartResponse> = {}): DepthCh
         player_id: "Q2",
         name: "Q Two",
         position: "QB",
-        status: "RESERVE",
+        status: "IR",
         injury: "Shoulder",
+        injury_week: 2,
         practice_status: null,
       },
       {
@@ -64,6 +65,7 @@ export function depthChart(overrides: Partial<DepthChartResponse> = {}): DepthCh
         position: "WR",
         status: "QUESTIONABLE",
         injury: "Knee",
+        injury_week: 5,
         practice_status: "Limited Participation",
       },
     ],

@@ -7,6 +7,8 @@ from app.cache import memoized
 from app.data import depth_charts, injuries, rosters
 
 RESERVE_STATUS = "RES"
+# Commissioner exempt list - unavailable, but not a suspension.
+EXEMPT_STATUS = "EXE"
 
 STATUS_BY_REPORT = {
     "Out": "OUT",
@@ -14,24 +16,27 @@ STATUS_BY_REPORT = {
     "Questionable": "QUESTIONABLE",
 }
 
-# Reserve is not the same as injured - a suspension lands a player here too -
-# so reserve players read "Reserve" unless the roster's own code says
-# something more specific. nflverse documents neither `status` nor
-# `status_description_abbr`'s values (its dictionary gives only "a code
-# corresponding to a particular NFL status"), so only these two are decoded:
-# both are standard NFL roster designations rather than nflverse coinages, and
-# every player carrying them agrees with players.status (26/26 PUP, 2/2 SUS).
-# The other codes are left generic rather than guessed at.
+# A suspension lands a player on reserve too, so these two are split out
+# before the rest fall back to injury reserve. nflverse documents neither
+# `status` nor `status_description_abbr`'s values (its dictionary gives only
+# "a code corresponding to a particular NFL status"), so only these two are
+# decoded: both are standard NFL roster designations rather than nflverse
+# coinages, and every player carrying them agrees with players.status (26/26
+# PUP, 2/2 SUS). R01 - plain injury reserve - is 247 of 332 on its own, which
+# is why the rest fall back to IR.
 STATUS_BY_RESERVE_CODE = {
     "R04": "PUP",
     "R40": "SUSPENDED",
 }
 
+RESERVE_FALLBACK = "IR"
+
 # Most severe first, for the status section's ordering.
 STATUS_ORDER = (
-    "RESERVE",
+    "IR",
     "PUP",
     "SUSPENDED",
+    "EXEMPT",
     "OUT",
     "DOUBTFUL",
     "QUESTIONABLE",
@@ -58,19 +63,23 @@ def _offense_rank(position: str) -> int:
     )
 
 
-def _last_reported_injury(report: pd.DataFrame) -> dict[str, str]:
-    """gsis_id -> the most recent injury named for him in any week.
+def _last_reported_injury(report: pd.DataFrame) -> dict[str, tuple[str, int]]:
+    """gsis_id -> (the most recent injury named for him, the week it was named).
 
     A reserve player rarely appears on the current week's report but often
     appeared on an earlier one before being placed there, so this is the only
-    way to name a cause for him. It still leaves most of them blank: roughly
+    way to name a cause for him. The week comes back with it because that cause
+    can be several weeks stale. It still leaves most of them blank: roughly
     four in five are placed before the season and never reach a weekly report.
     """
     named = report[report["report_primary_injury"].notna()]
     if named.empty:
         return {}
     latest = named.sort_values("week").groupby("gsis_id").last()
-    return {str(key): str(value) for key, value in latest["report_primary_injury"].items()}
+    return {
+        str(row.Index): (str(row.report_primary_injury), int(str(row.week)))
+        for row in latest.itertuples()
+    }
 
 
 def _player_status(season: int, team: str) -> dict[str, dict[str, Any]]:
@@ -90,14 +99,20 @@ def _player_status(season: int, team: str) -> dict[str, dict[str, Any]]:
 
     roster = rosters.get_season_rosters(season)
     if not roster.empty:
-        reserve = roster[(roster["team"] == team) & (roster["status"] == RESERVE_STATUS)]
-        for row in reserve.itertuples():
+        unavailable = roster[
+            (roster["team"] == team) & roster["status"].isin([RESERVE_STATUS, EXEMPT_STATUS])
+        ]
+        for row in unavailable.itertuples():
             if pd.isna(row.gsis_id):
                 continue
             code = str(row.status_description_abbr)
+            cause, week = history.get(str(row.gsis_id), (None, None))
             statuses[str(row.gsis_id)] = {
-                "status": STATUS_BY_RESERVE_CODE.get(code, "RESERVE"),
-                "injury": history.get(str(row.gsis_id)),
+                "status": "EXEMPT"
+                if row.status == EXEMPT_STATUS
+                else STATUS_BY_RESERVE_CODE.get(code, RESERVE_FALLBACK),
+                "injury": cause,
+                "injury_week": week,
                 "practice_status": None,
                 "name": _cell(row.full_name),
                 "position": _cell(row.position),
@@ -112,6 +127,7 @@ def _player_status(season: int, team: str) -> dict[str, dict[str, Any]]:
             statuses[str(row.gsis_id)] = {
                 "status": status,
                 "injury": _cell(row.report_primary_injury),
+                "injury_week": int(row.week),
                 "practice_status": _cell(row.practice_status),
                 "name": _cell(row.full_name),
                 "position": _cell(row.position),
@@ -188,6 +204,7 @@ def get_team_depth_chart(team: str) -> dict[str, Any]:
             "position": flags["position"],
             "status": flags["status"],
             "injury": flags["injury"],
+            "injury_week": flags["injury_week"],
             "practice_status": flags["practice_status"],
         }
         for gsis_id, flags in statuses.items()

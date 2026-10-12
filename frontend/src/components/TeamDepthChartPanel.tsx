@@ -58,8 +58,11 @@ function TeamDepthChartPanel({ teamAbbr }: { teamAbbr: string }) {
                   <th scope="col" className="px-2 py-2 font-medium">
                     Injury
                   </th>
-                  <th scope="col" className="px-4 py-2 font-medium">
+                  <th scope="col" className="px-2 py-2 font-medium">
                     Practice
+                  </th>
+                  <th scope="col" className="px-4 py-2 font-medium">
+                    Last Report
                   </th>
                 </tr>
               </thead>
@@ -92,8 +95,11 @@ function TeamDepthChartPanel({ teamAbbr }: { teamAbbr: string }) {
                       {STATUS_NAME[row.status]}
                     </td>
                     <td className="px-2 py-2 text-[var(--text-secondary)]">{row.injury ?? "—"}</td>
-                    <td className="px-4 py-2 text-[var(--text-secondary)]">
+                    <td className="px-2 py-2 text-[var(--text-secondary)]">
                       {row.practice_status ?? "—"}
+                    </td>
+                    <td className="px-4 py-2 whitespace-nowrap text-[var(--text-secondary)]">
+                      {row.injury_week ? `Week ${row.injury_week}` : "—"}
                     </td>
                   </tr>
                 ))}

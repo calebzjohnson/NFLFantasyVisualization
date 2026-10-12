@@ -254,6 +254,10 @@ def depth_chart_sources(monkeypatch: pytest.MonkeyPatch) -> None:
                  status_description_abbr="R04"),
             dict(gsis_id="S1", team="DAL", status="RES", full_name="S One", position="LB",
                  status_description_abbr="R40"),
+            dict(gsis_id="E1", team="DAL", status="EXE", full_name="E One", position="RB",
+                 status_description_abbr="E02"),
+            dict(gsis_id="N1", team="DAL", status="INA", full_name="N One", position="WR",
+                 status_description_abbr="A01"),
         ]
     )
     injuries = pd.DataFrame(

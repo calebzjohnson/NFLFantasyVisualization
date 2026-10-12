@@ -55,7 +55,7 @@ def test_reserve_wins_over_a_weekly_designation(depth_chart_sources: None) -> No
         "player_id": "Q2",
         "name": "Q Two",
         "rank": 2,
-        "status": "RESERVE",
+        "status": "IR",
         "injury": "Shoulder",
     }
 
@@ -63,18 +63,36 @@ def test_reserve_wins_over_a_weekly_designation(depth_chart_sources: None) -> No
 def test_keeps_reserve_players_at_their_listed_depth(depth_chart_sources: None) -> None:
     players = slot("DAL", "offense", "TE")["players"]
 
-    assert [(p["name"], p["rank"], p["status"]) for p in players] == [("T One", 2, "RESERVE")]
+    assert [(p["name"], p["rank"], p["status"]) for p in players] == [("T One", 2, "IR")]
 
 
 def test_names_only_the_reserve_codes_nflverse_pins_down(depth_chart_sources: None) -> None:
-    """R04 and R40 resolve; an undocumented code stays a generic "Reserve"
-    rather than claiming the player is hurt."""
+    """R04 and R40 resolve; an undocumented code falls back to IR
+    Only the suspension is kept out of the injury label."""
     rows = depth_chart.get_team_depth_chart("DAL")["report"]
     report = {row["name"]: row["status"] for row in rows}
 
     assert report["P One"] == "PUP"
     assert report["S One"] == "SUSPENDED"
-    assert report["Q Two"] == "RESERVE"
+    assert report["Q Two"] == "IR"
+
+
+def test_flags_the_exempt_list_without_calling_it_a_suspension(depth_chart_sources: None) -> None:
+    rows = depth_chart.get_team_depth_chart("DAL")["report"]
+    report = {row["name"]: row["status"] for row in rows}
+
+    assert report["E One"] == "EXEMPT"
+    # Weekly inactives share an active player's code and mostly still play.
+    assert "N One" not in report
+
+
+def test_names_the_week_a_cause_was_last_reported(depth_chart_sources: None) -> None:
+    rows = depth_chart.get_team_depth_chart("DAL")["report"]
+    weeks = {row["name"]: row["injury_week"] for row in rows}
+
+    assert weeks["T One"] == 2
+    assert weeks["W One"] == 3
+    assert weeks["P One"] is None
 
 
 def test_backfills_a_reserve_cause_from_an_earlier_week(depth_chart_sources: None) -> None:
@@ -108,10 +126,11 @@ def test_report_lists_every_flagged_player_most_severe_first(depth_chart_sources
     report = depth_chart.get_team_depth_chart("DAL")["report"]
 
     assert [(row["name"], row["status"]) for row in report] == [
-        ("Q Two", "RESERVE"),
-        ("T One", "RESERVE"),
+        ("Q Two", "IR"),
+        ("T One", "IR"),
         ("P One", "PUP"),
         ("S One", "SUSPENDED"),
+        ("E One", "EXEMPT"),
         ("X Nine", "OUT"),
         ("W One", "QUESTIONABLE"),
     ]
@@ -134,6 +153,7 @@ def test_report_includes_a_player_who_dropped_off_the_chart(depth_chart_sources:
         "position": "CB",
         "status": "OUT",
         "injury": "Ankle",
+        "injury_week": 3,
         "practice_status": "Did Not Participate",
     }
 
