@@ -21,7 +21,7 @@ function PositionGroupToggle<T extends string>({
 }: PositionGroupToggleProps<T>) {
   return (
     <div
-      className="flex gap-1 rounded-md border border-[var(--border)] bg-[var(--surface-0)] p-1"
+      className="flex flex-wrap justify-center gap-1 rounded-md border border-[var(--border)] bg-[var(--surface-0)] p-1"
       role="group"
       aria-label={ariaLabel}
     >

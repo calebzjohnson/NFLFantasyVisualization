@@ -59,7 +59,8 @@ through their states and controls, not their rendered SVG, because jsdom
 doesn't calculate layout.
 
 End-to-end smoke tests (Playwright, in `frontend/e2e/`) load every page against
-the real local stack and fail on any error message, failed API call, or console error:
+the real local stack, on desktop and on a phone-sized screen, and fail on any error message,
+failed API call, console error, or page that scrolls sideways:
 
 ```
 cd frontend

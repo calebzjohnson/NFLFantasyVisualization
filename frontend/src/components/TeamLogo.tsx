@@ -23,16 +23,21 @@ export function TeamLogoBadge({ logo, size }: { logo: string; size: string }) {
 // Scatter marker. The 2px ring in the panel's surface color separates
 // overlapping badges, and the badge (30px+) is the hover target, well above
 // the 24px minimum. With `onSelect` it's also a click/Enter target.
+// `selected` rings a mark picked by a tap in the accent color. It doesn't
+// enlarge it like hover does: a bigger mark would cover its neighbors, and a
+// tap meant for one of them would land on it instead (and open its page).
 export function TeamLogoMarker({
   cx,
   cy,
   payload,
   onSelect,
+  selected = false,
 }: {
   cx?: number
   cy?: number
   payload?: { logo: string; name: string }
   onSelect?: () => void
+  selected?: boolean
 }) {
   if (cx === undefined || cy === undefined || !payload) return null
   return (
@@ -44,9 +49,18 @@ export function TeamLogoMarker({
         onKeyDown: activateOnKey(onSelect),
         "aria-label": `View the ${payload.name} team page`,
       })}
-      className="origin-center cursor-pointer transition-transform duration-150 [transform-box:fill-box] hover:scale-125 hover:[filter:drop-shadow(0_0_6px_rgba(37,106,191,0.45))]"
+      className={`origin-center cursor-pointer transition-transform duration-150 [transform-box:fill-box] hover:scale-125 hover:[filter:drop-shadow(0_0_6px_rgba(37,106,191,0.45))] ${
+        selected ? "[filter:drop-shadow(0_0_6px_rgba(37,106,191,0.45))]" : ""
+      }`}
     >
-      <circle cx={cx} cy={cy} r={MARKER_RADIUS} fill={BADGE_FILL} stroke="var(--surface-1)" strokeWidth={2} />
+      <circle
+        cx={cx}
+        cy={cy}
+        r={MARKER_RADIUS}
+        fill={BADGE_FILL}
+        stroke={selected ? "var(--accent)" : "var(--surface-1)"}
+        strokeWidth={selected ? 3 : 2}
+      />
       <image
         href={payload.logo}
         x={cx - MARKER_LOGO_SIZE / 2}

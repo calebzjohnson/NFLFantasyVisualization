@@ -12,7 +12,7 @@ function AxisSelect({
   onChange: (value: string) => void
 }) {
   return (
-    <label className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
+    <label className="flex items-center gap-2 text-sm whitespace-nowrap text-[var(--text-secondary)]">
       {label}
       <select
         value={value}

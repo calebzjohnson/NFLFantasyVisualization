@@ -2,15 +2,20 @@
 // Pick-your-axes scatterplot shared by Compare Players and Compare Teams: two
 // metric pickers, median quadrant lines, and a tooltip. The caller supplies
 // the rows, the marker, and the tooltip header. Built on the Evil Charts
-// chart/tooltip base.
+// chart/tooltip base. On a touchscreen the tooltip is replaced by a details box
+// below the chart: a tap selects a mark, and a second tap (or the box's button)
+// opens its page (see useTapToOpen).
 import { type ReactElement, type ReactNode, useMemo, useState } from "react"
 import { CartesianGrid, ReferenceLine, Scatter, ScatterChart, XAxis, YAxis } from "recharts"
 import { metricMedian, type PlayerMetric, type StatFields } from "../data/playerMetrics"
+import { TOUCH_QUERY, useMediaQuery } from "../lib/useMediaQuery"
+import { useTapToOpen } from "../lib/useTapToOpen"
 import AxisSelect from "./AxisSelect"
 import { ChartContainer, type ChartConfig } from "./evilcharts/ui/recharts-chart"
 import { ChartTooltip, ChartTooltipContent } from "./evilcharts/ui/recharts-tooltip"
 import ChartDataTable from "./ChartDataTable"
 import Panel from "./Panel"
+import { OpenButton, TapDetails } from "./TapDetails"
 
 const chartConfig = {
   point: { label: "Point" },
@@ -47,16 +52,29 @@ function clusterRadius(count: number): number {
   return Math.min(9 + Math.sqrt(count) * 3.2, 26)
 }
 
-function ClusterBadge({ cx, cy, count }: { cx?: number; cy?: number; count: number }) {
+// Tapping a cluster on a touchscreen lists its members below the chart.
+function ClusterBadge({
+  cx,
+  cy,
+  count,
+  selected,
+  onSelect,
+}: {
+  cx?: number
+  cy?: number
+  count: number
+  selected: boolean
+  onSelect: () => void
+}) {
   if (cx === undefined || cy === undefined) return null
   return (
-    <g>
+    <g onClick={onSelect}>
       <circle
         cx={cx}
         cy={cy}
         r={clusterRadius(count)}
         fill="var(--accent)"
-        fillOpacity={0.15}
+        fillOpacity={selected ? 0.35 : 0.15}
         stroke="var(--accent)"
         strokeWidth={1.5}
       />
@@ -161,9 +179,16 @@ interface MetricScatterProps<Row extends StatFields> {
   noun: string
   emptyText: string
   caption: ReactNode
-  Dot: (props: { cx?: number; cy?: number; payload?: Row }) => ReactElement | null
+  // The marker. Clicking it (or Enter) must call `onSelect`; `selected` marks the one a tap picked.
+  Dot: (props: { cx?: number; cy?: number; payload?: Row; selected?: boolean; onSelect?: () => void }) => ReactElement | null
   // Names a row in the chart's data table, e.g. the player or team name.
   rowName: (row: Row) => string
+  // Stable id for a row (player or team id), for tap selection.
+  rowId: (row: Row) => string
+  // Opens a row's page: on click, or a tapped mark's second tap / "View" button.
+  onOpen?: (row: Row) => void
+  // Shown below the chart on a touchscreen before anything is tapped.
+  tapPrompt: string
   renderTooltipHeader: (row: Row) => ReactNode
 }
 
@@ -180,6 +205,9 @@ function MetricScatter<Row extends StatFields>({
   caption,
   Dot,
   rowName,
+  rowId,
+  onOpen,
+  tapPrompt,
   renderTooltipHeader,
 }: MetricScatterProps<Row>) {
   const [xKey, setXKey] = useState(initialX)
@@ -208,9 +236,19 @@ function MetricScatter<Row extends StatFields>({
 
   const optionByLabel = new Map(metrics.map((metric) => [metric.label, metric]))
 
+  const touchScreen = useMediaQuery(TOUCH_QUERY)
+  const pointKey = (point: PlotPoint<Row>) => (point.kind === "solo" ? rowId(point.row) : `cluster:${point.x},${point.y}`)
+  const pointByKey = new Map(plotPoints?.map((point) => [pointKey(point), point]))
+  const tap = useTapToOpen<string>((key) => {
+    const point = pointByKey.get(key)
+    if (point?.kind === "solo") onOpen?.(point.row)
+  })
+  // Gone if the axes changed and the tapped row now sits in a cluster.
+  const selectedPoint = tap.selected === null ? undefined : pointByKey.get(tap.selected)
+
   return (
     <Panel title={title}>
-      <div className="flex flex-nowrap items-center gap-3 overflow-x-auto border-b border-[var(--border)] px-4 py-3">
+      <div className="flex flex-wrap items-center justify-center gap-3 border-b border-[var(--border)] px-4 py-3">
         <AxisSelect
           label="X axis"
           value={xMetric.label}
@@ -233,98 +271,141 @@ function MetricScatter<Row extends StatFields>({
       {points && points.length === 0 && <p className="p-4 text-sm text-[var(--text-secondary)]">{emptyText}</p>}
       {points && points.length > 0 && (
         <div className="p-3">
-          <ChartContainer
-            config={chartConfig}
-            className="aspect-[3/2]"
-            label={`${title}: ${points.length} ${noun} plotted by ${xMetric.label} (across) and ${yMetric.label} (up). Lines mark the median in each stat.`}
+          {/* A tap on empty chart space (not a mark) clears the selection. */}
+          <div
+            onPointerDown={tap.onPointerDown}
+            onClick={(event) => !(event.target as Element).closest(".recharts-scatter-symbol") && tap.tap(null)}
           >
-            <ScatterChart margin={{ top: 8, right: 16, bottom: 24, left: 4 }}>
-              <CartesianGrid stroke="var(--border)" strokeOpacity={0.6} />
-              <XAxis
-                type="number"
-                dataKey="x"
-                name={xMetric.label}
-                domain={xDomain}
-                tickFormatter={(value) => formatValue(Number(value), xMetric.unit)}
-                tickLine={false}
-                axisLine={{ stroke: "var(--border)" }}
-                label={{
-                  value: xMetric.label,
-                  position: "insideBottom",
-                  offset: -14,
-                  fill: "var(--text-secondary)",
-                  fontSize: 11,
-                  fontWeight: 700,
-                }}
-              />
-              <YAxis
-                type="number"
-                dataKey="y"
-                name={yMetric.label}
-                domain={yDomain}
-                tickFormatter={(value) => formatValue(Number(value), yMetric.unit)}
-                tickLine={false}
-                axisLine={{ stroke: "var(--border)" }}
-                width={54}
-                label={{
-                  value: yMetric.label,
-                  angle: -90,
-                  position: "insideLeft",
-                  offset: 4,
-                  style: { textAnchor: "middle" },
-                  fill: "var(--text-secondary)",
-                  fontSize: 11,
-                  fontWeight: 700,
-                }}
-              />
-              <ReferenceLine x={xMedian} stroke="var(--text-muted)" strokeOpacity={0.5} />
-              <ReferenceLine y={yMedian} stroke="var(--text-muted)" strokeOpacity={0.5} />
-              <ChartTooltip
-                cursor={false}
-                content={
-                  <ChartTooltipContent
-                    variant="frosted-glass"
-                    hideIndicator
-                    labelFormatter={(_, items) => {
-                      const point = items[0]?.payload as PlotPoint<Row> | undefined
-                      if (!point) return null
-                      return point.kind === "cluster" ? (
-                        <ClusterTooltipHeader members={point.members} renderHeader={renderTooltipHeader} />
-                      ) : (
-                        renderTooltipHeader(point.row)
-                      )
-                    }}
-                    formatter={(value, name) => {
-                      const metric: PlayerMetric | undefined =
-                        name === xMetric.label ? xMetric : name === yMetric.label ? yMetric : undefined
-                      const median = name === xMetric.label ? xMedian : yMedian
-                      return (
-                        <TooltipRow
-                          name={String(name)}
-                          value={Number(value)}
-                          unit={metric?.unit}
-                          offset={Number(value) - median}
-                        />
-                      )
-                    }}
+            <ChartContainer
+              config={chartConfig}
+              className="aspect-[3/2]"
+              label={`${title}: ${points.length} ${noun} plotted by ${xMetric.label} (across) and ${yMetric.label} (up). Lines mark the median in each stat.`}
+            >
+              <ScatterChart margin={{ top: 8, right: 16, bottom: 24, left: 4 }}>
+                <CartesianGrid stroke="var(--border)" strokeOpacity={0.6} />
+                <XAxis
+                  type="number"
+                  dataKey="x"
+                  name={xMetric.label}
+                  domain={xDomain}
+                  tickFormatter={(value) => formatValue(Number(value), xMetric.unit)}
+                  tickLine={false}
+                  axisLine={{ stroke: "var(--border)" }}
+                  label={{
+                    value: xMetric.label,
+                    position: "insideBottom",
+                    offset: -14,
+                    fill: "var(--text-secondary)",
+                    fontSize: 11,
+                    fontWeight: 700,
+                  }}
+                />
+                <YAxis
+                  type="number"
+                  dataKey="y"
+                  name={yMetric.label}
+                  domain={yDomain}
+                  tickFormatter={(value) => formatValue(Number(value), yMetric.unit)}
+                  tickLine={false}
+                  axisLine={{ stroke: "var(--border)" }}
+                  width={54}
+                  label={{
+                    value: yMetric.label,
+                    angle: -90,
+                    position: "insideLeft",
+                    offset: 4,
+                    style: { textAnchor: "middle" },
+                    fill: "var(--text-secondary)",
+                    fontSize: 11,
+                    fontWeight: 700,
+                  }}
+                />
+                <ReferenceLine x={xMedian} stroke="var(--text-muted)" strokeOpacity={0.5} />
+                <ReferenceLine y={yMedian} stroke="var(--text-muted)" strokeOpacity={0.5} />
+                {/* On a touchscreen, the details box below stands in for the tooltip. */}
+                {!touchScreen && (
+                  <ChartTooltip
+                    cursor={false}
+                    content={
+                      <ChartTooltipContent
+                        variant="frosted-glass"
+                        hideIndicator
+                        labelFormatter={(_, items) => {
+                          const point = items[0]?.payload as PlotPoint<Row> | undefined
+                          if (!point) return null
+                          return point.kind === "cluster" ? (
+                            <ClusterTooltipHeader members={point.members} renderHeader={renderTooltipHeader} />
+                          ) : (
+                            renderTooltipHeader(point.row)
+                          )
+                        }}
+                        formatter={(value, name) => {
+                          const metric: PlayerMetric | undefined =
+                            name === xMetric.label ? xMetric : name === yMetric.label ? yMetric : undefined
+                          const median = name === xMetric.label ? xMedian : yMedian
+                          return (
+                            <TooltipRow
+                              name={String(name)}
+                              value={Number(value)}
+                              unit={metric?.unit}
+                              offset={Number(value) - median}
+                            />
+                          )
+                        }}
+                      />
+                    }
                   />
-                }
-              />
-              <Scatter
-                data={plotPoints ?? []}
-                shape={(props: { cx?: number; cy?: number; payload?: PlotPoint<Row> }) => {
-                  const point = props.payload
-                  if (!point) return null
-                  return point.kind === "cluster" ? (
-                    <ClusterBadge cx={props.cx} cy={props.cy} count={point.members.length} />
+                )}
+                <Scatter
+                  data={plotPoints ?? []}
+                  shape={(props: { cx?: number; cy?: number; payload?: PlotPoint<Row> }) => {
+                    const point = props.payload
+                    if (!point) return null
+                    const key = pointKey(point)
+                    return point.kind === "cluster" ? (
+                      <ClusterBadge
+                        cx={props.cx}
+                        cy={props.cy}
+                        count={point.members.length}
+                        selected={key === tap.selected}
+                        onSelect={() => tap.tap(key)}
+                      />
+                    ) : (
+                      <Dot
+                        cx={props.cx}
+                        cy={props.cy}
+                        payload={point.row}
+                        selected={key === tap.selected}
+                        onSelect={() => tap.tap(key)}
+                      />
+                    )
+                  }}
+                  isAnimationActive={false}
+                />
+              </ScatterChart>
+            </ChartContainer>
+          </div>
+          {touchScreen && (
+            // The tallest filled box at default axes (146px: a team's values wrap on
+            // a 360px phone), so the first tap doesn't shift what's below. A tied
+            // cluster lists its members and runs taller.
+            <TapDetails prompt={tapPrompt} className="min-h-37">
+              {selectedPoint && (
+                <div className="flex flex-col gap-1.5">
+                  {selectedPoint.kind === "cluster" ? (
+                    <ClusterTooltipHeader members={selectedPoint.members} renderHeader={renderTooltipHeader} />
                   ) : (
-                    <Dot cx={props.cx} cy={props.cy} payload={point.row} />
-                  )
-                }}
-                isAnimationActive={false}
-              />
-            </ScatterChart>
-          </ChartContainer>
+                    renderTooltipHeader(selectedPoint.row)
+                  )}
+                  <TooltipRow name={xMetric.label} value={selectedPoint.x} unit={xMetric.unit} offset={selectedPoint.x - xMedian} />
+                  <TooltipRow name={yMetric.label} value={selectedPoint.y} unit={yMetric.unit} offset={selectedPoint.y - yMedian} />
+                  {selectedPoint.kind === "solo" && onOpen && (
+                    <OpenButton name={rowName(selectedPoint.row)} onClick={() => onOpen(selectedPoint.row)} />
+                  )}
+                </div>
+              )}
+            </TapDetails>
+          )}
           <p className="pt-2 text-xs text-[var(--text-muted)]">{caption}</p>
           <ChartDataTable
             caption={`${xMetric.label} and ${yMetric.label} for each of the ${noun}`}
