@@ -95,13 +95,59 @@ test("depth chart lists a quarterback room in depth order", async ({ page }) => 
   await expect(quarterbacks.getByRole("link")).not.toHaveCount(0)
 })
 
-test("injury report names a cause and practice participation", async ({ page }) => {
+test("offense is ordered backfield, receivers, then the line left to right", async ({ page }) => {
+  await page.goto("/teams/KC?tab=depth-chart")
+  const offense = page.getByRole("table").first()
+  // allTextContents() reads once with no auto-retry, so wait for the table to
+  // have rendered before snapshotting it.
+  await expect(offense.getByRole("rowheader").first()).toHaveText("QB")
+  const positions = await offense.getByRole("rowheader").allTextContents()
+
+  // indexOf returns -1 when a row is missing, which would make the ordering
+  // comparisons below pass vacuously - so check they're all there first.
+  for (const position of ["QB", "RB", "WR", "TE", "LT", "LG", "C", "RG", "RT"]) {
+    expect(positions, `missing ${position}`).toContain(position)
+  }
+
+  // nflverse's own pos_slot would interleave the line with the receivers.
+  expect(positions[0]).toBe("QB")
+  expect(positions.indexOf("RB")).toBeLessThan(positions.indexOf("WR"))
+  expect(positions.indexOf("WR")).toBeLessThan(positions.indexOf("TE"))
+  expect(positions.indexOf("TE")).toBeLessThan(positions.indexOf("LT"))
+  for (const [left, right] of [["LT", "LG"], ["LG", "C"], ["C", "RG"], ["RG", "RT"]]) {
+    expect(positions.indexOf(left)).toBeLessThan(positions.indexOf(right))
+  }
+})
+
+test("the offense is headed by its personnel grouping", async ({ page }) => {
+  await page.goto("/teams/KC?tab=depth-chart")
+  await expect(page.getByRole("heading", { name: /^\d+WR \d+TE$/ })).toBeVisible()
+})
+
+test("unavailable players are flagged in the depth chart itself", async ({ page }) => {
+  await page.goto("/teams/KC?tab=depth-chart")
+  const offense = page.getByRole("table").first()
+
+  // Every team carries several reserve players in its listed depth.
+  await expect(offense.getByTitle(/Injury Reserve|Physically Unable/).first()).toBeVisible()
+})
+
+test("availability names a cause, participation, and how stale the report is", async ({ page }) => {
   await page.goto("/teams/KC?tab=depth-chart")
   const report = page.getByRole("heading", { name: "Availability" }).locator("xpath=ancestor::section")
 
   await expect(report.getByRole("columnheader", { name: "Injury" })).toBeVisible()
   await expect(report.getByRole("columnheader", { name: "Practice" })).toBeVisible()
+  await expect(report.getByRole("columnheader", { name: "Last Report" })).toBeVisible()
   await expect(report.getByRole("row")).not.toHaveCount(1)
+  await expect(report.getByText(/doesn't cover most players placed on reserve/)).toBeVisible()
+})
+
+test("an unrecognised tab falls back to Overview", async ({ page }) => {
+  await page.goto("/teams/KC?tab=nonsense")
+
+  await expect(page.getByRole("heading", { name: "Game Log" })).toBeVisible()
+  await expect(page.getByRole("button", { name: "Overview" })).toHaveAttribute("aria-pressed", "true")
 })
 
 test("back from a tab leaves the team page rather than stepping through tabs", async ({ page }) => {
