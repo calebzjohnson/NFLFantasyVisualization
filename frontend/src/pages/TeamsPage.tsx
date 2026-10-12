@@ -54,7 +54,10 @@ function TeamsPage() {
         noun="teams"
         emptyText="No games played yet."
         rowName={(row) => row.name}
-        Dot={(props) => <TeamLogoMarker {...props} onSelect={() => props.payload && navigate(teamPath(props.payload.team))} />}
+        rowId={(row) => row.team}
+        onOpen={(row) => navigate(teamPath(row.team))}
+        tapPrompt="Tap a logo to see that team's numbers."
+        Dot={(props) => <TeamLogoMarker {...props} />}
         renderTooltipHeader={(row) => (
           <div className="flex items-center gap-2">
             <TeamLogoBadge logo={row.logo} size="h-7 w-7" />

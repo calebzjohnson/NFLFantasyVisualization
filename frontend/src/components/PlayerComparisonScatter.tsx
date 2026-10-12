@@ -35,20 +35,24 @@ const PlayerDot = memo(function PlayerDot({
   cy,
   payload,
   onSelect,
+  selected = false,
 }: {
   cx?: number
   cy?: number
   payload?: PlayerPoint
-  onSelect?: (point: PlayerPoint) => void
+  onSelect?: () => void
+  // Picked by a tap: ringed in the accent color, not enlarged like hover (a
+  // bigger mark would cover neighbors and catch taps meant for them).
+  selected?: boolean
 }) {
   if (cx === undefined || cy === undefined || !payload) return null
 
   return (
     <g
-      onClick={() => onSelect?.(payload)}
+      onClick={onSelect}
       role="button"
       tabIndex={0}
-      onKeyDown={activateOnKey(() => onSelect?.(payload))}
+      onKeyDown={onSelect && activateOnKey(onSelect)}
       aria-label={`View ${payload.player_display_name}'s player page`}
       className="origin-center cursor-pointer transition-transform duration-150 [transform-box:fill-box] hover:scale-125"
     >
@@ -58,8 +62,8 @@ const PlayerDot = memo(function PlayerDot({
         cy={cy}
         r={MARKER_RADIUS}
         fill={payload.color}
-        stroke="var(--surface-1)"
-        strokeWidth={2}
+        stroke={selected ? "var(--accent)" : "var(--surface-1)"}
+        strokeWidth={selected ? 3 : 2}
       />
       {payload.headshot_url ? (
         <image
@@ -133,7 +137,10 @@ function PlayerComparisonScatter({ position }: { position: PositionGroup }) {
       error={error}
       noun="players"
       emptyText={`No ${positionPlural(position)} with stats yet.`}
-      Dot={(props) => <PlayerDot {...props} onSelect={goToPlayer} />}
+      Dot={(props) => <PlayerDot {...props} />}
+      rowId={(point) => point.player_id}
+      onOpen={goToPlayer}
+      tapPrompt="Tap a player to see their numbers."
       rowName={(point) => point.player_display_name}
       renderTooltipHeader={(point) => <TooltipHeader point={point} />}
       caption={

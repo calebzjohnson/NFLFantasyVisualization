@@ -1,8 +1,8 @@
 // MetricScatter.test.tsx
-// Tests for the shared scatter's axis pickers and its loading/empty/error states.
+// Tests for the shared scatter's axis pickers, its loading/empty/error states, and its touchscreen details box.
 // The chart itself isn't rendered here - recharts needs real layout, which jsdom lacks.
 import { render, screen } from "@testing-library/react"
-import { describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import { TEAM_METRICS } from "../data/teamMetrics"
 import MetricScatter, { groupCoincidentPoints } from "./MetricScatter"
 
@@ -19,6 +19,8 @@ function scatter(props: Partial<Parameters<typeof MetricScatter>[0]> = {}) {
       caption="caption"
       Dot={() => null}
       rowName={() => "Row"}
+      rowId={() => "row"}
+      tapPrompt="Tap a thing."
       renderTooltipHeader={() => null}
       {...props}
     />
@@ -67,6 +69,21 @@ describe("MetricScatter", () => {
     expect(table).toHaveTextContent("Alpha")
     expect(table).toHaveTextContent("Beta")
   })
+
+  it("shows a tap prompt below the chart only on a touchscreen", () => {
+    const rows = [{ name: "Alpha", games: 2, points_for: 40, points_against: 20 }]
+    const { unmount } = render(scatter({ rows }))
+    expect(screen.queryByText("Tap a thing.")).not.toBeInTheDocument()
+    unmount()
+
+    vi.stubGlobal("matchMedia", () => ({ matches: true, addEventListener: () => {}, removeEventListener: () => {} }))
+    render(scatter({ rows }))
+    expect(screen.getByText("Tap a thing.")).toBeInTheDocument()
+  })
+})
+
+afterEach(() => {
+  vi.unstubAllGlobals()
 })
 
 describe("groupCoincidentPoints", () => {

@@ -180,6 +180,57 @@ test("trending chart lines preview then open, by hover or by tap", async ({ page
   await expect(page).toHaveURL(`/players/${again.id}`)
 })
 
+// Same pattern on the scatters: hover/click with a mouse; on a touchscreen a
+// tap shows the mark's numbers below the chart, and the box's button or a
+// second tap opens its page.
+const SCATTERS = [
+  { path: "/", heading: "Team Efficiency", opened: /\/teams\/[A-Z]+$/ },
+  { path: "/teams", heading: "Compare Teams", opened: /\/teams\/[A-Z]+$/ },
+  { path: "/players", heading: "Compare Players", opened: /\/players\/[^/]+$/ },
+]
+
+for (const { path, heading, opened } of SCATTERS) {
+  test(`${heading} marks preview then open, by hover or by tap`, async ({ page, hasTouch }) => {
+    const chart = page.locator("section", { has: page.getByRole("heading", { name: heading }) }).first()
+    // Marks are tapped/clicked through the locator, which re-finds the node if
+    // recharts re-renders it; force, because neighboring marks overlap and
+    // whichever is on top at that point is the one the user would hit.
+    const mark = chart.locator("svg [role=button]").nth(5)
+    async function visit() {
+      await page.goto(path)
+      await mark.waitFor({ timeout: 60_000 })
+      // Panels still loading above the chart would shift it mid-test.
+      await expect(page.getByText("Loading…")).toHaveCount(0, { timeout: 60_000 })
+      await chart.scrollIntoViewIfNeeded()
+    }
+
+    await visit()
+    if (!hasTouch) {
+      await mark.hover({ force: true })
+      await expect(chart.locator(".recharts-tooltip-wrapper")).toHaveCSS("visibility", "visible")
+      await mark.click({ force: true })
+      await expect(page).toHaveURL(opened)
+      return
+    }
+
+    await expect(chart.getByText(/^Tap a (logo|player) to see/)).toBeVisible()
+    await mark.tap({ force: true })
+    const open = chart.getByRole("button", { name: /^View .+ →$/ })
+    await expect(open).toBeVisible()
+    await expect(page).toHaveURL(path)
+    const chartBox = (await chart.getByRole("figure").boundingBox())!
+    expect((await open.boundingBox())!.y, "details sit below the chart").toBeGreaterThanOrEqual(chartBox.y + chartBox.height)
+    await open.tap()
+    await expect(page).toHaveURL(opened)
+
+    await visit()
+    await mark.tap({ force: true })
+    await expect(open).toBeVisible()
+    await mark.tap({ force: true })
+    await expect(page).toHaveURL(opened)
+  })
+}
+
 test("navbar search opens a player page", async ({ page }) => {
   await page.goto("/about")
   await page.getByRole("combobox", { name: "Search teams & players..." }).fill("Mahomes")

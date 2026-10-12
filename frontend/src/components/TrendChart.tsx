@@ -20,10 +20,12 @@ import { activateOnKey } from "../lib/activateOnKey"
 import { initialsFor, readableTextColor } from "../lib/playerVisuals"
 import { useFetch } from "../lib/useFetch"
 import { TOUCH_QUERY, useMediaQuery } from "../lib/useMediaQuery"
+import { useTapToOpen } from "../lib/useTapToOpen"
 import AxisSelect from "./AxisSelect"
 import { ChartContainer, type ChartConfig } from "./evilcharts/ui/recharts-chart"
 import ChartDataTable from "./ChartDataTable"
 import Panel from "./Panel"
+import { OpenButton, TapDetails } from "./TapDetails"
 import { BADGE_FILL, TeamLogoBadge } from "./TeamLogo"
 
 const UP_COLOR = "var(--accent)"
@@ -154,7 +156,7 @@ function LineIdentity({ meta }: { meta: LineMeta }) {
 // it: weeks run in a wrapping row rather than a column, to stay short.
 function LineDetails({ meta, unit, onOpen }: { meta: LineMeta; unit?: string; onOpen?: () => void }) {
   return (
-    <div className="space-y-1.5 text-xs">
+    <div className="flex flex-col gap-1.5">
       <LineIdentity meta={meta} />
       <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[var(--text-secondary)]">
         {meta.line.games.map((game) => (
@@ -168,15 +170,7 @@ function LineDetails({ meta, unit, onOpen }: { meta: LineMeta; unit?: string; on
           <span className="font-mono tabular-nums text-[var(--text-primary)]">{formatSlope(meta.line.slope, unit)}</span>
         </span>
       </div>
-      {onOpen && (
-        <button
-          type="button"
-          onClick={onOpen}
-          className="rounded-md border border-[var(--border)] bg-[var(--surface-1)] px-3 py-1.5 font-medium text-[var(--accent)] hover:bg-[var(--surface-2)]"
-        >
-          View {meta.line.name} →
-        </button>
-      )}
+      {onOpen && <OpenButton name={meta.line.name} onClick={onOpen} />}
     </div>
   )
 }
@@ -246,11 +240,6 @@ function TrendChart({ title, metrics, plural, singular, loading, error, trends, 
   const [cardStyle, setCardStyle] = useState<{ left: number; top: number }>({ left: 0, top: 0 })
   const containerRef = useRef<HTMLDivElement>(null)
   const cardRef = useRef<HTMLDivElement>(null)
-  // The input behind the click about to arrive: "mouse" hovers then clicks;
-  // anything else (touch, pen) taps to show a line, then taps again to open it.
-  const pointerTypeRef = useRef("mouse")
-  // The card on show was opened by a tap, so it says a second tap opens the page.
-  const [tapped, setTapped] = useState(false)
   const touchScreen = useMediaQuery(TOUCH_QUERY)
 
   // Hovering many crossing diagonal lines with per-element onMouseEnter/
@@ -277,32 +266,18 @@ function TrendChart({ title, metrics, plural, singular, loading, error, trends, 
     return el.getAttribute("name")
   }
 
-  function showLineAt(event: React.PointerEvent<HTMLDivElement> | React.MouseEvent<HTMLDivElement>) {
-    setTapped(pointerTypeRef.current !== "mouse")
+  function moveCursor(event: React.MouseEvent<HTMLDivElement>) {
     const rect = containerRef.current!.getBoundingClientRect()
     setCursorPos({ x: event.clientX - rect.left, y: event.clientY - rect.top })
-    setHoveredId(resolveHoveredId(event.clientX, event.clientY))
   }
 
   // Only a mouse hovers: a finger's pointermove is a scroll, and its
-  // pointerleave fires on every lift, which would hide a card just tapped open.
+  // pointerleave fires on every lift, which would hide a line just tapped.
   function handlePointerMove(event: React.PointerEvent<HTMLDivElement>) {
     if (event.pointerType !== "mouse") return
-    pointerTypeRef.current = "mouse"
-    showLineAt(event)
+    moveCursor(event)
+    setHoveredId(resolveHoveredId(event.clientX, event.clientY))
   }
-
-  // Re-measures the card itself (its height depends on how many weeks of
-  // data the hovered player has) so it can be clamped inside the chart area
-  // instead of spilling past the edge when the cursor is near a boundary.
-  useLayoutEffect(() => {
-    if (!cursorPos || !hoveredId || !cardRef.current || !containerRef.current) return
-    const container = containerRef.current.getBoundingClientRect()
-    const card = cardRef.current.getBoundingClientRect()
-    const left = Math.min(Math.max(cursorPos.x + CARD_OFFSET, 8), container.width - card.width - 8)
-    const top = Math.min(Math.max(cursorPos.y + CARD_OFFSET, 8), container.height - card.height - 8)
-    setCardStyle({ left, top })
-  }, [cursorPos, hoveredId])
 
   const metric = metrics.find((m) => m.key === statKey) ?? metrics[0]
 
@@ -356,20 +331,32 @@ function TrendChart({ title, metrics, plural, singular, loading, error, trends, 
   )
 
   const optionByLabel = new Map(metrics.map((m) => [m.label, m]))
-  const hoveredMeta = lineMetas.find((m) => m.line.id === hoveredId)
+  // A mouse click opens a line; a tap selects it (a second tap opens it).
+  const tap = useTapToOpen<string>((id) => {
+    const line = lineMetas.find((m) => m.line.id === id)?.line
+    if (line && onSelect) onSelect(line)
+  })
+  // The line on show: hovered with a mouse, or selected by a tap.
+  const activeId = hoveredId ?? tap.selected
+  const activeMeta = lineMetas.find((m) => m.line.id === activeId)
 
   // A click, not pointerdown, so a scroll that starts on a line never opens it.
   function handleClick(event: React.MouseEvent<HTMLDivElement>) {
-    const id = resolveHoveredId(event.clientX, event.clientY)
-    const line = lineMetas.find((m) => m.line.id === id)?.line
-    if (pointerTypeRef.current === "mouse") {
-      if (line && onSelect) onSelect(line)
-    } else if (line && onSelect && id === hoveredId) {
-      onSelect(line)
-    } else {
-      showLineAt(event)
-    }
+    moveCursor(event)
+    tap.tap(resolveHoveredId(event.clientX, event.clientY))
   }
+
+  // Re-measures the card itself (its height depends on how many weeks of
+  // data the hovered player has) so it can be clamped inside the chart area
+  // instead of spilling past the edge when the cursor is near a boundary.
+  useLayoutEffect(() => {
+    if (!cursorPos || !activeId || !cardRef.current || !containerRef.current) return
+    const container = containerRef.current.getBoundingClientRect()
+    const card = cardRef.current.getBoundingClientRect()
+    const left = Math.min(Math.max(cursorPos.x + CARD_OFFSET, 8), container.width - card.width - 8)
+    const top = Math.min(Math.max(cursorPos.y + CARD_OFFSET, 8), container.height - card.height - 8)
+    setCardStyle({ left, top })
+  }, [cursorPos, activeId])
 
   return (
     <Panel title={title}>
@@ -385,6 +372,7 @@ function TrendChart({ title, metrics, plural, singular, loading, error, trends, 
             // point at a line that isn't plotted anymore, or a stale position
             // for one that is. Drop it so hover starts clean.
             setHoveredId(null)
+            tap.tap(null)
           }}
         />
       </div>
@@ -400,7 +388,7 @@ function TrendChart({ title, metrics, plural, singular, loading, error, trends, 
           {/* Pointer handling covers the chart alone, so taps on the details
               box, caption, or data table never count as tapping empty chart. */}
           <div
-            onPointerDown={(event) => (pointerTypeRef.current = event.pointerType)}
+            onPointerDown={tap.onPointerDown}
             onPointerMove={handlePointerMove}
             onPointerLeave={(event) => event.pointerType === "mouse" && setHoveredId(null)}
             onClick={handleClick}
@@ -450,8 +438,8 @@ function TrendChart({ title, metrics, plural, singular, loading, error, trends, 
                     key={meta.line.id}
                     dataKey={meta.line.id}
                     stroke={meta.color}
-                    strokeWidth={hoveredId === meta.line.id ? 3 : 2}
-                    strokeOpacity={hoveredId === null || hoveredId === meta.line.id ? 1 : DIMMED_OPACITY}
+                    strokeWidth={activeId === meta.line.id ? 3 : 2}
+                    strokeOpacity={activeId === null || activeId === meta.line.id ? 1 : DIMMED_OPACITY}
                     connectNulls
                     type="monotone"
                     isAnimationActive={false}
@@ -489,28 +477,24 @@ function TrendChart({ title, metrics, plural, singular, loading, error, trends, 
             // games) even before a tap, so showing a line - or switching lines -
             // doesn't push the caption and table around. Longer seasons wrap
             // the week row onto more lines and grow it a little.
-            <div
-              aria-live="polite"
-              className="mt-2 flex min-h-32 flex-col justify-center rounded-md border border-[var(--border)] bg-[var(--surface-2)] p-2.5"
-            >
-              {hoveredMeta ? (
+            <TapDetails prompt={`Tap a line to see that ${singular}'s numbers.`} className="min-h-32">
+              {activeMeta && (
                 <LineDetails
-                  meta={hoveredMeta}
+                  meta={activeMeta}
                   unit={metric.unit}
-                  onOpen={onSelect && (() => onSelect(hoveredMeta.line))}
+                  onOpen={onSelect && (() => onSelect(activeMeta.line))}
                 />
-              ) : (
-                <p className="text-center text-xs text-[var(--text-muted)]">Tap a line to see that {singular}'s numbers.</p>
               )}
-            </div>
+            </TapDetails>
           )}
-          {hoveredMeta && !touchScreen && (
+          {activeMeta && !touchScreen && (
             <LineHoverCard
               ref={cardRef}
-              meta={hoveredMeta}
+              meta={activeMeta}
               unit={metric.unit}
               style={cardStyle}
-              hint={onSelect && tapped ? "Tap the line again to open" : undefined}
+              // Tapped on a device that also hovers (a touchscreen laptop).
+              hint={onSelect && hoveredId === null ? "Tap the line again to open" : undefined}
             />
           )}
           <p className="pt-2 text-xs text-[var(--text-muted)]">
