@@ -392,6 +392,80 @@ test("season usage donut slices preview then open a teammate, by click or by tap
   await expect(page).toHaveURL(/\/players\/(?!00-0030279)[^/]+$/)
 })
 
+// League Comparison beeswarms: hover/click a dot with a mouse. On a phone the
+// chart scrolls sideways so its column labels don't collide, and a tap picks
+// the nearest dot (dots are 3.5px, too small to hit exactly with a finger).
+const SWARMS = [
+  { path: "/players/00-0033873", prompt: "Tap a dot to see that player's numbers.", opened: (id: string) => `/players/${id}` },
+  { path: "/teams/KC", prompt: "Tap a dot to see that team's numbers.", opened: (id: string) => `/teams/${id}` },
+]
+
+for (const { path, prompt, opened } of SWARMS) {
+  test(`league comparison dots on ${path} preview then open, by hover or by tap`, async ({ page, hasTouch }) => {
+    const self = path.split("/")[2]
+    const chart = page.locator("section", { has: page.getByRole("heading", { name: "League Comparison" }) })
+    // A point 12px right of some other player's/team's dot, where that dot is
+    // still clearly the nearest one, and its id.
+    async function nearDot(offset: number) {
+      await page.goto(path)
+      await chart.locator("[data-tap-key]").first().waitFor({ timeout: 60_000 })
+      await expect(page.getByText("Loading…")).toHaveCount(0, { timeout: 60_000 })
+      await chart.scrollIntoViewIfNeeded()
+      return chart.evaluate(
+        (section, { offset, self }) => {
+          const view = section.ownerDocument.documentElement.clientWidth
+          const dots = [...section.querySelectorAll("[data-tap-key]")].map((el) => {
+            const r = el.getBoundingClientRect()
+            return { key: el.getAttribute("data-tap-key")!, x: r.x + r.width / 2, y: r.y + r.height / 2 }
+          })
+          for (const dot of dots) {
+            const id = dot.key.split(":")[1]
+            const point = { x: dot.x + offset, y: dot.y }
+            if (id === self || point.x > view - 8) continue
+            const others = dots.filter((d) => d !== dot).map((d) => Math.hypot(d.x - point.x, d.y - point.y))
+            if (Math.min(...others) > offset + 6) return { ...point, id }
+          }
+          return null
+        },
+        { offset, self },
+      )
+    }
+
+    if (!hasTouch) {
+      const target = (await nearDot(0))!
+      await page.mouse.move(target.x, target.y)
+      await expect(chart.locator(".recharts-tooltip-wrapper")).toContainText("Percentile")
+      await page.mouse.click(target.x, target.y)
+      await expect(page).toHaveURL(opened(target.id))
+      return
+    }
+
+    const target = await nearDot(12)
+    expect(target, "a dot with room to tap beside it").toBeTruthy()
+    await expect(chart.getByText(prompt)).toBeVisible()
+    // Scrolls sideways, and its column labels don't run into each other.
+    const scroller = chart.locator("[data-swarm-chart]")
+    expect(await scroller.evaluate((el) => el.scrollWidth > el.clientWidth), "chart scrolls sideways").toBe(true)
+    const overlaps = await chart.locator(".recharts-xAxis-tick-labels text").evaluateAll((labels) =>
+      labels.slice(1).filter((label, i) => label.getBoundingClientRect().left < labels[i].getBoundingClientRect().right).length,
+    )
+    expect(overlaps, "column labels overlapping").toBe(0)
+
+    await page.touchscreen.tap(target!.x, target!.y)
+    const open = chart.getByRole("button", { name: /^View .+ →$/ })
+    await expect(open).toBeVisible()
+    await expect(page).toHaveURL(path)
+    await open.tap()
+    await expect(page).toHaveURL(opened(target!.id))
+
+    const again = (await nearDot(12))!
+    await page.touchscreen.tap(again.x, again.y)
+    await expect(open).toBeVisible()
+    await page.touchscreen.tap(again.x, again.y)
+    await expect(page).toHaveURL(opened(again.id))
+  })
+}
+
 test("navbar search opens a player page", async ({ page }) => {
   await page.goto("/about")
   await page.getByRole("combobox", { name: "Search teams & players..." }).fill("Mahomes")

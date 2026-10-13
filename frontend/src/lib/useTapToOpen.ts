@@ -32,11 +32,12 @@ export function useTapToOpen<Id>(open: (id: Id) => void) {
     onPointerDown,
     tap,
     // Handlers for the element wrapping the chart that resolve each click or
-    // tap on pointerup, via `markAt` (the mark at a screen point, or null).
+    // tap on pointerup, via `markAt` (the mark at a screen point, or null;
+    // given the pointer type, so a finger can get a looser hit-test).
     // For charts whose hover re-renders replace the marks mid-click: the
     // pressed node is gone by mouseup, so the browser never fires the click.
     // A press that moved, or became a scroll (pointercancel), isn't a tap.
-    pressHandlers(markAt: (clientX: number, clientY: number) => Id | null) {
+    pressHandlers(markAt: (clientX: number, clientY: number, pointerType: string) => Id | null) {
       return {
         onPointerDown(event: React.PointerEvent) {
           onPointerDown(event)
@@ -49,7 +50,7 @@ export function useTapToOpen<Id>(open: (id: Id) => void) {
           const start = press.current
           press.current = null
           if (start && Math.hypot(event.clientX - start.x, event.clientY - start.y) < TAP_SLOP) {
-            tap(markAt(event.clientX, event.clientY))
+            tap(markAt(event.clientX, event.clientY, event.pointerType))
           }
         },
       }
