@@ -204,8 +204,10 @@ for (const { path, heading, opened } of SCATTERS) {
     async function visit() {
       await page.goto(path)
       await mark.waitFor({ timeout: 60_000 })
-      // Panels still loading above the chart would shift it mid-test.
+      // Panels (and their images) still loading would shift the layout, and
+      // the chart re-measures itself - its marks briefly have no size.
       await expect(page.getByText("Loading…")).toHaveCount(0, { timeout: 60_000 })
+      await page.waitForLoadState("networkidle")
       await chart.scrollIntoViewIfNeeded()
     }
 
@@ -323,6 +325,72 @@ for (const { name, playerId, prompt } of USAGE_CHARTS) {
     }
   })
 }
+
+// Donuts: a point on slice `index`'s outer arc (its bounding-box center can
+// fall in the hole).
+async function slicePoint(chart: import("@playwright/test").Locator, index: number) {
+  return chart.locator(".recharts-pie-sector path").nth(index).evaluate((path) => {
+    const pt = path.getPointAtLength(path.getTotalLength() * 0.25)
+    const m = path.getScreenCTM()!
+    return { x: pt.x * m.a + m.e, y: pt.y * m.d + m.f }
+  })
+}
+
+test("scoring composition slices show their points, by hover or by tap", async ({ page, hasTouch }) => {
+  await page.goto("/teams/KC")
+  const chart = page.locator("section", { has: page.getByRole("heading", { name: "Scoring Composition" }) })
+  await chart.locator(".recharts-pie-sector path").first().waitFor({ timeout: 60_000 })
+  await expect(page.getByText("Loading…")).toHaveCount(0, { timeout: 60_000 })
+  await chart.scrollIntoViewIfNeeded()
+  const { x, y } = await slicePoint(chart, 0)
+
+  if (!hasTouch) {
+    await page.mouse.move(x, y)
+    await expect(chart.locator(".recharts-tooltip-wrapper")).toContainText(/Points\s*\d+ \(\d+%\)/)
+    return
+  }
+  const box = chart.locator("[aria-live=polite]")
+  await expect(box).toHaveText("Tap a slice to see its points.")
+  await page.touchscreen.tap(x, y)
+  await expect(box).toContainText(/Points\s*\d+ \(\d+%\)/)
+  await expect(page).toHaveURL("/teams/KC")
+  const chartBox = (await chart.getByRole("figure").boundingBox())!
+  expect((await box.boundingBox())!.y, "details sit below the donut").toBeGreaterThanOrEqual(chartBox.y + chartBox.height)
+})
+
+test("season usage donut slices preview then open a teammate, by click or by tap", async ({ page, hasTouch }) => {
+  const path = "/players/00-0030279"
+  const chart = page.locator("section", { has: page.getByRole("button", { name: "Weekly" }) }).first()
+  // Slice 0 is this player; slice 1 is their top teammate.
+  async function teammateSlice() {
+    await page.goto(path)
+    await expect(page.getByText("Loading…")).toHaveCount(0, { timeout: 60_000 })
+    await chart.getByRole("button", { name: "Season" }).click()
+    await chart.locator(".recharts-pie-sector path").nth(1).waitFor()
+    await chart.scrollIntoViewIfNeeded()
+    return slicePoint(chart, 1)
+  }
+
+  const { x, y } = await teammateSlice()
+  if (!hasTouch) {
+    await page.mouse.click(x, y)
+    await expect(page).toHaveURL(/\/players\/(?!00-0030279)[^/]+$/)
+    return
+  }
+  await expect(chart.getByText("Tap a slice to see its numbers.")).toBeVisible()
+  await page.touchscreen.tap(x, y)
+  const open = chart.getByRole("button", { name: /^View .+ →$/ })
+  await expect(open).toBeVisible()
+  await expect(page).toHaveURL(path)
+  await open.tap()
+  await expect(page).toHaveURL(/\/players\/(?!00-0030279)[^/]+$/)
+
+  const again = await teammateSlice()
+  await page.touchscreen.tap(again.x, again.y)
+  await expect(open).toBeVisible()
+  await page.touchscreen.tap(again.x, again.y)
+  await expect(page).toHaveURL(/\/players\/(?!00-0030279)[^/]+$/)
+})
 
 test("navbar search opens a player page", async ({ page }) => {
   await page.goto("/about")

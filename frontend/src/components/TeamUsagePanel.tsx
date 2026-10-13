@@ -23,6 +23,7 @@ import {
   YAxis,
 } from "recharts"
 import type { TeamInfo } from "../data/teams"
+import { pieSliceAt } from "../lib/pieSliceAt"
 import { useFetch } from "../lib/useFetch"
 import { TOUCH_QUERY, useMediaQuery } from "../lib/useMediaQuery"
 import { useTapToOpen } from "../lib/useTapToOpen"
@@ -176,13 +177,19 @@ function UsageTooltip({ active, payload }: { active?: boolean; payload?: { paylo
   // mounted between hovers so it doesn't reset position to (0,0) and animate
   // in from the corner every time.
   if (!active || !payload?.length) return <span className="p-4" />
-  const slice = payload[0].payload
   return (
-    <div className="flex items-baseline justify-between gap-4 rounded-lg border border-[var(--border)] bg-[var(--surface-2)]/70 px-2.5 py-1.5 text-xs shadow-xl backdrop-blur-sm">
+    <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)]/70 px-2.5 py-1.5 text-xs shadow-xl backdrop-blur-sm">
+      <SliceRow slice={payload[0].payload} />
+    </div>
+  )
+}
+
+// A slice's name and amount: the tooltip's content, and the touchscreen box's.
+function SliceRow({ slice }: { slice: DonutSlice }) {
+  return (
+    <div className="flex items-baseline justify-between gap-4">
       <span className="font-medium text-[var(--text-primary)]">{slice.name}</span>
-      <span className="font-mono font-medium tabular-nums text-[var(--text-primary)]">
-        {slice.value}
-      </span>
+      <span className="font-mono font-medium tabular-nums text-[var(--text-primary)]">{slice.value}</span>
     </div>
   )
 }
@@ -206,6 +213,15 @@ function UsageDonut({
 
   const containerRef = useRef<HTMLDivElement>(null)
   const [cursorPos, setCursorPos] = useState<{ x: number; y: number } | null>(null)
+
+  // Slices by index in `data`. A mouse click on a teammate's slice opens
+  // their page; a tap shows the slice below the donut first (useTapToOpen).
+  const touchScreen = useMediaQuery(TOUCH_QUERY)
+  const tap = useTapToOpen<number>((index) => {
+    const playerId = data[index]?.player_id
+    if (playerId) onSelect(playerId)
+  })
+  const selected = tap.selected === null ? undefined : data[tap.selected]
 
   // recharts' default Pie tooltip snaps to wherever a slice first activates
   // and stays there while the cursor moves around inside that same slice -
@@ -233,19 +249,27 @@ function UsageDonut({
 
   return (
     <>
-      <div ref={containerRef} className="relative p-3" onMouseMove={handleMouseMove}>
+      <div
+        ref={containerRef}
+        className="relative p-3"
+        onMouseMove={handleMouseMove}
+        {...tap.pressHandlers(pieSliceAt)}
+      >
         <ChartContainer
           config={chartConfig}
           className="aspect-[4/3]"
           label={`${playerName}'s share of the team's ${usage.label.toLowerCase()}: ${sharePct}%.`}
         >
           <PieChart>
-            <Tooltip
-              content={<UsageTooltip />}
-              animationDuration={200}
-              wrapperStyle={{ zIndex: 20 }}
-              position={cursorPos ?? undefined}
-            />
+            {/* On a touchscreen, the box below stands in for the tooltip. */}
+            {!touchScreen && (
+              <Tooltip
+                content={<UsageTooltip />}
+                animationDuration={200}
+                wrapperStyle={{ zIndex: 20 }}
+                position={cursorPos ?? undefined}
+              />
+            )}
             <Pie
               data={data}
               dataKey="value"
@@ -256,16 +280,13 @@ function UsageDonut({
               stroke="var(--surface-1)"
               strokeWidth={2}
               isAnimationActive={false}
-              onClick={(sector: { player_id?: string; payload?: DonutSlice }) => {
-                const playerId = sector.player_id ?? sector.payload?.player_id
-                if (playerId) onSelect(playerId)
-              }}
             >
-              {data.map((slice) => (
+              {data.map((slice, index) => (
                 <Cell
                   key={slice.name}
                   fill={slice.isPlayer ? teamColor : TEAMMATE_FILL}
                   cursor={slice.player_id ? "pointer" : "default"}
+                  {...(index === tap.selected && { stroke: "var(--accent)", strokeWidth: 3 })}
                 />
               ))}
             </Pie>
@@ -278,6 +299,19 @@ function UsageDonut({
           </span>
         </div>
       </div>
+      {touchScreen && (
+        <div className="px-3 pb-2">
+          {/* Held at a teammate's box height (74px, with its button), so taps don't shift the caption. */}
+          <TapDetails prompt="Tap a slice to see its numbers." className="min-h-19">
+            {selected && (
+              <div className="flex flex-col gap-1.5">
+                <SliceRow slice={selected} />
+                {selected.player_id && <OpenButton name={selected.name} onClick={() => onSelect(selected.player_id!)} />}
+              </div>
+            )}
+          </TapDetails>
+        </div>
+      )}
       <p className="px-3 pb-2 text-xs text-[var(--text-muted)]">{usageCaption(usage.metric, false)}</p>
     </>
   )
@@ -440,8 +474,6 @@ function UsageWeeklyChart({
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const cardRef = useRef<HTMLDivElement>(null)
-  // Where the current press started (see the container's onPointerUp).
-  const pressRef = useRef<{ x: number; y: number } | null>(null)
   const [hovered, setHovered] = useState<{ point: HoverPoint; cx: number; cy: number } | null>(null)
 
   // Writes straight to the node instead of going through state: the bar
@@ -648,20 +680,8 @@ function UsageWeeklyChart({
         className="relative"
         // On pointerup, not click: a tap's emulated mouseover re-renders the
         // chart (hover state), and recharts replaces the mark's node between
-        // mousedown and mouseup, so the browser never fires the click. A press
-        // that moved, or became a scroll (pointercancel), isn't a tap.
-        onPointerDown={(event) => {
-          tap.onPointerDown(event)
-          pressRef.current = event.button === 0 ? { x: event.clientX, y: event.clientY } : null
-        }}
-        onPointerCancel={() => (pressRef.current = null)}
-        onPointerUp={(event) => {
-          const press = pressRef.current
-          pressRef.current = null
-          if (press && Math.hypot(event.clientX - press.x, event.clientY - press.y) < 10) {
-            tap.tap(markAt(event.clientX, event.clientY))
-          }
-        }}
+        // mousedown and mouseup, so the browser never fires the click.
+        {...tap.pressHandlers(markAt)}
         onMouseMove={
           stacked
             ? (event) => {

@@ -1,7 +1,7 @@
 // TeamUsagePanel.test.tsx
-// Tests that the weekly usage chart prompts a tap on touchscreens (bars or dots/lines, by metric) and not with a mouse.
+// Tests that the usage charts prompt a tap on touchscreens (weekly: bars or dots/lines, by metric; season: slices) and not with a mouse.
 // The chart's marks aren't tested here - recharts needs real layout, which jsdom lacks (see e2e/smoke.spec.ts).
-import { screen } from "@testing-library/react"
+import { fireEvent, screen } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { mockApi, renderWithRouter } from "../test/render"
 import TeamUsagePanel from "./TeamUsagePanel"
@@ -51,6 +51,14 @@ describe("TeamUsagePanel weekly chart", () => {
     mockApi({ "/players/P3/usage": usage("td_involvement", "P3"), "/teams": [] })
     renderWithRouter(<TeamUsagePanel playerId="P3" playerName="Player" />)
     expect(await screen.findByText("Tap a dot or line to see the numbers.")).toBeInTheDocument()
+  })
+
+  it("prompts a tap on a slice in the season view, on a touchscreen", async () => {
+    touchscreen()
+    mockApi({ "/players/P5/usage": usage("targets", "P5"), "/teams": [] })
+    renderWithRouter(<TeamUsagePanel playerId="P5" playerName="Player" />)
+    fireEvent.click(await screen.findByRole("button", { name: /season/i }))
+    expect(await screen.findByText("Tap a slice to see its numbers.")).toBeInTheDocument()
   })
 
   it("shows no tap prompt with a mouse", async () => {
