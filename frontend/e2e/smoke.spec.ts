@@ -236,6 +236,94 @@ for (const { path, heading, opened } of SCATTERS) {
   })
 }
 
+// The player page's weekly usage chart: stacked bars (WR target share) or
+// lines with dots (RB touch share). Same pattern: hover/click with a mouse; a
+// tap shows the numbers below the chart, and the button or a second tap opens
+// the teammate's page.
+const USAGE_CHARTS = [
+  { name: "bars", playerId: "00-0030279", prompt: "Tap a bar to see that week's numbers." },
+  { name: "lines", playerId: "00-0032764", prompt: "Tap a dot or line to see the numbers." },
+]
+
+for (const { name, playerId, prompt } of USAGE_CHARTS) {
+  test(`usage chart ${name} preview then open a teammate, by hover or by tap`, async ({ page, hasTouch }) => {
+    const path = `/players/${playerId}`
+    const chart = page.locator("section", { has: page.getByRole("button", { name: "Weekly" }) }).first()
+    // A teammate's mark (not this player's own, not "Other"), its center, and
+    // which teammate the browser actually hits there.
+    async function teammateMark() {
+      await page.goto(path)
+      await expect(page.getByText("Loading…")).toHaveCount(0, { timeout: 60_000 })
+      await chart.scrollIntoViewIfNeeded()
+      return chart.evaluate(
+        (section, { kind, self }) => {
+          const marks =
+            kind === "bars"
+              ? [...section.querySelectorAll('[data-tap-key^="bar:"]')].map((el) => ({ el, key: el.getAttribute("data-tap-key")! }))
+              : [...section.querySelectorAll('.recharts-line-curve[name^="line:"]')].map((el) => ({ el, key: el.getAttribute("name")! }))
+          for (const { el, key } of marks) {
+            const player = kind === "bars" ? key.split("|")[1] : key.slice("line:".length)
+            if (player === self || player === "__other__") continue
+            // A bar's center; for a line, points along it until one isn't
+            // under a dot or another line.
+            const r = el.getBoundingClientRect()
+            const points =
+              kind === "bars"
+                ? [{ x: r.x + r.width / 2, y: r.y + r.height / 2 }]
+                : [0.5, 0.35, 0.65, 0.2, 0.8].map((t) => {
+                    const pt = el.getPointAtLength(el.getTotalLength() * t)
+                    const m = el.getScreenCTM()!
+                    return { x: pt.x * m.a + m.e, y: pt.y * m.d + m.f }
+                  })
+            for (const point of points) {
+              const hit = el.ownerDocument.elementFromPoint(point.x, point.y)
+              const hitKey = hit?.closest("[data-tap-key]")?.getAttribute("data-tap-key") ?? hit?.getAttribute("name")
+              if (hitKey === key) return { ...point, player }
+            }
+          }
+          return null
+        },
+        { kind: name, self: playerId },
+      )
+    }
+
+    const target = await teammateMark()
+    expect(target, "a teammate's mark to tap").toBeTruthy()
+    const { x, y, player } = target!
+    if (!hasTouch) {
+      await page.mouse.move(x, y)
+      if (name === "bars") await expect(chart.getByText(/\(\d+%\)/)).toBeVisible()
+      await page.mouse.click(x, y)
+      await expect(page).toHaveURL(`/players/${player}`)
+      return
+    }
+
+    await expect(chart.getByText(prompt)).toBeVisible()
+    await page.touchscreen.tap(x, y)
+    const open = chart.getByRole("button", { name: /^View .+ →$/ })
+    await expect(open).toBeVisible()
+    await expect(page).toHaveURL(path)
+    const chartBox = (await chart.getByRole("figure").boundingBox())!
+    expect((await open.boundingBox())!.y, "details sit below the chart").toBeGreaterThanOrEqual(chartBox.y + chartBox.height)
+    await open.tap()
+    await expect(page).toHaveURL(`/players/${player}`)
+
+    const again = (await teammateMark())!
+    await page.touchscreen.tap(again.x, again.y)
+    await expect(open).toBeVisible()
+    await page.touchscreen.tap(again.x, again.y)
+    await expect(page).toHaveURL(`/players/${again.player}`)
+
+    if (name === "lines") {
+      // A dot shows that week's numbers in the box too.
+      await page.goto(path)
+      await expect(page.getByText("Loading…")).toHaveCount(0, { timeout: 60_000 })
+      await chart.locator("[data-tap-key^='dot:']").first().tap({ force: true })
+      await expect(chart.locator("[aria-live=polite]")).toContainText(/W\d+/)
+    }
+  })
+}
+
 test("navbar search opens a player page", async ({ page }) => {
   await page.goto("/about")
   await page.getByRole("combobox", { name: "Search teams & players..." }).fill("Mahomes")
