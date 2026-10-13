@@ -38,12 +38,14 @@ function DetailedLeaderTable<Row extends LeaderRow>({
           {columns.map((column, index) => (
             <th
               key={column.key}
-              className={`py-2 text-right font-medium ${index === columns.length - 1 ? "px-4" : "px-2"}`}
+              className={`py-1 text-right font-medium ${index === columns.length - 1 ? "px-4" : "px-2"}`}
             >
+              {/* The button carries the cell's vertical padding, so its tap
+                  area is 24px tall while the row stays the same height. */}
               <button
                 type="button"
                 onClick={() => onSort(column.key)}
-                className="inline-flex items-center gap-0.5 hover:text-[var(--text-primary)]"
+                className="inline-flex items-center gap-0.5 py-1 hover:text-[var(--text-primary)]"
               >
                 {column.label}
                 <span className={sortKey === column.key ? "text-[var(--accent)]" : "text-[var(--text-muted)]/50"}>

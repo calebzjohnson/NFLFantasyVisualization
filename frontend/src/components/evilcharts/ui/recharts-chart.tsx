@@ -123,6 +123,10 @@ function ChartContainer({
         className={cn(
           "min-h-0 w-full flex-1",
           "[&_.recharts-cartesian-axis-tick_text]:fill-[var(--text-muted)] [&_.recharts-cartesian-grid_line[stroke='#ccc']]:stroke-[var(--border)] [&_.recharts-reference-line_[stroke='#ccc']]:stroke-[var(--border)] relative flex flex-col justify-center text-xs [&_.recharts-dot[stroke='#fff']]:stroke-transparent [&_.recharts-layer]:outline-hidden [&_.recharts-surface]:outline-hidden",
+          // A tap or click focuses whatever it lands on (a mark, or one of
+          // Recharts' z-index layers), and the browser would draw its focus
+          // ring round it. Only keyboard focus (:focus-visible) keeps a ring.
+          "[&_[tabindex]:focus:not(:focus-visible)]:outline-hidden",
           !footer && "aspect-video",
           className,
         )}

@@ -13,7 +13,12 @@ export default defineConfig({
     baseURL: "http://localhost:5173",
     trace: "retain-on-failure",
   },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  // Mobile is a Chromium phone (Pixel 5, 393px wide) so CI needs no extra
+  // browser; the iPhone presets would need WebKit installed.
+  projects: [
+    { name: "chromium", use: { ...devices["Desktop Chrome"] } },
+    { name: "mobile", use: { ...devices["Pixel 5"] } },
+  ],
   webServer: [
     {
       command: "uv run uvicorn app.main:app --port 8000",

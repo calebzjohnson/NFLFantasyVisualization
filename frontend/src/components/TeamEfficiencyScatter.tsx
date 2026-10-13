@@ -1,7 +1,8 @@
 // TeamEfficiencyScatter.tsx
 // Offense vs defense EPA-per-play scatter: one team logo per point, with
 // league-average lines and quadrant labels. Clicking a logo opens that team's page. Built on the Evil Charts chart and
-// tooltip base.
+// tooltip base. On a touchscreen a details box below the chart replaces the
+// tooltip: a tap selects a logo, a second tap (or the box's button) opens its page.
 import { useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import {
@@ -23,12 +24,15 @@ import {
 } from "../data/efficiency"
 import { teamPath, type TeamInfo } from "../data/teams"
 import { useFetch } from "../lib/useFetch"
+import { TOUCH_QUERY, useMediaQuery } from "../lib/useMediaQuery"
+import { useTapToOpen } from "../lib/useTapToOpen"
 import { ChartContainer, type ChartConfig } from "./evilcharts/ui/recharts-chart"
 import { ChartTooltip, ChartTooltipContent } from "./evilcharts/ui/recharts-tooltip"
 import ChartDataTable from "./ChartDataTable"
 import ExpandButton from "./ExpandButton"
 import Modal from "./Modal"
 import Panel from "./Panel"
+import { OpenButton, TapDetails } from "./TapDetails"
 import { TeamLogoBadge, TeamLogoMarker } from "./TeamLogo"
 
 const chartConfig = {
@@ -92,112 +96,145 @@ function EfficiencyChart({ points }: { points: TeamPoint[] }) {
   const yDomain = paddedDomain(points.map((p) => p.defense))
   const [xMin, xMax] = xDomain
   const [yMin, yMax] = yDomain
+  const touchScreen = useMediaQuery(TOUCH_QUERY)
+  const tap = useTapToOpen<string>((team) => navigate(teamPath(team)))
+  const selected = points.find((point) => point.team === tap.selected)
 
   return (
     <div className="flex min-h-0 flex-1 flex-col p-3">
-      <ChartContainer
-        config={chartConfig}
-        className="aspect-auto"
-        label={`All ${points.length} teams plotted by offensive EPA per play (across) and defensive EPA per play allowed (up). Lines mark the league average.`}
+      {/* A tap on empty chart space (not a logo) clears the selection. */}
+      <div
+        className="flex min-h-0 flex-1 flex-col"
+        onPointerDown={tap.onPointerDown}
+        onClick={(event) => !(event.target as Element).closest(".recharts-scatter-symbol") && tap.tap(null)}
       >
-        <ScatterChart margin={{ top: 8, right: 16, bottom: 4, left: 4 }}>
-          <CartesianGrid stroke="var(--border)" strokeOpacity={0.6} />
-          <XAxis
-            type="number"
-            dataKey="offense"
-            name="Offense EPA/play"
-            domain={xDomain}
-            ticks={tickRange(xDomain)}
-            tickFormatter={formatTick}
-            tickLine={false}
-            axisLine={{ stroke: "var(--border)" }}
-            height={46}
-            label={{
-              value: "Offense EPA / play",
-              position: "insideBottom",
-              offset: 0,
-              fill: "var(--text-secondary)",
-              fontSize: 11,
-              fontWeight: 700,
-            }}
-          />
-          <YAxis
-            type="number"
-            dataKey="defense"
-            name="Defense EPA/play allowed"
-            domain={yDomain}
-            ticks={tickRange(yDomain)}
-            tickFormatter={formatTick}
-            reversed
-            tickLine={false}
-            axisLine={{ stroke: "var(--border)" }}
-            width={54}
-            label={{
-              value: "Defense EPA / play allowed",
-              angle: -90,
-              position: "insideLeft",
-              offset: 4,
-              style: { textAnchor: "middle" },
-              fill: "var(--text-secondary)",
-              fontSize: 11,
-              fontWeight: 700,
-            }}
-          />
-          <ReferenceArea
-            x1={average.offense}
-            x2={xMax}
-            y1={yMin}
-            y2={average.defense}
-            fill="transparent"
-            label={{ ...QUADRANT_LABEL, value: "ELITE", position: "insideTopRight" }}
-          />
-          <ReferenceArea
-            x1={xMin}
-            x2={average.offense}
-            y1={yMin}
-            y2={average.defense}
-            fill="transparent"
-            label={{ ...QUADRANT_LABEL, value: "DEFENSE-FIRST", position: "insideTopLeft" }}
-          />
-          <ReferenceArea
-            x1={average.offense}
-            x2={xMax}
-            y1={average.defense}
-            y2={yMax}
-            fill="transparent"
-            label={{ ...QUADRANT_LABEL, value: "OFFENSE-FIRST", position: "insideBottomRight" }}
-          />
-          <ReferenceArea
-            x1={xMin}
-            x2={average.offense}
-            y1={average.defense}
-            y2={yMax}
-            fill="transparent"
-            label={{ ...QUADRANT_LABEL, value: "STRUGGLING", position: "insideBottomLeft" }}
-          />
-          <ReferenceLine x={average.offense} stroke="var(--text-muted)" strokeOpacity={0.5} />
-          <ReferenceLine y={average.defense} stroke="var(--text-muted)" strokeOpacity={0.5} />
-          <ChartTooltip
-            cursor={false}
-            content={
-              <ChartTooltipContent
-                variant="frosted-glass"
-                hideIndicator
-                labelFormatter={(_, items) => (
-                  <TooltipHeader point={items[0]?.payload as TeamPoint | undefined} />
-                )}
-                formatter={(value, name) => <TooltipRow name={String(name)} value={Number(value)} />}
+        {/* Fills the panel on desktop. On a touchscreen the details box below
+            would squeeze a fill-the-panel chart (it was only ~140px tall on a
+            phone even before the box), so it keeps the other scatters' 3:2. */}
+        <ChartContainer
+          config={chartConfig}
+          className={touchScreen ? "aspect-[3/2]" : "aspect-auto"}
+          label={`All ${points.length} teams plotted by offensive EPA per play (across) and defensive EPA per play allowed (up). Lines mark the league average.`}
+        >
+          <ScatterChart margin={{ top: 8, right: 16, bottom: 4, left: 4 }}>
+            <CartesianGrid stroke="var(--border)" strokeOpacity={0.6} />
+            <XAxis
+              type="number"
+              dataKey="offense"
+              name="Offense EPA/play"
+              domain={xDomain}
+              ticks={tickRange(xDomain)}
+              tickFormatter={formatTick}
+              tickLine={false}
+              axisLine={{ stroke: "var(--border)" }}
+              height={46}
+              label={{
+                value: "Offense EPA / play",
+                position: "insideBottom",
+                offset: 0,
+                fill: "var(--text-secondary)",
+                fontSize: 11,
+                fontWeight: 700,
+              }}
+            />
+            <YAxis
+              type="number"
+              dataKey="defense"
+              name="Defense EPA/play allowed"
+              domain={yDomain}
+              ticks={tickRange(yDomain)}
+              tickFormatter={formatTick}
+              reversed
+              tickLine={false}
+              axisLine={{ stroke: "var(--border)" }}
+              width={54}
+              label={{
+                value: "Defense EPA / play allowed",
+                angle: -90,
+                position: "insideLeft",
+                offset: 4,
+                style: { textAnchor: "middle" },
+                fill: "var(--text-secondary)",
+                fontSize: 11,
+                fontWeight: 700,
+              }}
+            />
+            <ReferenceArea
+              x1={average.offense}
+              x2={xMax}
+              y1={yMin}
+              y2={average.defense}
+              fill="transparent"
+              label={{ ...QUADRANT_LABEL, value: "ELITE", position: "insideTopRight" }}
+            />
+            <ReferenceArea
+              x1={xMin}
+              x2={average.offense}
+              y1={yMin}
+              y2={average.defense}
+              fill="transparent"
+              label={{ ...QUADRANT_LABEL, value: "DEFENSE-FIRST", position: "insideTopLeft" }}
+            />
+            <ReferenceArea
+              x1={average.offense}
+              x2={xMax}
+              y1={average.defense}
+              y2={yMax}
+              fill="transparent"
+              label={{ ...QUADRANT_LABEL, value: "OFFENSE-FIRST", position: "insideBottomRight" }}
+            />
+            <ReferenceArea
+              x1={xMin}
+              x2={average.offense}
+              y1={average.defense}
+              y2={yMax}
+              fill="transparent"
+              label={{ ...QUADRANT_LABEL, value: "STRUGGLING", position: "insideBottomLeft" }}
+            />
+            <ReferenceLine x={average.offense} stroke="var(--text-muted)" strokeOpacity={0.5} />
+            <ReferenceLine y={average.defense} stroke="var(--text-muted)" strokeOpacity={0.5} />
+            {/* On a touchscreen, the details box below stands in for the tooltip. */}
+            {!touchScreen && (
+              <ChartTooltip
+                cursor={false}
+                content={
+                  <ChartTooltipContent
+                    variant="frosted-glass"
+                    hideIndicator
+                    labelFormatter={(_, items) => (
+                      <TooltipHeader point={items[0]?.payload as TeamPoint | undefined} />
+                    )}
+                    formatter={(value, name) => <TooltipRow name={String(name)} value={Number(value)} />}
+                  />
+                }
               />
-            }
-          />
-          <Scatter
-            data={points}
-            shape={(props: { cx?: number; cy?: number; payload?: TeamPoint }) => (
-              <TeamLogoMarker {...props} onSelect={() => props.payload && navigate(teamPath(props.payload.team))} />
             )}
-          />
-        </ScatterChart>
-      </ChartContainer>
+            <Scatter
+              data={points}
+              shape={(props: { cx?: number; cy?: number; payload?: TeamPoint }) => (
+                <TeamLogoMarker
+                  {...props}
+                  selected={props.payload?.team === tap.selected}
+                  onSelect={() => props.payload && tap.tap(props.payload.team)}
+                />
+              )}
+            />
+          </ScatterChart>
+        </ChartContainer>
+      </div>
+      {touchScreen && (
+        // The filled box's height (135px), so the first tap doesn't shift what's below.
+        <TapDetails prompt="Tap a logo to see that team's numbers." className="min-h-34">
+          {selected && (
+            <div className="flex flex-col gap-1.5">
+              <TooltipHeader point={selected} />
+              <TooltipRow name="Offense EPA/play" value={selected.offense} />
+              <TooltipRow name="Defense EPA/play allowed" value={selected.defense} />
+              <OpenButton name={selected.name} onClick={() => navigate(teamPath(selected.team))} />
+            </div>
+          )}
+        </TapDetails>
+      )}
       <p className="pt-2 text-xs text-[var(--text-muted)]">
         EPA (expected points added) is how much a play changes a team's expected points, based on
         down, distance, and field position. Each logo is a team's average per pass or run this

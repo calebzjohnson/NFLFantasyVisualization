@@ -11,10 +11,12 @@ import { ordinal } from "../data/efficiency"
 import type { TeamInfo } from "../data/teams"
 import { radarRows, radarSummary } from "../lib/chartSummaries"
 import { useFetch } from "../lib/useFetch"
+import { PHONE_QUERY, useMediaQuery } from "../lib/useMediaQuery"
 import ChartDataTable from "./ChartDataTable"
 import { ChartContainer, type ChartConfig } from "./evilcharts/ui/recharts-chart"
 import { ChartTooltip } from "./evilcharts/ui/recharts-tooltip"
 import Panel from "./Panel"
+import RadarAxisTick from "./RadarAxisTick"
 
 interface RadarAxis {
   key: string
@@ -77,6 +79,9 @@ function TeamRadarChart({ teamAbbr, teamColor }: { teamAbbr: string; teamColor: 
   // Cached by TeamPage already - just the display name for the summary.
   const teams = useFetch<TeamInfo[]>("/teams")
   const teamName = teams.data?.find((team) => team.team_abbr === teamAbbr)?.team_name ?? teamAbbr
+  // Recharts' default 80% leaves no room for axis labels on a phone; 70% does
+  // (with RadarAxisTick wrapping the long ones).
+  const outerRadius = useMediaQuery(PHONE_QUERY) ? "70%" : "80%"
 
   return (
     <Panel title="Team Breakdown">
@@ -89,7 +94,7 @@ function TeamRadarChart({ teamAbbr, teamColor }: { teamAbbr: string; teamColor: 
             className="aspect-[4/3]"
             label={radarSummary(`The ${teamName}`, "every other team", data.axes)}
           >
-            <RadarChart data={data.axes.map((axis) => ({ ...axis, reference: 50 }))}>
+            <RadarChart outerRadius={outerRadius} data={data.axes.map((axis) => ({ ...axis, reference: 50 }))}>
               <defs>
                 {/* Brighter near the center, fading toward the points - a
                     soft glow rather than a flat fill. */}
@@ -99,7 +104,7 @@ function TeamRadarChart({ teamAbbr, teamColor }: { teamAbbr: string; teamColor: 
                 </radialGradient>
               </defs>
               <PolarGrid stroke="var(--border)" radialLines={false} />
-              <PolarAngleAxis dataKey="label" tick={{ fill: "var(--text-secondary)", fontSize: 11 }} />
+              <PolarAngleAxis dataKey="label" tick={<RadarAxisTick />} />
               <PolarRadiusAxis domain={[0, 100]} tick={false} axisLine={false} tickCount={5} />
               <ChartTooltip content={<AxisTooltip />} cursor={false} />
               <Radar
@@ -132,7 +137,7 @@ function TeamRadarChart({ teamAbbr, teamColor }: { teamAbbr: string; teamColor: 
             marks the 50th percentile, or league average.
           </p>
           <details className="px-3 pb-1 pt-2 text-xs text-[var(--text-muted)]">
-            <summary className="cursor-pointer text-[var(--text-secondary)]">What do these stats mean?</summary>
+            <summary className="-my-1 cursor-pointer py-1 text-[var(--text-secondary)]">What do these stats mean?</summary>
             <dl className="mt-2 grid gap-1.5">
               {data.axes.map((axis) => (
                 <div key={axis.key}>

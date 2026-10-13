@@ -1,7 +1,7 @@
 // TrendChart.test.tsx
-// Tests that the trend chart names itself in plain language and offers its weekly numbers as a table.
+// Tests that the trend chart names itself in plain language, offers its weekly numbers as a table, and prompts taps on touchscreens.
 import { screen, within } from "@testing-library/react"
-import { describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import { TEAM_METRICS } from "../data/teamMetrics"
 import { teamInfo } from "../test/fixtures"
 import { mockApi, renderWithRouter } from "../test/render"
@@ -11,6 +11,26 @@ vi.mock("../lib/api", () => ({ fetchJson: vi.fn() }))
 
 const up = { id: "BUF", name: "Buffalo Bills", team: "BUF", headshot: null, slope: 3, games: [{ week: 1, value: 20 }, { week: 2, value: 26 }] }
 const down = { id: "MIA", name: "Miami Dolphins", team: "MIA", headshot: null, slope: -4, games: [{ week: 2, value: 17 }] }
+
+function renderChart(onSelect?: () => void) {
+  mockApi({ "/teams": [teamInfo("BUF"), teamInfo("MIA")] })
+  renderWithRouter(
+    <TrendChart
+      title="Trending Teams"
+      metrics={TEAM_METRICS}
+      plural="teams"
+      singular="team"
+      loading={false}
+      error={null}
+      trends={() => ({ up: [up], down: [down] })}
+      onSelect={onSelect}
+    />,
+  )
+}
+
+afterEach(() => {
+  vi.unstubAllGlobals()
+})
 
 describe("TrendChart", () => {
   it("names the chart and lists each line's weekly values with its direction", async () => {
@@ -37,5 +57,17 @@ describe("TrendChart", () => {
     const [, bills, dolphins] = within(table).getAllByRole("row")
     expect(bills).toHaveTextContent(/Buffalo BillsUp20(\.0)?26(\.0)?/)
     expect(dolphins).toHaveTextContent(/Miami DolphinsDown—17/)
+  })
+
+  it("tells mouse users to hover or click a line", () => {
+    renderChart(() => {})
+    expect(screen.getByText(/Hover or click a line to see that team's numbers and go to their page\./)).toBeInTheDocument()
+  })
+
+  it("on a touchscreen, prompts a tap in the details space below the chart instead", () => {
+    vi.stubGlobal("matchMedia", () => ({ matches: true, addEventListener: () => {}, removeEventListener: () => {} }))
+    renderChart(() => {})
+    expect(screen.getByText("Tap a line to see that team's numbers.")).toBeInTheDocument()
+    expect(screen.queryByText(/Hover/)).not.toBeInTheDocument()
   })
 })

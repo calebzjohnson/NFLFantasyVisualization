@@ -32,10 +32,15 @@ interface SearchOption {
 
 interface SearchBarProps {
   placeholder: string
+  // Accessible name, when the placeholder is shortened (e.g. "Search..." on a phone). Defaults to the placeholder.
+  label?: string
   scope: SearchScope
+  // Below 1024px, stretch the results to the nearest positioned ancestor (the
+  // navbar) instead of the input, so a narrow search box still gets a readable list.
+  wideDropdown?: boolean
 }
 
-function SearchBar({ placeholder, scope }: SearchBarProps) {
+function SearchBar({ placeholder, label = placeholder, scope, wideDropdown = false }: SearchBarProps) {
   const navigate = useNavigate()
   const players = useFetch<SearchPlayer[]>(scope === "teams" ? null : PLAYERS_PATH)
   const teams = useFetch<TeamInfo[]>(scope === "players" ? null : "/teams")
@@ -45,6 +50,7 @@ function SearchBar({ placeholder, scope }: SearchBarProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const listboxId = useId()
   const optionId = (index: number) => `${listboxId}-option-${index}`
+  const dropdownClass = wideDropdown ? `${DROPDOWN_CLASS} max-lg:right-0 max-lg:left-0 max-lg:w-auto` : DROPDOWN_CLASS
 
   const matches = searchResults(query, scope, players.data, teams.data)
   const teamOptions: SearchOption[] = matches.teams.map((team) => ({
@@ -149,7 +155,7 @@ function SearchBar({ placeholder, scope }: SearchBarProps) {
 
   return (
     <div
-      className="relative w-full max-w-sm"
+      className={`${wideDropdown ? "max-lg:static" : ""} relative w-full max-w-sm`}
       onBlur={(event) => {
         // Tabbing from the input into a result keeps the list open; leaving the component closes it.
         if (!event.currentTarget.contains(event.relatedTarget)) close()
@@ -168,7 +174,7 @@ function SearchBar({ placeholder, scope }: SearchBarProps) {
         type="search"
         role="combobox"
         placeholder={placeholder}
-        aria-label={placeholder}
+        aria-label={label}
         aria-autocomplete="list"
         aria-expanded={listboxOpen}
         aria-controls={listboxOpen ? listboxId : undefined}
@@ -184,12 +190,12 @@ function SearchBar({ placeholder, scope }: SearchBarProps) {
         className="w-full rounded-md border border-[var(--border)] bg-[var(--surface-1)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-2 focus:outline-[var(--accent)]"
       />
       {showDropdown && options.length === 0 && (
-        <p role="status" className={`${DROPDOWN_CLASS} px-3 py-2 text-sm text-[var(--text-muted)]`}>
+        <p role="status" className={`${dropdownClass} px-3 py-2 text-sm text-[var(--text-muted)]`}>
           {NO_RESULTS[scope]}
         </p>
       )}
       {listboxOpen && (
-        <div id={listboxId} role="listbox" aria-label={placeholder} className={DROPDOWN_CLASS}>
+        <div id={listboxId} role="listbox" aria-label={label} className={dropdownClass}>
           {scope === "all" ? (
             <>
               {renderGroup("Teams", teamOptions, 0)}
