@@ -1,7 +1,7 @@
 // LeagueComparisonBeeswarm.test.tsx
-// Tests the player beeswarm's tooltip (raw value plus percentile) and that its pool request encodes the position.
+// Tests the player beeswarm's tooltip (raw value plus percentile), that its pool request encodes the position, and its phone/touchscreen prompts.
 import { render, screen, waitFor } from "@testing-library/react"
-import { describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import type { PositionGroup } from "../data/leaderCategories"
 import { fetchJson } from "../lib/api"
 import { mockApi, renderWithRouter } from "../test/render"
@@ -41,4 +41,35 @@ describe("LeagueComparisonBeeswarm", () => {
       expect(fetchJson).toHaveBeenCalledWith("/players/radar-pool?position=W%2FR%3Fx%3D1%23y"),
     )
   })
+
+  // Separate positions: useFetch caches each path for the whole file.
+  function pool(position: string) {
+    return {
+      [`/players/radar-pool?position=${position}`]: {
+        position,
+        axes: [{ key: "epa", label: "EPA / Dropback" }],
+        players: [{ ...player, axes: [{ key: "epa", value: 0.2, percentile: 80 }] }],
+      },
+    }
+  }
+
+  it("on a touchscreen phone, prompts a tap and says to swipe for every stat", async () => {
+    vi.stubGlobal("matchMedia", () => ({ matches: true, addEventListener: () => {}, removeEventListener: () => {} }))
+    mockApi(pool("QB"))
+    renderWithRouter(<LeagueComparisonBeeswarm playerId="p1" position={"QB" as PositionGroup} teamColor="#000" />)
+    expect(await screen.findByText("Tap a dot to see that player's numbers.")).toBeInTheDocument()
+    expect(screen.getByText(/Swipe the chart sideways to see all 1 stats\./)).toBeInTheDocument()
+  })
+
+  it("with a mouse on a wide screen, says to click instead", async () => {
+    mockApi(pool("RB"))
+    renderWithRouter(<LeagueComparisonBeeswarm playerId="p1" position={"RB" as PositionGroup} teamColor="#000" />)
+    expect(await screen.findByText(/click a dot to view that player/)).toBeInTheDocument()
+    expect(screen.queryByText(/^Tap a dot/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Swipe/)).not.toBeInTheDocument()
+  })
+})
+
+afterEach(() => {
+  vi.unstubAllGlobals()
 })

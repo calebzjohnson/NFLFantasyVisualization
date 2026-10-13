@@ -4,7 +4,9 @@
 // scale the radar chart uses) and jittered horizontally within its column so
 // dots with close percentiles don't overlap. This player's dot is
 // highlighted in their team color on every axis; every dot links to that
-// player's page.
+// player's page. On a phone the chart scrolls sideways (with two-line column
+// labels) rather than squeezing six columns into the screen, and on a
+// touchscreen a tap shows the nearest dot's numbers below the chart.
 import { memo, useMemo } from "react"
 import { useNavigate } from "react-router-dom"
 import { Scatter, ScatterChart, XAxis, YAxis } from "recharts"
@@ -12,10 +14,15 @@ import { ordinal } from "../data/efficiency"
 import { activateOnKey } from "../lib/activateOnKey"
 import { swarmCell } from "../lib/chartSummaries"
 import { useFetch } from "../lib/useFetch"
+import { PHONE_QUERY, TOUCH_QUERY, useMediaQuery } from "../lib/useMediaQuery"
+import { swarmDotAt } from "../lib/swarmDotAt"
+import { useTapToOpen } from "../lib/useTapToOpen"
 import ChartDataTable from "./ChartDataTable"
 import { ChartContainer, type ChartConfig } from "./evilcharts/ui/recharts-chart"
 import { ChartTooltip } from "./evilcharts/ui/recharts-tooltip"
 import Panel from "./Panel"
+import RadarAxisTick from "./RadarAxisTick"
+import { OpenButton, TapDetails } from "./TapDetails"
 
 interface PoolAxis {
   key: string
@@ -109,6 +116,8 @@ const SwarmDot = memo(function SwarmDot({
   payload,
   highlightPlayerId,
   teamColor,
+  tapKey,
+  selected,
   onSelect,
 }: {
   cx?: number
@@ -116,6 +125,11 @@ const SwarmDot = memo(function SwarmDot({
   payload?: SwarmPoint
   highlightPlayerId: string
   teamColor: string
+  // Clicks and taps are resolved by the chart's wrapper from this key (see
+  // swarmDotAt); `onSelect` here is keyboard activation.
+  tapKey: string
+  // Picked by a tap: ringed in the accent color.
+  selected: boolean
   onSelect: (playerId: string) => void
 }) {
   if (cx === undefined || cy === undefined || !payload) return null
@@ -123,7 +137,7 @@ const SwarmDot = memo(function SwarmDot({
 
   return (
     <g
-      onClick={() => onSelect(payload.player.player_id)}
+      data-tap-key={tapKey}
       role="button"
       tabIndex={0}
       onKeyDown={activateOnKey(() => onSelect(payload.player.player_id))}
@@ -131,6 +145,7 @@ const SwarmDot = memo(function SwarmDot({
       className="cursor-pointer"
     >
       <circle cx={cx} cy={cy} r={10} fill="transparent" />
+      {selected && <circle cx={cx} cy={cy} r={(isHighlighted ? 6 : 3.5) + 3.5} fill="none" stroke="var(--accent)" strokeWidth={2} />}
       <circle
         cx={cx}
         cy={cy}
@@ -148,9 +163,17 @@ export function SwarmTooltip({ active, payload }: { active?: boolean; payload?: 
   // An empty-but-present element, not null - keeps the tooltip from
   // resetting position to (0,0) and flying in from the corner on each hover.
   if (!active || !payload?.length) return <span className="p-4" />
-  const point = payload[0].payload
   return (
-    <div className="grid min-w-36 gap-1 rounded-lg border border-[var(--border)] bg-[var(--surface-2)]/70 px-2.5 py-1.5 text-xs shadow-xl backdrop-blur-sm">
+    <div className="min-w-36 rounded-lg border border-[var(--border)] bg-[var(--surface-2)]/70 px-2.5 py-1.5 text-xs shadow-xl backdrop-blur-sm">
+      <SwarmRows point={payload[0].payload} />
+    </div>
+  )
+}
+
+// A dot's player, stat, value, and percentile: the tooltip's content, and the touchscreen box's.
+function SwarmRows({ point }: { point: SwarmPoint }) {
+  return (
+    <div className="grid gap-1">
       <div className="font-medium text-[var(--text-primary)]">
         {point.player.name} <span className="text-[var(--text-muted)]">· {point.player.team}</span>
       </div>
@@ -206,6 +229,17 @@ function LeagueComparisonBeeswarm({
     navigate(`/players/${id}`)
   }
 
+  const touchScreen = useMediaQuery(TOUCH_QUERY)
+  const phone = useMediaQuery(PHONE_QUERY)
+  // A dot per (stat column, player).
+  const dotKey = (point: SwarmPoint) => `${point.axisIndex}:${point.player.player_id}`
+  const pointByKey = useMemo(() => new Map(points?.map((point) => [dotKey(point), point])), [points])
+  const tap = useTapToOpen<string>((key) => {
+    const point = pointByKey.get(key)
+    if (point) goToPlayer(point.player.player_id)
+  })
+  const selected = tap.selected === null ? undefined : pointByKey.get(tap.selected)
+
   return (
     <Panel title="League Comparison">
       {loading && <p className="p-4 text-sm text-[var(--text-secondary)]">Loading…</p>}
@@ -219,50 +253,90 @@ function LeagueComparisonBeeswarm({
       )}
       {points && pool.data && !notEnoughVolume && (
         <div className="p-3">
-          <ChartContainer
-            config={chartConfig}
-            className="aspect-auto h-[420px]"
-            label={`Every qualifying ${pool.data.position} this season (${pool.data.players.length}), placed by percentile rank on each of ${pool.data.axes.length} stats, with ${highlightedName} highlighted.`}
+          {/* On a phone six columns don't fit with readable labels, so the
+              chart keeps a minimum width and scrolls sideways (a swipe is a
+              pointercancel, never a tap). */}
+          <div
+            data-swarm-chart
+            className={phone ? "overflow-x-auto" : undefined}
+            {...tap.pressHandlers(swarmDotAt)}
           >
-            <ScatterChart margin={{ top: 8, right: 16, bottom: 8, left: 4 }}>
-              <XAxis
-                type="number"
-                dataKey="x"
-                domain={[-0.5, pool.data.axes.length - 0.5]}
-                ticks={pool.data.axes.map((_, i) => i)}
-                tickFormatter={(i: number) => pool.data!.axes[i]?.label ?? ""}
-                tickLine={false}
-                axisLine={{ stroke: "var(--border)" }}
-                tick={{ fill: "var(--text-secondary)", fontSize: 11 }}
-                interval={0}
-              />
-              <YAxis
-                type="number"
-                dataKey="y"
-                domain={[0, 100]}
-                tickLine={false}
-                axisLine={{ stroke: "var(--border)" }}
-                tick={{ fill: "var(--text-secondary)", fontSize: 11 }}
-                width={32}
-              />
-              <ChartTooltip content={<SwarmTooltip />} cursor={false} />
-              <Scatter
-                data={points}
-                shape={(props: { cx?: number; cy?: number; payload?: SwarmPoint }) => (
-                  <SwarmDot
-                    {...props}
-                    highlightPlayerId={playerId}
-                    teamColor={teamColor}
-                    onSelect={goToPlayer}
-                  />
-                )}
-                isAnimationActive={false}
-              />
-            </ScatterChart>
-          </ChartContainer>
+            <ChartContainer
+              config={chartConfig}
+              className={`aspect-auto h-[420px] ${phone ? "min-w-[620px]" : ""}`}
+              label={`Every qualifying ${pool.data.position} this season (${pool.data.players.length}), placed by percentile rank on each of ${pool.data.axes.length} stats, with ${highlightedName} highlighted.`}
+            >
+              <ScatterChart margin={{ top: 8, right: 16, bottom: 8, left: 4 }}>
+                <XAxis
+                  type="number"
+                  dataKey="x"
+                  domain={[-0.5, pool.data.axes.length - 0.5]}
+                  ticks={pool.data.axes.map((_, i) => i)}
+                  tickFormatter={(i: number) => pool.data!.axes[i]?.label ?? ""}
+                  tickLine={false}
+                  axisLine={{ stroke: "var(--border)" }}
+                  // Two centered lines on a phone (see RadarAxisTick); one on wider screens.
+                  tick={
+                    phone
+                      ? (props: { x?: number | string; y?: number | string; payload?: { value: unknown } }) => (
+                          <RadarAxisTick
+                            x={Number(props.x)}
+                            y={Number(props.y)}
+                            textAnchor="middle"
+                            verticalAnchor="start"
+                            payload={{ value: pool.data!.axes[Number(props.payload?.value)]?.label ?? "" }}
+                          />
+                        )
+                      : { fill: "var(--text-secondary)", fontSize: 11 }
+                  }
+                  height={phone ? 40 : undefined}
+                  interval={0}
+                />
+                <YAxis
+                  type="number"
+                  dataKey="y"
+                  domain={[0, 100]}
+                  tickLine={false}
+                  axisLine={{ stroke: "var(--border)" }}
+                  tick={{ fill: "var(--text-secondary)", fontSize: 11 }}
+                  width={32}
+                />
+                {/* On a touchscreen, the box below stands in for the tooltip. */}
+                {!touchScreen && <ChartTooltip content={<SwarmTooltip />} cursor={false} />}
+                <Scatter
+                  data={points}
+                  shape={(props: { cx?: number; cy?: number; payload?: SwarmPoint }) => (
+                    <SwarmDot
+                      {...props}
+                      highlightPlayerId={playerId}
+                      teamColor={teamColor}
+                      tapKey={props.payload ? dotKey(props.payload) : ""}
+                      selected={!!props.payload && dotKey(props.payload) === tap.selected}
+                      onSelect={goToPlayer}
+                    />
+                  )}
+                  isAnimationActive={false}
+                />
+              </ScatterChart>
+            </ChartContainer>
+          </div>
+          {touchScreen && (
+            // The filled box's height (134px), so a tap doesn't shift the caption.
+            <TapDetails prompt="Tap a dot to see that player's numbers." className="min-h-34">
+              {selected && (
+                <div className="flex flex-col gap-1.5">
+                  <SwarmRows point={selected} />
+                  {selected.player.player_id !== playerId && (
+                    <OpenButton name={selected.player.name} onClick={() => goToPlayer(selected.player.player_id)} />
+                  )}
+                </div>
+              )}
+            </TapDetails>
+          )}
           <p className="px-3 pb-1 text-xs text-[var(--text-muted)]">
             Every qualifying player at the position this season, positioned by percentile rank on each
-            axis - click a dot to view that player.
+            axis{touchScreen ? "." : " - click a dot to view that player."}
+            {phone && ` Swipe the chart sideways to see all ${pool.data.axes.length} stats.`}
             {ngsAxisLabels.length > 0 &&
               ` ${ngsAxisLabels.join(" and ")} ${ngsAxisLabels.length > 1 ? "are" : "is"} sourced from NFL Next Gen Stats, which can take time to update or require higher minimum touches to appear, so ${ngsAxisLabels.length > 1 ? "those columns" : "that column"} may have fewer dots.`}
           </p>

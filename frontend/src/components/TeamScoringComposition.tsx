@@ -4,13 +4,19 @@
 // between points for and points against - not "offense" and "defense", since
 // every unit can contribute to either side (a pick-six is scored by the
 // defense, and shows up as points against for the team that turned it over).
+// On a touchscreen a tapped slice's points show in a box below the donut
+// instead of in the hover tooltip.
 import { useRef, useState } from "react"
 import type * as React from "react"
 import { Cell, Pie, PieChart, Tooltip } from "recharts"
+import { pieSliceAt } from "../lib/pieSliceAt"
 import { useFetch } from "../lib/useFetch"
+import { TOUCH_QUERY, useMediaQuery } from "../lib/useMediaQuery"
+import { useTapToOpen } from "../lib/useTapToOpen"
 import { ChartContainer, type ChartConfig } from "./evilcharts/ui/recharts-chart"
 import Panel from "./Panel"
 import PositionGroupToggle from "./PositionGroupToggle"
+import { TapDetails } from "./TapDetails"
 
 interface ScoringCategory {
   key: string
@@ -66,10 +72,18 @@ function ScoringTooltip({
   // An empty-but-present element, not null - keeps the tooltip from
   // resetting position to (0,0) and flying in from the corner on each hover.
   if (!active || !payload?.length) return <span className="p-4" />
-  const category = payload[0].payload
+  return (
+    <div className="min-w-32 rounded-lg border border-[var(--border)] bg-[var(--surface-2)]/70 px-2.5 py-1.5 text-xs shadow-xl backdrop-blur-sm">
+      <CategoryRows category={payload[0].payload} totalPoints={totalPoints} />
+    </div>
+  )
+}
+
+// A unit's points and share: the tooltip's content, and the touchscreen box's.
+function CategoryRows({ category, totalPoints }: { category: ScoringCategory; totalPoints: number }) {
   const share = totalPoints > 0 ? Math.round((category.points / totalPoints) * 100) : 0
   return (
-    <div className="grid min-w-32 gap-1 rounded-lg border border-[var(--border)] bg-[var(--surface-2)]/70 px-2.5 py-1.5 text-xs shadow-xl backdrop-blur-sm">
+    <div className="grid gap-1">
       <div className="font-medium text-[var(--text-primary)]">{category.label}</div>
       <div className="flex items-baseline justify-between gap-4">
         <span className="text-[var(--text-secondary)]">Points</span>
@@ -125,6 +139,12 @@ function TeamScoringComposition({ teamAbbr }: { teamAbbr: string }) {
 
   const side = data?.[SIDE_BY_VIEW[view]]
 
+  // Slices don't open anything, so a tap just shows a slice's points (and a
+  // second tap leaves it showing).
+  const touchScreen = useMediaQuery(TOUCH_QUERY)
+  const tap = useTapToOpen<string>(() => {})
+  const selected = side?.categories.find((category) => category.key === tap.selected)
+
   return (
     <Panel
       title="Scoring Composition"
@@ -136,19 +156,30 @@ function TeamScoringComposition({ teamAbbr }: { teamAbbr: string }) {
       {error && <p className="p-4 text-sm text-[var(--negative)]">Couldn't load scoring: {error}</p>}
       {side && (
         <>
-          <div ref={containerRef} className="relative p-3" onMouseMove={handleMouseMove}>
+          <div
+            ref={containerRef}
+            className="relative p-3"
+            onMouseMove={handleMouseMove}
+            {...tap.pressHandlers((x, y) => {
+              const index = pieSliceAt(x, y)
+              return index === null ? null : (side.categories[index]?.key ?? null)
+            })}
+          >
             <ChartContainer
               config={chartConfig}
               className="aspect-[4/3]"
               label={`How ${data!.team}'s ${view} break down by type of score.`}
             >
               <PieChart>
-                <Tooltip
-                  content={<ScoringTooltip totalPoints={side.total_points} />}
-                  animationDuration={200}
-                  wrapperStyle={{ zIndex: 20 }}
-                  position={cursorPos ?? undefined}
-                />
+                {/* On a touchscreen, the box below stands in for the tooltip. */}
+                {!touchScreen && (
+                  <Tooltip
+                    content={<ScoringTooltip totalPoints={side.total_points} />}
+                    animationDuration={200}
+                    wrapperStyle={{ zIndex: 20 }}
+                    position={cursorPos ?? undefined}
+                  />
+                )}
                 <Pie
                   data={side.categories}
                   dataKey="points"
@@ -161,7 +192,11 @@ function TeamScoringComposition({ teamAbbr }: { teamAbbr: string }) {
                   isAnimationActive={false}
                 >
                   {side.categories.map((category) => (
-                    <Cell key={category.key} fill={CATEGORY_COLORS[category.key]} />
+                    <Cell
+                      key={category.key}
+                      fill={CATEGORY_COLORS[category.key]}
+                      {...(category.key === tap.selected && { stroke: "var(--accent)", strokeWidth: 3 })}
+                    />
                   ))}
                 </Pie>
               </PieChart>
@@ -175,6 +210,14 @@ function TeamScoringComposition({ teamAbbr }: { teamAbbr: string }) {
               </span>
             </div>
           </div>
+          {touchScreen && (
+            <div className="px-3 pb-2">
+              {/* A filled box's height (64px), so taps don't shift the legend. */}
+              <TapDetails prompt="Tap a slice to see its points." className="min-h-16">
+                {selected && <CategoryRows category={selected} totalPoints={side.total_points} />}
+              </TapDetails>
+            </div>
+          )}
           <ScoringLegend categories={side.categories} />
           <p className="px-3 pb-2 text-xs text-[var(--text-muted)]">
             {view === "points for"
