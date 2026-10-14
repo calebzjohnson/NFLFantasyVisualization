@@ -1,0 +1,129 @@
+// TeamUsagePanel.test.tsx
+// Locks the player-page usage panel's behaviour: the season donut's share, the
+// weekly view for both chart shapes, and the view toggle.
+import { fireEvent, screen } from "@testing-library/react"
+import { beforeEach, describe, expect, it, vi } from "vitest"
+import { teamInfo } from "../test/fixtures"
+import { mockApi, renderWithRouter } from "../test/render"
+import TeamUsagePanel from "./TeamUsagePanel"
+
+vi.mock("../lib/api", () => ({ fetchJson: vi.fn() }))
+
+function player(id: string, name: string, value: number) {
+  return { player_id: id, name, headshot_url: null, value }
+}
+
+// Targets: the stacked-bar shape. W1 takes 40 of the team's 100.
+function targetsUsage() {
+  return {
+    player_id: "W1",
+    team: "KC",
+    metric: "targets",
+    label: "Target Share",
+    player_value: 40,
+    team_value: 100,
+    teammates: [
+      { player_id: "W2", name: "W Two", value: 35 },
+      { player_id: "W3", name: "W Three", value: 25 },
+    ],
+    weekly: [
+      {
+        week: 1,
+        team_value: 50,
+        players: [player("W1", "W One", 20), player("W2", "W Two", 18), player("W3", "W Three", 12)],
+      },
+      {
+        week: 2,
+        team_value: 50,
+        players: [player("W1", "W One", 20), player("W2", "W Two", 17), player("W3", "W Three", 13)],
+      },
+    ],
+  }
+}
+
+// Touches: the multi-line shape, and a label with a "vs" the donut trims.
+function touchesUsage() {
+  return {
+    player_id: "R1",
+    team: "KC",
+    metric: "touches",
+    label: "Touch Share vs Backfield",
+    player_value: 60,
+    team_value: 80,
+    teammates: [{ player_id: "R2", name: "R Two", value: 20 }],
+    weekly: [
+      { week: 1, team_value: 40, players: [player("R1", "R One", 30), player("R2", "R Two", 10)] },
+      { week: 2, team_value: 40, players: [player("R1", "R One", 30), player("R2", "R Two", 10)] },
+    ],
+  }
+}
+
+function renderPanel(id: string, name: string) {
+  renderWithRouter(<TeamUsagePanel playerId={id} playerName={name} />)
+}
+
+describe("TeamUsagePanel", () => {
+  beforeEach(() => {
+    mockApi({
+      "/teams": [teamInfo("KC", { team_name: "Kansas City Chiefs" })],
+      "/players/W1/usage": targetsUsage(),
+      "/players/R1/usage": touchesUsage(),
+    })
+  })
+
+  it("titles the panel with the metric the backend named", async () => {
+    renderPanel("W1", "W One")
+
+    expect(await screen.findByRole("heading", { name: "Target Share" })).toBeInTheDocument()
+  })
+
+  it("opens on the weekly view, naming the player in the chart's label", async () => {
+    renderPanel("W1", "W One")
+
+    expect(
+      await screen.findByRole("figure", {
+        name: "W One's share of the team's target share, week by week.",
+      }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "weekly" })).toHaveAttribute("aria-pressed", "true")
+  })
+
+  it("renders the weekly view for a touches payload too", async () => {
+    renderPanel("R1", "R One")
+
+    expect(
+      await screen.findByRole("figure", {
+        name: "R One's share of the team's touch share vs backfield, week by week.",
+      }),
+    ).toBeInTheDocument()
+  })
+
+  it("shows the player's season share in the donut", async () => {
+    renderPanel("W1", "W One")
+
+    fireEvent.click(await screen.findByRole("button", { name: "season" }))
+
+    // 40 of the team's 100 targets.
+    expect(
+      await screen.findByRole("figure", {
+        name: "W One's share of the team's target share: 40%.",
+      }),
+    ).toBeInTheDocument()
+    expect(screen.getByText("40%")).toBeInTheDocument()
+  })
+
+  it("trims the donut's caption at 'vs' so it fits the centre", async () => {
+    renderPanel("R1", "R One")
+
+    fireEvent.click(await screen.findByRole("button", { name: "season" }))
+
+    expect(await screen.findByText("75%")).toBeInTheDocument()
+    expect(screen.getByText("Touch Share")).toBeInTheDocument()
+  })
+
+  it("reports a failed load", async () => {
+    renderPanel("XX", "Nobody")
+
+    expect(await screen.findByText(/Couldn't load usage/)).toBeInTheDocument()
+  })
+})

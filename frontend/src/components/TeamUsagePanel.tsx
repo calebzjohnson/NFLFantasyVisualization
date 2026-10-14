@@ -20,41 +20,21 @@ import {
   YAxis,
 } from "recharts"
 import type { TeamInfo } from "../data/teams"
+import {
+  buildColorByKey,
+  OTHER_KEY,
+  type UsagePlayerAmount,
+  type UsageShare,
+} from "../data/usage"
 import { useFetch } from "../lib/useFetch"
 import { ChartContainer, type ChartConfig } from "./evilcharts/ui/recharts-chart"
 import Panel from "./Panel"
 import PlayerAvatar from "./PlayerAvatar"
 import PositionGroupToggle from "./PositionGroupToggle"
 
-interface Teammate {
-  player_id: string
-  name: string
-  value: number
-}
 
-interface UsagePlayerAmount {
-  player_id: string | null
-  name: string
-  headshot_url: string | null
-  value: number
-}
 
-interface WeeklyPoint {
-  week: number
-  team_value: number
-  players: UsagePlayerAmount[]
-}
 
-interface UsageShare {
-  player_id: string
-  team: string
-  metric: string
-  label: string
-  player_value: number
-  team_value: number
-  teammates: Teammate[]
-  weekly: WeeklyPoint[]
-}
 
 interface DonutSlice {
   player_id?: string
@@ -75,55 +55,8 @@ const TEAMMATE_FILL = "var(--border)"
 // "__other__" stands in for the backend's null player_id (QB TD
 // involvement's "every touchdown that wasn't him" bucket) as an object key -
 // every other id is a real gsis_id, which never collides with this string.
-const OTHER_KEY = "__other__"
 
-// A validated categorical palette (see the dataviz skill's palette.md) -
-// fixed hue order, cycled for pools deeper than 8 players (a tackle-share
-// pool can run 30+). The focus player uses their own team color instead, so
-// this only needs to cover teammates.
-const CATEGORICAL_PALETTE = [
-  "#2a78d6", // blue
-  "#eb6834", // orange
-  "#1baf7a", // aqua
-  "#eda100", // yellow
-  "#e87ba4", // magenta
-  "#008300", // green
-  "#4a3aa7", // violet
-  "#e34948", // red
-]
 
-// One color per player, shared by the donut and the weekly lines so a given
-// teammate is always the same color in both - one fixed palette, assigned
-// by rank in a single combined list (this player included, not a special
-// case), ordered by season total descending. No team colors: the point is
-// a consistent, position-based color per rank, the same across every
-// player's page, not a color tied to which team happens to be selected.
-// QB TD involvement is the exception, and takes the team's two colors
-// instead: it's a this-QB-vs-the-rest-of-his-team split rather than a
-// roster of individually ranked players, so a rank-based palette would be
-// encoding a ranking that isn't there.
-function buildColorByKey(
-  usage: UsageShare,
-  playerId: string,
-  teamColor: string,
-  teamColor2: string,
-): Map<string, string> {
-  if (usage.metric === "td_involvement") {
-    return new Map([
-      [playerId, teamColor],
-      [OTHER_KEY, teamColor2],
-    ])
-  }
-  // Ties break on player_id, never on who the focus player is: the focus
-  // player heads the input array, so a value-only sort would float them above
-  // everyone they're tied with and shift that whole tied group's colors -
-  // the same player would change color just by opening his own page.
-  const ranked = [
-    { id: playerId, value: usage.player_value },
-    ...usage.teammates.map((teammate) => ({ id: teammate.player_id, value: teammate.value })),
-  ].sort((a, b) => b.value - a.value || a.id.localeCompare(b.id))
-  return new Map(ranked.map((entry, index) => [entry.id, CATEGORICAL_PALETTE[index % CATEGORICAL_PALETTE.length]]))
-}
 
 // This panel covers 5 different metrics (see USAGE_METRIC_BY_POSITION_GROUP
 // on the backend) behind one generic donut/bar component, so the caption is
@@ -158,19 +91,32 @@ const USAGE_CAPTIONS: Record<string, { season: string; weekly: string }> = {
   },
 }
 
-function usageCaption(metric: string, weekly: boolean): string {
-  const caption = USAGE_CAPTIONS[metric] ?? USAGE_CAPTIONS.targets
+// The captions above are written about one player. Without a focus the same
+// chart is describing the whole pool, so it needs its own wording.
+const TEAM_CAPTIONS: Record<string, { season: string; weekly: string }> = {
+  touches: {
+    season: "How this backfield's touches (carries + receptions) are split between its runners.",
+    weekly: "Backfield touches (carries + receptions) each week, split between its runners.",
+  },
+  targets: {
+    season: "How this team's targets are split between its pass catchers.",
+    weekly: "Targets each week, split between this team's pass catchers.",
+  },
+}
+
+function usageCaption(metric: string, weekly: boolean, focused = true): string {
+  const captions = focused ? USAGE_CAPTIONS : { ...USAGE_CAPTIONS, ...TEAM_CAPTIONS }
+  const caption = captions[metric] ?? captions.targets
   return weekly ? caption.weekly : caption.season
 }
 
 // Custom rather than the shared ChartTooltipContent, which assumes one
 // tooltip covers a whole series - here each slice is its own player.
-function UsageTooltip({ active, payload }: { active?: boolean; payload?: { payload: DonutSlice }[] }) {
+function UsageTooltip({ slice }: { slice: DonutSlice | null }) {
   // An empty-but-present element, not null - keeps Recharts' tooltip wrapper
   // mounted between hovers so it doesn't reset position to (0,0) and animate
   // in from the corner every time.
-  if (!active || !payload?.length) return <span className="p-4" />
-  const slice = payload[0].payload
+  if (!slice) return <span className="p-4" />
   return (
     <div className="flex items-baseline justify-between gap-4 rounded-lg border border-[var(--border)] bg-[var(--surface-2)]/70 px-2.5 py-1.5 text-xs shadow-xl backdrop-blur-sm">
       <span className="font-medium text-[var(--text-primary)]">{slice.name}</span>
@@ -181,25 +127,42 @@ function UsageTooltip({ active, payload }: { active?: boolean; payload?: { paylo
   )
 }
 
-function UsageDonut({
+export function UsageDonut({
   playerName,
-  teamColor,
   usage,
+  colorByKey,
   onSelect,
 }: {
-  playerName: string
-  teamColor: string
+  // null on the team view: every slice is a teammate and the centre shows the
+  // leader's share rather than one player's.
+  playerName: string | null
   usage: UsageShare
+  colorByKey: Map<string, string>
   onSelect: (playerId: string) => void
 }) {
   const data: DonutSlice[] = [
-    { name: playerName, value: usage.player_value, isPlayer: true },
+    ...(playerName
+      ? [
+          {
+            player_id: usage.player_id ?? undefined,
+            name: playerName,
+            value: usage.player_value,
+            isPlayer: true,
+          },
+        ]
+      : []),
     ...usage.teammates.map((teammate) => ({ ...teammate, isPlayer: false })),
   ]
-  const sharePct = Math.round((usage.player_value / usage.team_value) * 100)
+  const headlineValue = playerName ? usage.player_value : (data[0]?.value ?? 0)
+  const sharePct = usage.team_value > 0 ? Math.round((headlineValue / usage.team_value) * 100) : 0
 
   const containerRef = useRef<HTMLDivElement>(null)
   const [cursorPos, setCursorPos] = useState<{ x: number; y: number } | null>(null)
+  const [hoveredSlice, setHoveredSlice] = useState<DonutSlice | null>(null)
+  // Mousemove fires far faster than the screen repaints, and Recharts owns the
+  // tooltip's position, so the state update can't be skipped - it's coalesced
+  // to one per frame instead.
+  const frameRef = useRef<number | null>(null)
 
   // recharts' default Pie tooltip snaps to wherever a slice first activates
   // and stays there while the cursor moves around inside that same slice -
@@ -213,15 +176,19 @@ function UsageDonut({
     const rect = containerRef.current.getBoundingClientRect()
     const x = event.clientX - rect.left
     const y = event.clientY - rect.top
+    if (frameRef.current !== null) cancelAnimationFrame(frameRef.current)
     const card = containerRef.current.querySelector<HTMLElement>(".recharts-tooltip-wrapper")
     const cardWidth = card?.offsetWidth || 150
     const cardHeight = card?.offsetHeight || 36
     const GAP = 12
     const flipLeft = x + GAP + cardWidth > rect.width
     const flipUp = y + GAP + cardHeight > rect.height
-    setCursorPos({
-      x: flipLeft ? Math.max(x - GAP - cardWidth, 0) : x + GAP,
-      y: flipUp ? Math.max(y - GAP - cardHeight, 0) : y + GAP,
+    frameRef.current = requestAnimationFrame(() => {
+      frameRef.current = null
+      setCursorPos({
+        x: flipLeft ? Math.max(x - GAP - cardWidth, 0) : x + GAP,
+        y: flipUp ? Math.max(y - GAP - cardHeight, 0) : y + GAP,
+      })
     })
   }
 
@@ -231,12 +198,20 @@ function UsageDonut({
         <ChartContainer
           config={chartConfig}
           className="aspect-[4/3]"
-          label={`${playerName}'s share of the team's ${usage.label.toLowerCase()}: ${sharePct}%.`}
+          label={
+            playerName
+              ? `${playerName}'s share of the team's ${usage.label.toLowerCase()}: ${sharePct}%.`
+              : `This team's ${usage.label.toLowerCase()} this season, player by player. ${data[0]?.name ?? "Nobody"} leads with ${sharePct}%.`
+          }
         >
           <PieChart>
             <Tooltip
-              content={<UsageTooltip />}
-              animationDuration={200}
+              content={<UsageTooltip slice={hoveredSlice} />}
+              // Recharts animates the tooltip's *position*, so moving between
+              // slices slides the card across instead of it following the
+              // cursor. Off, it tracks immediately.
+              isAnimationActive={false}
+              animationDuration={0}
               wrapperStyle={{ zIndex: 20 }}
               position={cursorPos ?? undefined}
             />
@@ -250,6 +225,11 @@ function UsageDonut({
               stroke="var(--surface-1)"
               strokeWidth={2}
               isAnimationActive={false}
+              // The gaps between slices hover nothing, so the tooltip would
+              // blank for a frame as the cursor crosses one. Tracking the last
+              // sector entered keeps the card steady until the next takes
+              // over; Recharts hides the wrapper on leave, so it can't go stale.
+              onMouseEnter={(_: unknown, index: number) => setHoveredSlice(data[index] ?? null)}
               onClick={(sector: { player_id?: string; payload?: DonutSlice }) => {
                 const playerId = sector.player_id ?? sector.payload?.player_id
                 if (playerId) onSelect(playerId)
@@ -258,7 +238,11 @@ function UsageDonut({
               {data.map((slice) => (
                 <Cell
                   key={slice.name}
-                  fill={slice.isPlayer ? teamColor : TEAMMATE_FILL}
+                  fill={colorByKey.get(slice.player_id ?? "") ?? TEAMMATE_FILL}
+                  // Teammates stay in the palette but recede, the same
+                  // emphasis the weekly bars use. With no focus player
+                  // nobody recedes.
+                  fillOpacity={!playerName || slice.isPlayer ? 1 : 0.4}
                   cursor={slice.player_id ? "pointer" : "default"}
                 />
               ))}
@@ -267,12 +251,36 @@ function UsageDonut({
         </ChartContainer>
         <div className="pointer-events-none absolute inset-3 flex flex-col items-center justify-center">
           <span className="font-display text-3xl font-bold text-[var(--text-primary)]">{sharePct}%</span>
-          <span className="max-w-[60%] text-center text-[10px] tracking-wider text-[var(--text-muted)] uppercase">
-            {usage.label.split(" vs ")[0]}
+          <span className="max-w-[70%] text-center text-[10px] tracking-wider text-[var(--text-muted)] uppercase">
+            {/* Without a focus player the number is the leader's share, so it
+                has to say whose - the metric name alone wouldn't. */}
+            {playerName ? usage.label.split(" vs ")[0] : (data[0]?.name ?? usage.label)}
           </span>
         </div>
       </div>
-      <p className="px-3 pb-2 text-xs text-[var(--text-muted)]">{usageCaption(usage.metric, false)}</p>
+      <p className="px-3 pb-2 text-xs text-[var(--text-muted)]">
+        {usageCaption(usage.metric, false, Boolean(playerName))}
+      </p>
+      <details className="px-3 pb-2 text-xs text-[var(--text-muted)]">
+        <summary className="-my-1 cursor-pointer py-1 text-[var(--text-secondary)]">Legend</summary>
+        <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1.5">
+          {data.map((slice) => (
+            <li
+              key={slice.name}
+              className="flex items-center gap-1.5 text-[11px] text-[var(--text-secondary)]"
+            >
+              <span
+                className="h-2.5 w-2.5 shrink-0 rounded-[3px]"
+                style={{
+                  backgroundColor: colorByKey.get(slice.player_id ?? "") ?? TEAMMATE_FILL,
+                  opacity: !playerName || slice.isPlayer ? 1 : 0.4,
+                }}
+              />
+              {slice.name}
+            </li>
+          ))}
+        </ul>
+      </details>
     </>
   )
 }
@@ -316,7 +324,7 @@ function HoverDot({
   cx?: number
   cy?: number
   payload?: HoverPoint
-  focusKey: string
+  focusKey: string | null
   onEnter: (point: HoverPoint) => void
   onLeave: () => void
   onSelect: (playerId: string) => void
@@ -391,15 +399,16 @@ function HoverCard({ point }: { point: HoverPoint }) {
   )
 }
 
-function UsageWeeklyChart({
+export function UsageWeeklyChart({
   playerId,
   playerName,
   usage,
   colorByKey,
   onSelect,
 }: {
-  playerId: string
-  playerName: string
+  // Both null on the team view: no line is thickened and no week is headlined.
+  playerId: string | null
+  playerName: string | null
   usage: UsageShare
   colorByKey: Map<string, string>
   onSelect: (playerId: string) => void
@@ -446,7 +455,7 @@ function UsageWeeklyChart({
   // single "Other" line for QB TD involvement, which isn't a roster of
   // individually ranked teammates.
   const otherIds: string[] = usage.metric === "td_involvement" ? [OTHER_KEY] : usage.teammates.map((t) => t.player_id)
-  const nameByKey = new Map<string, string>([[playerId, playerName]])
+  const nameByKey = new Map<string, string>(playerId && playerName ? [[playerId, playerName]] : [])
   for (const week of usage.weekly) {
     for (const player of week.players) {
       nameByKey.set(player.player_id ?? OTHER_KEY, player.name)
@@ -461,7 +470,9 @@ function UsageWeeklyChart({
     }
     return row
   })
-  const peak = data.reduce((best, row) => (Number(row[playerId]) > Number(best[playerId]) ? row : best))
+  const peak = playerId
+    ? data.reduce((best, row) => (Number(row[playerId]) > Number(best[playerId]) ? row : best))
+    : null
 
   // A QB's best week is almost always 100% - most starters have some week
   // they had a hand in every touchdown their team scored - so the peak says
@@ -474,12 +485,12 @@ function UsageWeeklyChart({
   // share) rarely has anyone above 20-30%, so a full 100% axis would leave
   // every line squashed into the bottom of the chart instead of using the
   // space to actually tell them apart.
-  const allIds = [playerId, ...otherIds]
+  const allIds = playerId ? [playerId, ...otherIds] : otherIds
   const maxValue = Math.max(...data.flatMap((row) => allIds.map((key) => Number(row[key]) || 0)))
   const yMax = Math.min(100, Math.max(10, Math.ceil((maxValue * 1.15) / 10) * 10))
 
   const stackIds = [
-    { id: playerId, value: usage.player_value },
+    ...(playerId ? [{ id: playerId, value: usage.player_value }] : []),
     ...usage.teammates.map((teammate) => ({ id: teammate.player_id, value: teammate.value })),
   ]
     .sort((a, b) => b.value - a.value || a.id.localeCompare(b.id))
@@ -548,21 +559,23 @@ function UsageWeeklyChart({
 
   return (
     <div className="p-3">
-      <div className="mb-2 flex items-start justify-between gap-4 px-1">
-        <div className="flex flex-col gap-0.5">
-          <span className="text-[10px] tracking-wider text-[var(--text-muted)] uppercase">
-            {isTdInvolvement ? "TD Involvements - Average" : `${usage.label.split(" vs ")[0]} - Best Week`}
-          </span>
-          <div className="flex items-baseline gap-2">
-            <span className="font-display text-2xl font-bold text-[var(--text-primary)]">
-              {isTdInvolvement ? perGame.toFixed(1) : `${Math.round(Number(peak[playerId]) || 0)}%`}
+      {playerId && peak && (
+        <div className="mb-2 flex items-start justify-between gap-4 px-1">
+          <div className="flex flex-col gap-0.5">
+            <span className="text-[10px] tracking-wider text-[var(--text-muted)] uppercase">
+              {isTdInvolvement ? "TD Involvements - Average" : `${usage.label.split(" vs ")[0]} - Best Week`}
             </span>
-            <span className="text-sm text-[var(--text-secondary)]">
-              {isTdInvolvement ? "per game" : `in ${peak.week}`}
-            </span>
+            <div className="flex items-baseline gap-2">
+              <span className="font-display text-2xl font-bold text-[var(--text-primary)]">
+                {isTdInvolvement ? perGame.toFixed(1) : `${Math.round(Number(peak[playerId]) || 0)}%`}
+              </span>
+              <span className="text-sm text-[var(--text-secondary)]">
+                {isTdInvolvement ? "per game" : `in ${peak.week}`}
+              </span>
+            </div>
           </div>
         </div>
-      </div>
+      )}
       {/* A bar segment is an area, not a point, so its card tracks the cursor
           rather than pinning to one spot the way the line chart's dots do. */}
       <div
@@ -588,7 +601,11 @@ function UsageWeeklyChart({
         <ChartContainer
           config={chartConfig}
           className="aspect-[4/3]"
-          label={`${playerName}'s share of the team's ${usage.label.toLowerCase()}, week by week.`}
+          label={
+            playerName
+              ? `${playerName}'s share of the team's ${usage.label.toLowerCase()}, week by week.`
+              : `This team's ${usage.label.toLowerCase()} week by week, player by player.`
+          }
         >
           <ComposedChart data={stacked ? slotData : data} margin={{ top: 8, right: 8, bottom: 4, left: 4 }}>
             <CartesianGrid stroke="var(--border)" strokeOpacity={0.5} vertical={false} />
@@ -644,7 +661,7 @@ function UsageWeeklyChart({
                       <Cell
                         key={String(row.week)}
                         fill={key ? colorByKey.get(key) : "transparent"}
-                        fillOpacity={key === playerId ? 1 : 0.4}
+                        fillOpacity={!playerId || key === playerId ? 1 : 0.4}
                       />
                     )
                   })}
@@ -663,7 +680,7 @@ function UsageWeeklyChart({
                 connectNulls
               />
             ))}
-            {!stacked && (
+            {!stacked && playerId && (
               <Line
                 type="monotone"
                 dataKey={playerId}
@@ -694,7 +711,7 @@ function UsageWeeklyChart({
                   onClick={() => onSelect(key)}
                 />
               ))}
-            {!stacked && (
+            {!stacked && playerId && (
               <Line
                 type="monotone"
                 dataKey={playerId}
@@ -734,7 +751,7 @@ function UsageWeeklyChart({
         )}
       </div>
       <p className="pt-2 text-xs text-[var(--text-muted)]">
-        {usageCaption(usage.metric, true)}
+        {usageCaption(usage.metric, true, Boolean(playerId))}
         {(usage.metric === "pressures" || usage.metric === "targets_against") &&
           " This comes from Pro Football Reference, which can take a day or two to post the most recent week."}
       </p>
@@ -785,8 +802,8 @@ function TeamUsagePanel({ playerId, playerName }: { playerId: string; playerName
         (view === "season" ? (
           <UsageDonut
             playerName={playerName}
-            teamColor={teamColor}
             usage={usage.data}
+            colorByKey={buildColorByKey(usage.data, playerId, teamColor, teamColor2)}
             onSelect={goToPlayer}
           />
         ) : (

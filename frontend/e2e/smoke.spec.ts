@@ -37,6 +37,11 @@ const PAGES = [
   { name: "teams", path: "/teams", title: "Teams · Plot the Pigskin" },
   { name: "team", path: "/teams/KC", title: "Kansas City Chiefs · Plot the Pigskin" },
   {
+    name: "team playmaking",
+    path: "/teams/KC?tab=playmaking",
+    title: "Kansas City Chiefs · Plot the Pigskin",
+  },
+  {
     name: "team depth chart",
     path: "/teams/KC?tab=depth-chart",
     title: "Kansas City Chiefs · Plot the Pigskin",
@@ -339,4 +344,63 @@ test("back from a tab leaves the team page rather than stepping through tabs", a
 
   await page.goBack()
   await expect(page).toHaveURL("/teams")
+})
+
+
+test("playmaking sits between overview and the depth chart", async ({ page }) => {
+  await page.goto("/teams/KC")
+  const tabs = page.getByRole("group", { name: "Team view" })
+  await expect(tabs.getByRole("button")).toHaveText(["Overview", "Playmaking", "Depth Chart"])
+
+  await tabs.getByRole("button", { name: "Playmaking" }).click()
+  await expect(page).toHaveURL("/teams/KC?tab=playmaking")
+  await expect(page.getByRole("heading", { name: "Game Log" })).toHaveCount(0)
+})
+
+test("playmaking shows share charts with nobody singled out", async ({ page }) => {
+  await page.goto("/teams/KC?tab=playmaking")
+
+  // The team wording - the player page says "<name>'s share of..." instead.
+  await expect(page.getByRole("figure", { name: /^This team's backfield split/ })).toBeVisible()
+  await expect(page.getByRole("figure", { name: /^This team's target split/ })).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Red Zone Touches" })).toBeVisible()
+})
+
+test("team leaders switch stat without leaving the tab", async ({ page }) => {
+  await page.goto("/teams/KC?tab=playmaking")
+  const leaders = page.locator("section", { has: page.getByRole("heading", { name: "Team Leaders" }) })
+  await expect(leaders.getByRole("link")).toHaveCount(5)
+
+  await leaders.getByRole("button", { name: "Tackles" }).click()
+  await expect(leaders.getByRole("button", { name: "Tackles" })).toHaveAttribute("aria-pressed", "true")
+  await expect(leaders.getByRole("link")).toHaveCount(5)
+  await expect(page).toHaveURL("/teams/KC?tab=playmaking")
+})
+
+test("play calling groups its rates and ranks each one", async ({ page }) => {
+  await page.goto("/teams/KC")
+  const panel = page.locator("section", { has: page.getByRole("heading", { name: "Play Calling" }) })
+
+  for (const group of ["Balance", "Formation", "Run Direction", "Tempo", "Conversions"]) {
+    await expect(panel.getByRole("heading", { name: group })).toBeVisible()
+  }
+  // Both sides of a split are listed, so nothing has to be inferred.
+  await expect(panel.getByText("Dropback Rate")).toBeVisible()
+  await expect(panel.getByText("Run Rate", { exact: true })).toBeVisible()
+  // Every rate carries a league rank.
+  await expect(panel.getByText(/^\d+(st|nd|rd|th)$/).first()).toBeVisible()
+})
+
+test("team leaders expands to the whole league", async ({ page }) => {
+  await page.goto("/teams")
+  const panel = page.locator("section", { has: page.getByRole("heading", { name: "Team Leaders" }) })
+  await expect(panel.getByRole("row")).toHaveCount(6, { timeout: 60_000 })
+
+  await panel.getByRole("button", { name: "Show all teams" }).click()
+  const modal = page.getByRole("dialog")
+  // 32 teams plus the header row.
+  await expect(modal.getByRole("row")).toHaveCount(33)
+
+  // The two sack columns are told apart: taken on offense, recorded on defense.
+  await expect(modal.getByRole("columnheader", { name: /SCK TKN/ })).toBeVisible()
 })

@@ -132,4 +132,5 @@ describe("teamGameLog", () => {
     expect(keys).not.toContain("ypc")
     expect(keys).not.toContain("completion_pct")
   })
+
 })

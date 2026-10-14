@@ -8,6 +8,8 @@ import type { LeaderRow } from "../data/leaderStatsTypes"
 import { TEAM_METRICS, TEAM_SIDES, type TeamSeasonRow, type TeamSide } from "../data/teamMetrics"
 import { teamPath } from "../data/teams"
 import DetailedLeaderTable from "./DetailedLeaderTable"
+import ExpandButton from "./ExpandButton"
+import Modal from "./Modal"
 import Panel from "./Panel"
 import PositionGroupToggle from "./PositionGroupToggle"
 import TeamLink from "./TeamLink"
@@ -51,6 +53,7 @@ function TeamLeadersPanel({
   error: string | null
 }) {
   const [side, setSide] = useState<TeamSide>(TEAM_SIDES[0])
+  const [expanded, setExpanded] = useState(false)
   const metrics = metricsFor(side)
   const [sortKey, setSortKey] = useState(metrics[0].key)
   const [sortDesc, setSortDesc] = useState(!metrics[0].lowerIsBetter)
@@ -71,7 +74,7 @@ function TeamLeadersPanel({
     else sortBy(key)
   }
 
-  const leaders: TeamLeaderRow[] | null =
+  const ranked: TeamLeaderRow[] | null =
     rows
       ?.map((row) => ({
         team: row.team,
@@ -81,33 +84,45 @@ function TeamLeadersPanel({
         stats: Object.fromEntries(metrics.map((metric) => [metric.key, metric.value(row)])),
       }))
       .sort((a, b) => (sortDesc ? b.stats[sortKey] - a.stats[sortKey] : a.stats[sortKey] - b.stats[sortKey]))
-      .slice(0, LEADER_ROWS_SHOWN)
       .map((row, index) => ({ ...row, rank: index + 1 })) ?? null
+  const leaders = ranked?.slice(0, LEADER_ROWS_SHOWN) ?? null
+
+  const table = (shown: TeamLeaderRow[]) => (
+    <DetailedLeaderTable
+      entityLabel="Team"
+      renderEntity={(row) => <TeamCell row={row} />}
+      columns={metrics.map((metric) => ({ key: metric.key, label: metric.short }))}
+      rows={shown}
+      sortKey={sortKey}
+      sortDesc={sortDesc}
+      onSort={handleSort}
+    />
+  )
 
   return (
+    <>
     <Panel
       title="Team Leaders"
       actions={
-        <PositionGroupToggle options={TEAM_SIDES} active={side} onChange={handleSideChange} aria-label="Side of the ball" />
+        <div className="flex items-center gap-2">
+          <PositionGroupToggle options={TEAM_SIDES} active={side} onChange={handleSideChange} aria-label="Side of the ball" />
+          {ranked && (
+            <ExpandButton label="Show all teams" expanded={expanded} onClick={() => setExpanded(true)} />
+          )}
+        </div>
       }
     >
       {loading && <p className="p-4 text-sm text-[var(--text-secondary)]">Loading…</p>}
       {error && <p className="p-4 text-sm text-[var(--negative)]">Couldn't load team leaders: {error}</p>}
-      {leaders && (
-        <div className="overflow-x-auto">
-          <DetailedLeaderTable
-            entityLabel="Team"
-            renderEntity={(row) => <TeamCell row={row} />}
-            columns={metrics.map((metric) => ({ key: metric.key, label: metric.short }))}
-            rows={leaders}
-            sortKey={sortKey}
-            sortDesc={sortDesc}
-            onSort={handleSort}
-          />
-        </div>
-      )}
+      {leaders && <div className="overflow-x-auto">{table(leaders)}</div>}
       <p className="px-4 pb-3 text-xs text-[var(--text-muted)]">Per-game averages this regular season.</p>
     </Panel>
+    {expanded && ranked && (
+      <Modal title={`${side} - Every Team`} onClose={() => setExpanded(false)}>
+        <div className="overflow-x-auto">{table(ranked)}</div>
+      </Modal>
+    )}
+    </>
   )
 }
 

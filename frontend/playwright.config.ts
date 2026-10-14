@@ -23,6 +23,16 @@ export default defineConfig({
     {
       command: "uv run uvicorn app.main:app --port 8000",
       cwd: "../backend",
+      // The suite drives the whole site far faster than anyone browsing it,
+      // so the per-IP limits trip on the heavy endpoints and tests fail on
+      // 429s unrelated to what they check. Raised, not removed - the limiter
+      // itself is covered by backend/tests/test_rate_limit.py, and this only
+      // reaches the uvicorn process Playwright starts. Production reads its
+      // limits from Render's own environment.
+      env: {
+        APP_RATE_LIMIT_DEFAULT: "2000/minute",
+        APP_RATE_LIMIT_HEAVY: "2000/minute",
+      },
       url: "http://localhost:8000/health",
       reuseExistingServer: !process.env.CI,
     },

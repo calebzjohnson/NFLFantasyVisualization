@@ -207,6 +207,140 @@ def sample_pbp() -> pd.DataFrame:
 
 
 @pytest.fixture
+def tendency_plays(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Stubs play-by-play behind /teams/{team}/tendencies.
+
+    DAL calls 10 plays: 6 dropbacks (4 shotgun) and 4 runs (1 shotgun), so
+    60% dropback and 75% under-center runs. A kneel and a spike are included
+    to confirm they're excluded, and a postseason play likewise. NYG runs
+    everything, so DAL ranks 1st for dropbacks and 2nd for early-down runs.
+    """
+    def play(team, kind, **kw):
+        row = dict(season_type="REG", posteam=team, play_type=kind, shotgun=0, no_huddle=0,
+                   qb_dropback=1 if kind == "pass" else 0, qb_kneel=0, qb_spike=0,
+                   wp=0.5, qtr=1, down=1, pass_length=None,
+                   run_location=None, run_gap=None, yardline_100=50,
+                   third_down_converted=0, third_down_failed=0,
+                   fourth_down_converted=0, fourth_down_failed=0)
+        row.update(kw)
+        return row
+
+    rows = [play("DAL", "pass", shotgun=1, pass_length="deep")]
+    rows += [play("DAL", "pass", shotgun=1, pass_length="short") for _ in range(3)]
+    rows += [play("DAL", "pass", pass_length="short") for _ in range(2)]
+    # Three of DAL's four runs are inside (two up the middle, one off guard);
+    # the fourth is off end. run_gap is absent on middle runs, as in the real
+    # data, so this also covers that case.
+    rows += [play("DAL", "run", shotgun=1, run_location="middle")]
+    rows += [play("DAL", "run", run_location="middle")]
+    rows += [play("DAL", "run", run_location="left", run_gap="guard")]
+    rows += [play("DAL", "run", run_location="right", run_gap="end")]
+    rows += [play("DAL", "run", qb_kneel=1), play("DAL", "pass", qb_spike=1)]
+    rows += [play("DAL", "pass", season_type="POST", pass_length="deep")]
+    rows += [play("NYG", "run", run_location="left", run_gap="end") for _ in range(8)]
+
+    # Red zone and fourth down ride on the plays above rather than adding more,
+    # so the called-play rates stay as documented: DAL's deep throw came from
+    # the 12, and its run off end was a fourth-down carry. Punts are the only
+    # additions - they aren't run or pass, so they can't move those rates.
+    rows[0]["yardline_100"] = 12
+    rows[9]["down"] = 4
+    rows[9]["fourth_down_converted"] = 1
+    # Two third-down attempts, one converted.
+    rows[1]["third_down_converted"] = 1
+    rows[2]["third_down_failed"] = 1
+    punt = dict(season_type="REG", play_type="punt", shotgun=0, no_huddle=0, qb_dropback=0,
+                qb_kneel=0, qb_spike=0, wp=0.5, qtr=1, down=4, pass_length=None,
+                run_location=None, run_gap=None, yardline_100=50,
+                third_down_converted=0, third_down_failed=0,
+                fourth_down_converted=0, fourth_down_failed=0)
+    rows += [dict(punt, posteam="DAL"), dict(punt, posteam="NYG"), dict(punt, posteam="NYG")]
+    rows += [play("NYG", "pass", pass_length="short") for _ in range(2)]
+
+    monkeypatch.setattr("app.services.team_tendencies.nfl.get_current_season", lambda: 2026)
+    monkeypatch.setattr("app.data.pbp.get_season_pbp", lambda season: pd.DataFrame(rows))
+
+
+@pytest.fixture
+def playmaking_sources(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Stubs the sources behind /teams/{team}/playmaking for DAL.
+
+    Backfield: R1 has 10 touches (8 carries + 2 catches) to R2's 2, so the
+    pool total is 12 and only RB/FB count. Targets: W1 12, T1 8, R1 2. Red
+    zone: R1 has 2 carries and 1 catch; an incompletion and an out-of-the-20
+    play are present to confirm both are excluded, as is a postseason play.
+    Defensive counts are deliberately tied at 1 to pin that ties keep their
+    source order rather than being broken.
+    """
+    season_rows = pd.DataFrame(
+        [
+            dict(player_id="R1", player_display_name="R One", recent_team="DAL",
+                 position_group="RB", carries=8, receptions=2, targets=2,
+                 receiving_yards=30, rushing_yards=120, def_sacks=0.0, def_interceptions=0,
+                 def_tackles_solo=0, def_tackles_with_assist=0, def_tackle_assists=0),
+            dict(player_id="R2", player_display_name="R Two", recent_team="DAL",
+                 position_group="RB", carries=2, receptions=0, targets=0,
+                 receiving_yards=0, rushing_yards=9, def_sacks=0.0, def_interceptions=0,
+                 def_tackles_solo=0, def_tackles_with_assist=0, def_tackle_assists=0),
+            dict(player_id="W1", player_display_name="W One", recent_team="DAL",
+                 position_group="WR", carries=0, receptions=8, targets=12,
+                 receiving_yards=140, rushing_yards=0, def_sacks=0.0, def_interceptions=0,
+                 def_tackles_solo=0, def_tackles_with_assist=0, def_tackle_assists=0),
+            dict(player_id="T1", player_display_name="T One", recent_team="DAL",
+                 position_group="TE", carries=0, receptions=5, targets=8,
+                 receiving_yards=60, rushing_yards=0, def_sacks=0.0, def_interceptions=0,
+                 def_tackles_solo=0, def_tackles_with_assist=0, def_tackle_assists=0),
+            dict(player_id="D1", player_display_name="D One", recent_team="DAL",
+                 position_group="LB", carries=0, receptions=0, targets=0,
+                 receiving_yards=0, rushing_yards=0, def_sacks=1.0, def_interceptions=1,
+                 def_tackles_solo=20, def_tackles_with_assist=0, def_tackle_assists=5),
+            dict(player_id="D2", player_display_name="D Two", recent_team="DAL",
+                 position_group="CB", carries=0, receptions=0, targets=0,
+                 receiving_yards=0, rushing_yards=0, def_sacks=1.0, def_interceptions=1,
+                 def_tackles_solo=4, def_tackles_with_assist=0, def_tackle_assists=0),
+            dict(player_id="X1", player_display_name="X One", recent_team="NYG",
+                 position_group="WR", carries=0, receptions=9, targets=20,
+                 receiving_yards=400, rushing_yards=0, def_sacks=0.0, def_interceptions=0,
+                 def_tackles_solo=0, def_tackles_with_assist=0, def_tackle_assists=0),
+        ]
+    )
+    week_rows = season_rows.rename(columns={"recent_team": "team"}).assign(
+        week=1, season_type="REG"
+    )
+
+    plays = pd.DataFrame(
+        [
+            dict(season_type="REG", play_type="run", posteam="DAL", yardline_100=5,
+                 rusher_player_id="R1", receiver_player_id=None, complete_pass=0),
+            dict(season_type="REG", play_type="run", posteam="DAL", yardline_100=12,
+                 rusher_player_id="R1", receiver_player_id=None, complete_pass=0),
+            dict(season_type="REG", play_type="pass", posteam="DAL", yardline_100=8,
+                 rusher_player_id=None, receiver_player_id="R1", complete_pass=1),
+            dict(season_type="REG", play_type="pass", posteam="DAL", yardline_100=8,
+                 rusher_player_id=None, receiver_player_id="W1", complete_pass=0),
+            dict(season_type="REG", play_type="run", posteam="DAL", yardline_100=45,
+                 rusher_player_id="R2", receiver_player_id=None, complete_pass=0),
+            dict(season_type="POST", play_type="run", posteam="DAL", yardline_100=3,
+                 rusher_player_id="R2", receiver_player_id=None, complete_pass=0),
+            dict(season_type="REG", play_type="run", posteam="NYG", yardline_100=5,
+                 rusher_player_id="X1", receiver_player_id=None, complete_pass=0),
+        ]
+    )
+    roster = pd.DataFrame(
+        [
+            dict(gsis_id=pid, display_name=name, headshot=f"https://example.com/{pid}.png")
+            for pid, name in [("R1", "R One"), ("R2", "R Two"), ("W1", "W One"),
+                              ("T1", "T One"), ("D1", "D One"), ("D2", "D Two")]
+        ]
+    )
+    monkeypatch.setattr("app.services.team_playmaking.nfl.get_current_season", lambda: 2026)
+    monkeypatch.setattr("app.data.player_stats.get_season_stats", lambda season: season_rows)
+    monkeypatch.setattr("app.data.player_stats.get_week_stats", lambda season: week_rows)
+    monkeypatch.setattr("app.data.pbp.get_season_pbp", lambda season: plays)
+    monkeypatch.setattr("app.data.players.get_players", lambda: roster)
+
+
+@pytest.fixture
 def depth_chart_sources(monkeypatch: pytest.MonkeyPatch) -> None:
     """Stubs the three loaders behind /teams/{team}/depth-chart for DAL, which
     runs a 4-3. Two snapshots exist so the newest-`dt` filter is exercised: the
