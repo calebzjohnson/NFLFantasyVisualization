@@ -41,8 +41,9 @@ const PlayerDot = memo(function PlayerDot({
   cy?: number
   payload?: PlayerPoint
   onSelect?: () => void
-  // Picked by a tap: ringed in the accent color, not enlarged like hover (a
+  // Highlighted: ringed in the accent color, not enlarged like hover (a
   // bigger mark would cover neighbors and catch taps meant for them).
+  // Activating it then opens the player page.
   selected?: boolean
 }) {
   if (cx === undefined || cy === undefined || !payload) return null
@@ -53,7 +54,7 @@ const PlayerDot = memo(function PlayerDot({
       role="button"
       tabIndex={0}
       onKeyDown={onSelect && activateOnKey(onSelect)}
-      aria-label={`View ${payload.player_display_name}'s player page`}
+      aria-label={selected ? `View ${payload.player_display_name}'s player page` : `Highlight ${payload.player_display_name}`}
       className="origin-center cursor-pointer transition-transform duration-150 [transform-box:fill-box] hover:scale-125"
     >
       <circle cx={cx} cy={cy} r={16} fill="transparent" />
@@ -142,12 +143,14 @@ function PlayerComparisonScatter({ position }: { position: PositionGroup }) {
       onOpen={goToPlayer}
       tapPrompt="Tap a player to see their numbers."
       rowName={(point) => point.player_display_name}
+      searchLabel={(point) => `${point.player_display_name} · ${point.recent_team}`}
       renderTooltipHeader={(point) => <TooltipHeader point={point} />}
       caption={
         <>
           Each dot is a {position}, positioned by the two stats you pick above. The lighter lines mark
           the median {position} in each stat, splitting the chart into four quadrants - so a player
-          above both lines is beating the middle of the pack on both stats at once.
+          above both lines is beating the middle of the pack on both stats at once. Click or tap a
+          player to highlight them, then again to open their page.
         </>
       }
     />

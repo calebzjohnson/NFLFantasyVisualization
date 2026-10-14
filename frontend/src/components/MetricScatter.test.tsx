@@ -1,10 +1,10 @@
 // MetricScatter.test.tsx
-// Tests for the shared scatter's axis pickers, its loading/empty/error states, and its touchscreen details box.
+// Tests for the shared scatter's axis pickers, highlight search, loading/empty/error states, and touchscreen details box.
 // The chart itself isn't rendered here - recharts needs real layout, which jsdom lacks.
-import { render, screen } from "@testing-library/react"
+import { fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { TEAM_METRICS } from "../data/teamMetrics"
-import MetricScatter, { groupCoincidentPoints } from "./MetricScatter"
+import MetricScatter, { groupCoincidentPoints, withHighlightedOnTop } from "./MetricScatter"
 
 function scatter(props: Partial<Parameters<typeof MetricScatter>[0]> = {}) {
   return (
@@ -70,6 +70,30 @@ describe("MetricScatter", () => {
     expect(table).toHaveTextContent("Beta")
   })
 
+  it("highlights rows picked in the search, naming them in the chart's label", () => {
+    const rows = [
+      { name: "Alpha", games: 2, points_for: 40, points_against: 20 },
+      { name: "Beta", games: 2, points_for: 30, points_against: 50 },
+    ]
+    const name = (row: { name?: unknown }) => String(row.name)
+    render(scatter({ rows, rowName: name, rowId: name }))
+
+    fireEvent.change(screen.getByLabelText("Highlight"), { target: { value: "Beta" } })
+    expect(screen.getByRole("figure", { name: /Highlighted: Beta\.$/ })).toBeInTheDocument()
+
+    // A new pick replaces the old one.
+    fireEvent.change(screen.getByLabelText("Highlight"), { target: { value: "Alpha" } })
+    expect(screen.getByRole("figure", { name: /Highlighted: Alpha\.$/ })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Stop highlighting Alpha" }))
+    expect(screen.getByRole("figure", { name: /median in each stat\.$/ })).toBeInTheDocument()
+
+  })
+
+  it("hides the highlight search until there are rows", () => {
+    render(scatter({ loading: true }))
+    expect(screen.queryByLabelText("Highlight")).not.toBeInTheDocument()
+  })
+
   it("shows a tap prompt below the chart only on a touchscreen", () => {
     const rows = [{ name: "Alpha", games: 2, points_for: 40, points_against: 20 }]
     const { unmount } = render(scatter({ rows }))
@@ -114,5 +138,30 @@ describe("groupCoincidentPoints", () => {
     ]
     const points = groupCoincidentPoints(rows)
     expect(points.every((p) => p.kind === "solo")).toBe(true)
+  })
+})
+
+describe("withHighlightedOnTop", () => {
+  const id = (row: { id: string }) => row.id
+
+  it("matches plain grouping when nothing is highlighted", () => {
+    const rows = [
+      { id: "a", x: 0, y: 0 },
+      { id: "b", x: 0, y: 0 },
+    ]
+    expect(withHighlightedOnTop(rows, null, id)).toEqual(groupCoincidentPoints(rows))
+  })
+
+  it("pulls a highlighted row out of its tie cluster and draws it last", () => {
+    const rows = [
+      { id: "a", x: 0, y: 0 },
+      { id: "b", x: 0, y: 0 },
+      { id: "c", x: 0, y: 0 },
+      { id: "d", x: 5, y: 1 },
+    ]
+    const points = withHighlightedOnTop(rows, "b", id)
+
+    expect(points.at(-1)).toEqual({ kind: "solo", x: 0, y: 0, row: rows[1] })
+    expect(points.find((p) => p.kind === "cluster")).toMatchObject({ members: [rows[0], rows[2]] })
   })
 })

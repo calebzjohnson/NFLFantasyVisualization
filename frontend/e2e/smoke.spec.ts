@@ -190,55 +190,109 @@ test("trending chart lines preview then open, by hover or by tap", async ({ page
   await expect(page).toHaveURL(`/players/${again.id}`)
 })
 
-// Same pattern on the scatters: hover/click with a mouse; on a touchscreen a
-// tap shows the mark's numbers below the chart, and the box's button or a
-// second tap opens its page.
-const SCATTERS = [
-  { path: "/", heading: "Team Efficiency", opened: /\/teams\/[A-Z]+$/ },
+// Team Efficiency follows the same pattern: hover/click with a mouse; on a
+// touchscreen a tap shows the mark's numbers below the chart, and the box's
+// button or a second tap opens its page.
+test("Team Efficiency marks preview then open, by hover or by tap", async ({ page, hasTouch }) => {
+  const path = "/"
+  const opened = /\/teams\/[A-Z]+$/
+  const chart = page.locator("section", { has: page.getByRole("heading", { name: "Team Efficiency" }) }).first()
+  // Marks are tapped/clicked through the locator, which re-finds the node if
+  // recharts re-renders it; force, because neighboring marks overlap and
+  // whichever is on top at that point is the one the user would hit.
+  const mark = chart.locator("svg [role=button]").nth(5)
+  async function visit() {
+    await page.goto(path)
+    await mark.waitFor({ timeout: 60_000 })
+    // Panels (and their images) still loading would shift the layout, and
+    // the chart re-measures itself - its marks briefly have no size.
+    await expect(page.getByText("Loading…")).toHaveCount(0, { timeout: 60_000 })
+    await page.waitForLoadState("networkidle")
+    await chart.scrollIntoViewIfNeeded()
+  }
+
+  await visit()
+  if (!hasTouch) {
+    await mark.hover({ force: true })
+    await expect(chart.locator(".recharts-tooltip-wrapper")).toHaveCSS("visibility", "visible")
+    await mark.click({ force: true })
+    await expect(page).toHaveURL(opened)
+    return
+  }
+
+  await expect(chart.getByText("Tap a logo to see that team's numbers.")).toBeVisible()
+  await mark.tap({ force: true })
+  const open = chart.getByRole("button", { name: /^View .+ →$/ })
+  await expect(open).toBeVisible()
+  await expect(page).toHaveURL(path)
+  const chartBox = (await chart.getByRole("figure").boundingBox())!
+  expect((await open.boundingBox())!.y, "details sit below the chart").toBeGreaterThanOrEqual(chartBox.y + chartBox.height)
+  await open.tap()
+  await expect(page).toHaveURL(opened)
+
+  await visit()
+  await mark.tap({ force: true })
+  await expect(open).toBeVisible()
+  await mark.tap({ force: true })
+  await expect(page).toHaveURL(opened)
+})
+
+// Compare Teams/Players: a click or tap highlights a mark (another click moves
+// the highlight, the chip's x clears it), and a second click on the
+// highlighted mark opens its page. On a touchscreen the highlighted mark's
+// numbers show below the chart too, with a button to open it.
+const COMPARE_SCATTERS = [
   { path: "/teams", heading: "Compare Teams", opened: /\/teams\/[A-Z]+$/ },
   { path: "/players", heading: "Compare Players", opened: /\/players\/[^/]+$/ },
 ]
 
-for (const { path, heading, opened } of SCATTERS) {
-  test(`${heading} marks preview then open, by hover or by tap`, async ({ page, hasTouch }) => {
+for (const { path, heading, opened } of COMPARE_SCATTERS) {
+  test(`${heading} marks highlight, then open, by click or by tap`, async ({ page, hasTouch }) => {
     const chart = page.locator("section", { has: page.getByRole("heading", { name: heading }) }).first()
-    // Marks are tapped/clicked through the locator, which re-finds the node if
-    // recharts re-renders it; force, because neighboring marks overlap and
-    // whichever is on top at that point is the one the user would hit.
-    const mark = chart.locator("svg [role=button]").nth(5)
+    // Unhighlighted marks are named "Highlight ..."; the highlighted one,
+    // which moves to the end of the draw order, "View ... page".
+    const mark = chart.locator('svg [role=button][aria-label^="Highlight"]')
+    const highlighted = chart.locator('svg [role=button][aria-label^="View"]')
+    const chip = chart.getByRole("button", { name: /^Stop highlighting / })
     async function visit() {
       await page.goto(path)
-      await mark.waitFor({ timeout: 60_000 })
-      // Panels (and their images) still loading would shift the layout, and
-      // the chart re-measures itself - its marks briefly have no size.
+      await mark.first().waitFor({ timeout: 60_000 })
       await expect(page.getByText("Loading…")).toHaveCount(0, { timeout: 60_000 })
       await page.waitForLoadState("networkidle")
       await chart.scrollIntoViewIfNeeded()
     }
+    const press = (target: import("@playwright/test").Locator) =>
+      hasTouch ? target.tap({ force: true }) : target.click({ force: true })
 
     await visit()
     if (!hasTouch) {
-      await mark.hover({ force: true })
+      await mark.nth(5).hover({ force: true })
       await expect(chart.locator(".recharts-tooltip-wrapper")).toHaveCSS("visibility", "visible")
-      await mark.click({ force: true })
-      await expect(page).toHaveURL(opened)
-      return
     }
-
-    await expect(chart.getByText(/^Tap a (logo|player) to see/)).toBeVisible()
-    await mark.tap({ force: true })
-    const open = chart.getByRole("button", { name: /^View .+ →$/ })
-    await expect(open).toBeVisible()
+    await press(mark.nth(5))
+    await expect(highlighted).toHaveCount(1)
+    await expect(chip).toBeVisible()
     await expect(page).toHaveURL(path)
-    const chartBox = (await chart.getByRole("figure").boundingBox())!
-    expect((await open.boundingBox())!.y, "details sit below the chart").toBeGreaterThanOrEqual(chartBox.y + chartBox.height)
-    await open.tap()
-    await expect(page).toHaveURL(opened)
+    const first = await chip.textContent()
 
-    await visit()
-    await mark.tap({ force: true })
-    await expect(open).toBeVisible()
-    await mark.tap({ force: true })
+    // Another mark takes the highlight over.
+    await press(mark.nth(20))
+    await expect(highlighted).toHaveCount(1)
+    await expect(chip).not.toHaveText(first!)
+    await expect(page).toHaveURL(path)
+
+    // The chip clears it.
+    await chip.click()
+    await expect(highlighted).toHaveCount(0)
+
+    await press(mark.nth(5))
+    if (hasTouch) {
+      const open = chart.getByRole("button", { name: /^View .+ →$/ })
+      await expect(open).toBeVisible()
+      const chartBox = (await chart.getByRole("figure").boundingBox())!
+      expect((await open.boundingBox())!.y, "details sit below the chart").toBeGreaterThanOrEqual(chartBox.y + chartBox.height)
+    }
+    await press(highlighted)
     await expect(page).toHaveURL(opened)
   })
 }

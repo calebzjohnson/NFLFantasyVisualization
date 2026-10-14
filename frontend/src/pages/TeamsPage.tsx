@@ -57,7 +57,9 @@ function TeamsPage() {
         rowId={(row) => row.team}
         onOpen={(row) => navigate(teamPath(row.team))}
         tapPrompt="Tap a logo to see that team's numbers."
-        Dot={(props) => <TeamLogoMarker {...props} />}
+        Dot={(props) => (
+          <TeamLogoMarker {...props} label={props.selected ? undefined : `Highlight the ${props.payload?.name}`} />
+        )}
         renderTooltipHeader={(row) => (
           <div className="flex items-center gap-2">
             <TeamLogoBadge logo={row.logo} size="h-7 w-7" />
@@ -68,7 +70,8 @@ function TeamsPage() {
           <>
             Each logo is a team, positioned by its per-game average in the two stats you pick above.
             The lighter lines mark the median team in each stat, splitting the chart into four
-            quadrants. For stats a defense allows, lower is better.
+            quadrants. For stats a defense allows, lower is better. Click or tap a logo to highlight
+            that team, then again to open its page.
           </>
         }
       />

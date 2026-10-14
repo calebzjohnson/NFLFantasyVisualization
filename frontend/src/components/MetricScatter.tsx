@@ -2,18 +2,19 @@
 // Pick-your-axes scatterplot shared by Compare Players and Compare Teams: two
 // metric pickers, median quadrant lines, and a tooltip. The caller supplies
 // the rows, the marker, and the tooltip header. Built on the Evil Charts
-// chart/tooltip base. On a touchscreen the tooltip is replaced by a details box
-// below the chart: a tap selects a mark, and a second tap (or the box's button)
-// opens its page (see useTapToOpen).
+// chart/tooltip base. Clicking a mark (or picking it in the search box)
+// highlights it: drawn on top, ringed and labeled, with everything else faded.
+// Clicking the highlighted mark again opens its page. On a touchscreen the
+// tooltip is replaced by a details box below the chart for the highlighted mark.
 import { type ReactElement, type ReactNode, useMemo, useState } from "react"
 import { CartesianGrid, ReferenceLine, Scatter, ScatterChart, XAxis, YAxis } from "recharts"
 import { metricMedian, type PlayerMetric, type StatFields } from "../data/playerMetrics"
 import { TOUCH_QUERY, useMediaQuery } from "../lib/useMediaQuery"
-import { useTapToOpen } from "../lib/useTapToOpen"
 import AxisSelect from "./AxisSelect"
 import { ChartContainer, type ChartConfig } from "./evilcharts/ui/recharts-chart"
 import { ChartTooltip, ChartTooltipContent } from "./evilcharts/ui/recharts-tooltip"
 import ChartDataTable from "./ChartDataTable"
+import HighlightPicker from "./HighlightPicker"
 import Panel from "./Panel"
 import { OpenButton, TapDetails } from "./TapDetails"
 
@@ -43,6 +44,41 @@ export function groupCoincidentPoints<Row>(rows: (Row & { x: number; y: number }
     group.length === 1
       ? { kind: "solo", x: group[0].x, y: group[0].y, row: group[0] }
       : { kind: "cluster", x: group[0].x, y: group[0].y, members: group },
+  )
+}
+
+// The highlighted row comes out of any tie cluster and goes last, since SVG
+// draws later marks on top - so it's never hidden behind its neighbors.
+export function withHighlightedOnTop<Row>(
+  rows: (Row & { x: number; y: number })[],
+  highlightedId: string | null,
+  rowId: (row: Row) => string,
+): PlotPoint<Row>[] {
+  const picked = rows.filter((row) => rowId(row) === highlightedId)
+  const rest = rows.filter((row) => rowId(row) !== highlightedId)
+  return [
+    ...groupCoincidentPoints(rest),
+    ...picked.map((row): PlotPoint<Row> => ({ kind: "solo", x: row.x, y: row.y, row })),
+  ]
+}
+
+// Label for a highlighted mark: above it, or below when it sits near the top edge.
+function HighlightLabel({ cx, cy, text }: { cx: number; cy: number; text: string }) {
+  return (
+    <text
+      x={cx}
+      y={cy < 32 ? cy + 28 : cy - 19}
+      textAnchor="middle"
+      fontSize={11}
+      fontWeight={700}
+      fill="var(--text-primary)"
+      stroke="var(--surface-1)"
+      strokeWidth={3}
+      paintOrder="stroke"
+      pointerEvents="none"
+    >
+      {text}
+    </text>
   )
 }
 
@@ -179,13 +215,15 @@ interface MetricScatterProps<Row extends StatFields> {
   noun: string
   emptyText: string
   caption: ReactNode
-  // The marker. Clicking it (or Enter) must call `onSelect`; `selected` marks the one a tap picked.
+  // The marker. Clicking it (or Enter) must call `onSelect`; `selected` marks the highlighted one.
   Dot: (props: { cx?: number; cy?: number; payload?: Row; selected?: boolean; onSelect?: () => void }) => ReactElement | null
   // Names a row in the chart's data table, e.g. the player or team name.
   rowName: (row: Row) => string
-  // Stable id for a row (player or team id), for tap selection.
+  // Stable id for a row (player or team id), for highlighting.
   rowId: (row: Row) => string
-  // Opens a row's page: on click, or a tapped mark's second tap / "View" button.
+  // How a row reads in the highlight search, when the name alone could be ambiguous. Defaults to rowName.
+  searchLabel?: (row: Row) => string
+  // Opens a row's page: a click on the already-highlighted mark, or the touchscreen "View" button.
   onOpen?: (row: Row) => void
   // Shown below the chart on a touchscreen before anything is tapped.
   tapPrompt: string
@@ -206,12 +244,15 @@ function MetricScatter<Row extends StatFields>({
   Dot,
   rowName,
   rowId,
+  searchLabel = rowName,
   onOpen,
   tapPrompt,
   renderTooltipHeader,
 }: MetricScatterProps<Row>) {
   const [xKey, setXKey] = useState(initialX)
   const [yKey, setYKey] = useState(initialY)
+  // The highlighted row's id, or a tie cluster's key (touchscreens list its members below the chart).
+  const [selected, setSelected] = useState<string | null>(null)
 
   const xMetric = metrics.find((metric) => metric.key === xKey) ?? metrics[0]
   const yMetric = metrics.find((metric) => metric.key === yKey) ?? metrics[0]
@@ -229,7 +270,11 @@ function MetricScatter<Row extends StatFields>({
 
   // Re-grouped whenever the chosen axes change, since which rows coincide
   // depends entirely on the two stats currently picked.
-  const plotPoints = useMemo(() => (points ? groupCoincidentPoints(points) : null), [points])
+  // Not memoized: callers pass a new rowId every render, and the inline `shape`
+  // below redraws every mark on each render regardless.
+  const plotPoints = points ? withHighlightedOnTop(points, selected, rowId) : null
+  // Undefined when nothing's selected, a cluster is, or the row is gone (e.g. after a refetch).
+  const highlightedRow = rows?.find((row) => rowId(row) === selected)
 
   const xDomain = useMemo(() => valueDomain(points?.map((p) => p.x) ?? []), [points])
   const yDomain = useMemo(() => valueDomain(points?.map((p) => p.y) ?? []), [points])
@@ -239,12 +284,15 @@ function MetricScatter<Row extends StatFields>({
   const touchScreen = useMediaQuery(TOUCH_QUERY)
   const pointKey = (point: PlotPoint<Row>) => (point.kind === "solo" ? rowId(point.row) : `cluster:${point.x},${point.y}`)
   const pointByKey = new Map(plotPoints?.map((point) => [pointKey(point), point]))
-  const tap = useTapToOpen<string>((key) => {
+  // Gone if the axes changed and a selected cluster split up.
+  const selectedPoint = selected === null ? undefined : pointByKey.get(selected)
+
+  // First click highlights a mark; a second click on it opens its page.
+  function select(key: string) {
     const point = pointByKey.get(key)
-    if (point?.kind === "solo") onOpen?.(point.row)
-  })
-  // Gone if the axes changed and the tapped row now sits in a cluster.
-  const selectedPoint = tap.selected === null ? undefined : pointByKey.get(tap.selected)
+    if (key === selected && point?.kind === "solo") onOpen?.(point.row)
+    else setSelected(key)
+  }
 
   return (
     <Panel title={title}>
@@ -261,6 +309,15 @@ function MetricScatter<Row extends StatFields>({
           options={metrics.map((metric) => metric.label)}
           onChange={(label) => setYKey(optionByLabel.get(label)?.key ?? metrics[0].key)}
         />
+        {rows && rows.length > 0 && (
+          <HighlightPicker
+            noun={noun}
+            options={rows.map((row) => ({ id: rowId(row), label: searchLabel(row) }))}
+            picked={highlightedRow ? { id: rowId(highlightedRow), label: searchLabel(highlightedRow) } : null}
+            onPick={setSelected}
+            onClear={() => setSelected(null)}
+          />
+        )}
       </div>
       {loading && <p className="p-4 text-sm text-[var(--text-secondary)]">Loading…</p>}
       {error && (
@@ -271,15 +328,16 @@ function MetricScatter<Row extends StatFields>({
       {points && points.length === 0 && <p className="p-4 text-sm text-[var(--text-secondary)]">{emptyText}</p>}
       {points && points.length > 0 && (
         <div className="p-3">
-          {/* A tap on empty chart space (not a mark) clears the selection. */}
+          {/* A click or tap on empty chart space (not a mark) clears the highlight. */}
           <div
-            onPointerDown={tap.onPointerDown}
-            onClick={(event) => !(event.target as Element).closest(".recharts-scatter-symbol") && tap.tap(null)}
+            onClick={(event) => !(event.target as Element).closest(".recharts-scatter-symbol") && setSelected(null)}
           >
             <ChartContainer
               config={chartConfig}
               className="aspect-[3/2]"
-              label={`${title}: ${points.length} ${noun} plotted by ${xMetric.label} (across) and ${yMetric.label} (up). Lines mark the median in each stat.`}
+              label={`${title}: ${points.length} ${noun} plotted by ${xMetric.label} (across) and ${yMetric.label} (up). Lines mark the median in each stat.${
+                highlightedRow ? ` Highlighted: ${rowName(highlightedRow)}.` : ""
+              }`}
             >
               <ScatterChart margin={{ top: 8, right: 16, bottom: 24, left: 4 }}>
                 <CartesianGrid stroke="var(--border)" strokeOpacity={0.6} />
@@ -362,23 +420,34 @@ function MetricScatter<Row extends StatFields>({
                     const point = props.payload
                     if (!point) return null
                     const key = pointKey(point)
-                    return point.kind === "cluster" ? (
-                      <ClusterBadge
-                        cx={props.cx}
-                        cy={props.cy}
-                        count={point.members.length}
-                        selected={key === tap.selected}
-                        onSelect={() => tap.tap(key)}
-                      />
-                    ) : (
-                      <Dot
-                        cx={props.cx}
-                        cy={props.cy}
-                        payload={point.row}
-                        selected={key === tap.selected}
-                        onSelect={() => tap.tap(key)}
-                      />
-                    )
+                    const picked = point.kind === "solo" && key === selected
+                    const mark =
+                      point.kind === "cluster" ? (
+                        <ClusterBadge
+                          cx={props.cx}
+                          cy={props.cy}
+                          count={point.members.length}
+                          selected={key === selected}
+                          onSelect={() => select(key)}
+                        />
+                      ) : (
+                        <Dot
+                          cx={props.cx}
+                          cy={props.cy}
+                          payload={point.row}
+                          selected={picked}
+                          onSelect={() => select(key)}
+                        />
+                      )
+                    if (picked && props.cx !== undefined && props.cy !== undefined) {
+                      return (
+                        <g>
+                          {mark}
+                          <HighlightLabel cx={props.cx} cy={props.cy} text={rowName(point.row)} />
+                        </g>
+                      )
+                    }
+                    return highlightedRow ? <g opacity={0.25}>{mark}</g> : mark
                   }}
                   isAnimationActive={false}
                 />

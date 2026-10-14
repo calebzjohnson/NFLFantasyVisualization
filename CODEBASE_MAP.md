@@ -114,7 +114,7 @@ Every file opens with a two-line contract comment (file name, then purpose). Rea
 - **Layout and chrome:** `Navbar` (title, tabs, search), `Panel` (card wrapper), `Modal` + `ExpandButton` (fuller view of a panel), `PositionGroupToggle` (pill buttons, also used for tabs), `AxisSelect` (stat picker), `SearchBar`.
 - **Identity:** `PlayerBioBar`, `TeamHeaderBar`, `PlayerAvatar` (headshot, or initials as fallback), `TeamLogo` (HTML badge + SVG marker), `TeamLink`, `StatusBadge` (injury/availability), `RankChange` (movement arrows).
 - **Tables:** `DetailedLeaderTable` (sortable ranked table), `StatLeadersPanel`, `TeamLeadersPanel`, `GameLogPanel` + `GameLogTable`, `DivisionStandings` + `DivisionStandingsTable`, `DepthChartTable`, `TeamDepthChartPanel`, `PreviousWeekScores`.
-- **Charts:** `MetricScatter` (pick-your-axes scatter, shared by Compare Teams and `PlayerComparisonScatter`), `TeamEfficiencyScatter`, `TrendChart` (+ `TrendingPlayersChart` wrapper), `PlayerRadarChart` / `TeamRadarChart`, `LeagueComparisonBeeswarm` / `TeamLeagueComparisonBeeswarm` (all four use `RadarAxisTick` for two-line labels), `TeamScoringComposition` (donut), `TeamUsagePanel` (weekly lines/bars + season donut, the largest file), `TeamPlaymakingPanel`, `TeamTendenciesPanel`.
+- **Charts:** `MetricScatter` (pick-your-axes scatter, shared by Compare Teams and `PlayerComparisonScatter`; a click or a `HighlightPicker` search highlights one mark, drawn on top while the rest fade, and a second click opens its page), `TeamEfficiencyScatter`, `TrendChart` (+ `TrendingPlayersChart` wrapper), `PlayerRadarChart` / `TeamRadarChart`, `LeagueComparisonBeeswarm` / `TeamLeagueComparisonBeeswarm` (all four use `RadarAxisTick` for two-line labels), `TeamScoringComposition` (donut), `TeamUsagePanel` (weekly lines/bars + season donut, the largest file), `TeamPlaymakingPanel`, `TeamTendenciesPanel`.
 - **Chart accessibility and touch:** `ChartDataTable` ("show data as table"), `TapDetails` (on touchscreens, a details box below the chart replaces the tooltip).
 - `evilcharts/ui/`: `recharts-chart.tsx` (chart container and config context) and `recharts-tooltip.tsx`, adapted from Evil Charts.
 
@@ -155,7 +155,7 @@ Tailwind 4 via `@tailwindcss/vite`. Theme tokens (`--surface-*`, `--text-*`, `--
 - **Partial weeks:** nflverse loads a week one game day at a time. Use `schedules.last_complete_week` when "the latest week" has to be complete.
 - **Memoized results are shared objects.** Never mutate what a `@memoized` function returns.
 - **Running Python:** use `uv run`. The code uses 3.12 syntax (`def f[**P, R]`), so the system `python3` (3.9) can't even parse it.
-- **Charts:** reference lines use median and raw units, not mean and standard deviation. Touch follows the `useTapToOpen` + `TapDetails` pattern: no tooltip covering the chart on phones.
+- **Charts:** reference lines use median and raw units, not mean and standard deviation. Touch follows the `useTapToOpen` + `TapDetails` pattern: no tooltip covering the chart on phones. The Compare scatters instead make the first click highlight and the second open, for mouse and touch alike.
 - **Shortcuts are marked with `ponytail:` comments,** each naming its limit and the upgrade path.
 
 ## Keeping this map current
