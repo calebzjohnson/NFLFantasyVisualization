@@ -81,11 +81,11 @@ describe("MetricScatter", () => {
     fireEvent.change(screen.getByLabelText("Highlight"), { target: { value: "Beta" } })
     expect(screen.getByRole("figure", { name: /Highlighted: Beta\.$/ })).toBeInTheDocument()
 
-    // A new pick replaces the old one.
+    // The chip clears it, and the search box comes back for another pick.
+    fireEvent.click(screen.getByRole("button", { name: "Stop highlighting Beta" }))
+    expect(screen.getByRole("figure", { name: /median in each stat\.$/ })).toBeInTheDocument()
     fireEvent.change(screen.getByLabelText("Highlight"), { target: { value: "Alpha" } })
     expect(screen.getByRole("figure", { name: /Highlighted: Alpha\.$/ })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole("button", { name: "Stop highlighting Alpha" }))
-    expect(screen.getByRole("figure", { name: /median in each stat\.$/ })).toBeInTheDocument()
 
   })
 

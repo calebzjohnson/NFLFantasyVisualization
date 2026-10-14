@@ -75,7 +75,7 @@ describe("PlayerPage", () => {
       }),
     ).toBeInTheDocument()
     expect(
-      screen.getByRole("figure", { name: /^Every qualifying CB this season \(1\), .* with CB Player highlighted\.$/ }),
+      screen.getByRole("figure", { name: /^Every qualifying CB this season \(1\), .* with CB Player in team color\.$/ }),
     ).toBeInTheDocument()
     expect(screen.getByRole("table", { name: "CB Player's percentile ranks among CBs" })).toHaveTextContent(
       "Ball Prod.12.590th",

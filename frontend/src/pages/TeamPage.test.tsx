@@ -69,7 +69,7 @@ describe("TeamPage", () => {
       await screen.findByRole("figure", { name: /^The Buffalo Bills compared with every other team .* Strongest: Pass Offense \(75th\)/ }),
     ).toBeInTheDocument()
     expect(
-      screen.getByRole("figure", { name: /^All 2 teams this season, .* with the Buffalo Bills highlighted\.$/ }),
+      screen.getByRole("figure", { name: /^All 2 teams this season, .* with Buffalo Bills in team color\.$/ }),
     ).toBeInTheDocument()
     expect(screen.getByRole("table", { name: "Buffalo Bills percentile ranks across the league" })).toHaveTextContent(
       "Pass Offense0.1575th",

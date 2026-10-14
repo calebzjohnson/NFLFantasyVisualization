@@ -1,9 +1,10 @@
 // TeamsPage.tsx
-// Teams route: team search, team leaders, a pick-your-axes team scatter, and trending
-// teams - all built from one /teams/weekly fetch. Clicking a team anywhere
-// opens its team page.
+// Teams route: team search, team leaders, a pick-your-axes team scatter, a
+// league comparison beeswarm, and trending teams - all but the beeswarm built
+// from one /teams/weekly fetch. Every chart leads to a team's page.
 import { useCallback, useMemo } from "react"
 import { useNavigate } from "react-router-dom"
+import LeagueBeeswarm from "../components/LeagueBeeswarm"
 import MetricScatter from "../components/MetricScatter"
 import SearchBar from "../components/SearchBar"
 import TeamLeadersPanel from "../components/TeamLeadersPanel"
@@ -75,6 +76,7 @@ function TeamsPage() {
           </>
         }
       />
+      <LeagueBeeswarm kind="teams" />
       <TrendChart
         title="Trending Teams"
         metrics={TEAM_METRICS}

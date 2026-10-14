@@ -451,16 +451,21 @@ test("season usage donut slices preview then open a teammate, by click or by tap
   await expect(page).toHaveURL(/\/players\/(?!00-0030279)[^/]+$/)
 })
 
-// League Comparison beeswarms: hover/click a dot with a mouse. On a phone the
-// chart scrolls sideways so its column labels don't collide, and a tap picks
-// the nearest dot (dots are 3.5px, too small to hit exactly with a finger).
+// League Comparison beeswarms: a mouse hovers a dot for its numbers, and a
+// click highlights that player/team in every column (a second click opens
+// their page). On a phone the chart scrolls sideways so its column labels
+// don't collide, and a tap picks the nearest dot (dots are 3.5px, too small to
+// hit exactly with a finger), showing its numbers below the chart.
 const SWARMS = [
   { path: "/players/00-0033873", prompt: "Tap a dot to see that player's numbers.", opened: (id: string) => `/players/${id}` },
   { path: "/teams/KC", prompt: "Tap a dot to see that team's numbers.", opened: (id: string) => `/teams/${id}` },
+  { path: "/players", prompt: "Tap a dot to see that player's numbers.", opened: (id: string) => `/players/${id}` },
+  { path: "/teams", prompt: "Tap a dot to see that team's numbers.", opened: (id: string) => `/teams/${id}` },
 ]
 
 for (const { path, prompt, opened } of SWARMS) {
-  test(`league comparison dots on ${path} preview then open, by hover or by tap`, async ({ page, hasTouch }) => {
+  test(`league comparison dots on ${path} highlight then open, by click or by tap`, async ({ page, hasTouch }) => {
+    // The page's own player/team, on their page; none on the league-wide pages.
     const self = path.split("/")[2]
     const chart = page.locator("section", { has: page.getByRole("heading", { name: "League Comparison" }) })
     // A point 12px right of some other player's/team's dot, where that dot is
@@ -494,6 +499,10 @@ for (const { path, prompt, opened } of SWARMS) {
       const target = (await nearDot(0))!
       await page.mouse.move(target.x, target.y)
       await expect(chart.locator(".recharts-tooltip-wrapper")).toContainText("Percentile")
+      await page.mouse.click(target.x, target.y)
+      await expect(chart.getByRole("button", { name: /^Stop highlighting / })).toBeVisible()
+      await expect(chart.getByRole("figure")).toHaveAttribute("aria-label", /Highlighted: /)
+      await expect(page).toHaveURL(path)
       await page.mouse.click(target.x, target.y)
       await expect(page).toHaveURL(opened(target.id))
       return

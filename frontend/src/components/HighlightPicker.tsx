@@ -1,5 +1,5 @@
 // HighlightPicker.tsx
-// Search box beside a chart's axis pickers that picks one mark to highlight, shown as a removable chip.
+// Search box above a chart that picks one mark to highlight; while one is picked, a chip that clears it takes the box's place.
 import { useId, useState } from "react"
 import { matchesQuery } from "../data/search"
 
@@ -19,21 +19,40 @@ function HighlightPicker({
   noun: string
   options: HighlightOption[]
   picked: HighlightOption | null
-  // A new pick replaces the current one.
   onPick: (id: string) => void
   onClear: () => void
 }) {
   const [query, setQuery] = useState("")
   const listId = useId()
-  const available = options.filter((option) => option.id !== picked?.id)
 
   function pick(id: string) {
     onPick(id)
     setQuery("")
   }
 
+  // The chip takes the search box's place (same size) rather than sitting
+  // beside it: on a phone a chip beside it wraps to a new line, and that
+  // shift moves the chart out from under a second tap.
+  if (picked) {
+    return (
+      <div className="flex items-center gap-2 text-sm whitespace-nowrap text-[var(--text-secondary)]">
+        Highlight
+        <button
+          type="button"
+          onClick={onClear}
+          aria-label={`Stop highlighting ${picked.label}`}
+          title={picked.label}
+          className="flex w-44 items-center justify-between gap-1 rounded-full border border-[var(--accent)] px-2.5 py-1 text-[var(--accent)] hover:bg-[var(--surface-2)] focus:outline-2 focus:outline-[var(--accent)]"
+        >
+          <span className="truncate">{picked.label}</span>
+          <span aria-hidden="true">×</span>
+        </button>
+      </div>
+    )
+  }
+
   return (
-    <div className="flex flex-wrap items-center justify-center gap-2">
+    <>
       <label className="flex items-center gap-2 text-sm whitespace-nowrap text-[var(--text-secondary)]">
         Highlight
         {/* Native suggestions: choosing one sets the value to an option's exact label. */}
@@ -43,14 +62,14 @@ function HighlightPicker({
           value={query}
           placeholder={`Find ${noun}…`}
           onChange={(event) => {
-            const match = available.find((option) => option.label === event.target.value)
+            const match = options.find((option) => option.label === event.target.value)
             if (match) pick(match.id)
             else setQuery(event.target.value)
           }}
           onKeyDown={(event) => {
             // Enter on a partial name takes the first match, same matching as the site search.
             if (event.key !== "Enter" || !query.trim()) return
-            const match = available.find((option) => matchesQuery(option.label, query))
+            const match = options.find((option) => matchesQuery(option.label, query))
             if (match) {
               event.preventDefault()
               pick(match.id)
@@ -60,22 +79,11 @@ function HighlightPicker({
         />
       </label>
       <datalist id={listId}>
-        {available.map((option) => (
+        {options.map((option) => (
           <option key={option.id} value={option.label} />
         ))}
       </datalist>
-      {picked && (
-        <button
-          type="button"
-          onClick={onClear}
-          aria-label={`Stop highlighting ${picked.label}`}
-          className="flex items-center gap-1 rounded-full border border-[var(--accent)] px-2.5 py-1 text-sm text-[var(--accent)] hover:bg-[var(--surface-2)] focus:outline-2 focus:outline-[var(--accent)]"
-        >
-          {picked.label}
-          <span aria-hidden="true">×</span>
-        </button>
-      )}
-    </div>
+    </>
   )
 }
 

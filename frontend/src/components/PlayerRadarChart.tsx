@@ -23,7 +23,7 @@ interface RadarAxis {
 }
 
 // Only the fields this chart reads - the pool is shared with (and fetched
-// for) LeagueComparisonBeeswarm, which uses the rest.
+// for) LeagueBeeswarm, which uses the rest.
 interface RadarPool {
   players: { player_id: string; name: string; axes: RadarAxis[] }[]
 }
@@ -109,7 +109,7 @@ function PlayerRadarChart({
   position: string
   teamColor: string
 }) {
-  // Same path as LeagueComparisonBeeswarm, so useFetch's cache serves both
+  // Same path as LeagueBeeswarm, so useFetch's cache serves both
   // charts from one request - this chart just picks out its own row.
   const pool = useFetch<RadarPool>(`/players/radar-pool?position=${encodeURIComponent(position)}`)
   const { error, loading } = pool

@@ -71,14 +71,14 @@ Each chart fetches its own data. Pages pass ids (team abbreviation, player id, p
 | `/players?sort&limit&fields&position_group` | players | | StatLeadersPanel (via `leaderCategories`), PlayerComparisonScatter, SearchBar |
 | `/players/weekly?fields&position_group` | players | yes | TrendingPlayersChart, StatLeadersPanel movement arrows (`leaderMovement`) |
 | `/players/latest-week` | players | | StatLeadersPanel, AboutPage |
-| `/players/radar-pool?position=` | radar | yes | PlayerRadarChart, LeagueComparisonBeeswarm |
+| `/players/radar-pool?position=` | radar | yes | PlayerRadarChart, LeagueBeeswarm |
 | `/players/{id}/bio` | players | | PlayerPage |
 | `/players/{id}/games` | players | | GameLogPanel |
 | `/players/{id}/usage` | players | | TeamUsagePanel |
 | `/teams` | teams | | Nearly every component (logos, colors, names) |
 | `/teams/weekly` | teams | | TeamsPage (TrendChart, TeamLeadersPanel), TeamPage game log |
 | `/teams/efficiency` | team_efficiency | yes | TeamEfficiencyScatter |
-| `/teams/radar-pool` | team_radar | yes | TeamRadarChart, TeamLeagueComparisonBeeswarm |
+| `/teams/radar-pool` | team_radar | yes | TeamRadarChart, LeagueBeeswarm |
 | `/teams/{team}/scoring` | scoring_composition | | TeamScoringComposition |
 | `/teams/{team}/depth-chart` | depth_chart | | TeamDepthChartPanel |
 | `/teams/{team}/playmaking` | team_playmaking | yes | TeamPlaymakingPanel |
@@ -99,10 +99,10 @@ One `test_<module>.py` per service, plus `test_<name>_router.py` for the HTTP la
 | Route | Page | Main pieces |
 |---|---|---|
 | `/` | `HomePage` | PreviousWeekScores, DivisionStandings, TeamEfficiencyScatter, StatLeadersPanel (+ position toggle) |
-| `/teams` | `TeamsPage` | SearchBar (teams), TeamLeadersPanel, MetricScatter (Compare Teams), TrendChart (Trending Teams) |
-| `/teams/:teamAbbr` | `TeamPage` | TeamHeaderBar, then tabs in `?tab=`: **Overview** (GameLogTable, TeamRadarChart, TeamScoringComposition, TeamLeagueComparisonBeeswarm, TeamTendenciesPanel), **Playmaking** (TeamPlaymakingPanel), **Depth Chart** (TeamDepthChartPanel) |
-| `/players` | `PlayersPage` | SearchBar, page-wide PositionGroupToggle driving StatLeadersPanel, PlayerComparisonScatter, TrendingPlayersChart |
-| `/players/:playerId` | `PlayerPage` | PlayerBioBar, GameLogPanel, PlayerRadarChart, LeagueComparisonBeeswarm, TeamUsagePanel |
+| `/teams` | `TeamsPage` | SearchBar (teams), TeamLeadersPanel, MetricScatter (Compare Teams), LeagueBeeswarm, TrendChart (Trending Teams) |
+| `/teams/:teamAbbr` | `TeamPage` | TeamHeaderBar, then tabs in `?tab=`: **Overview** (GameLogTable, TeamRadarChart, TeamScoringComposition, LeagueBeeswarm, TeamTendenciesPanel), **Playmaking** (TeamPlaymakingPanel), **Depth Chart** (TeamDepthChartPanel) |
+| `/players` | `PlayersPage` | SearchBar, page-wide PositionGroupToggle driving StatLeadersPanel, PlayerComparisonScatter, LeagueBeeswarm (`PROFILE_GROUPS` only), TrendingPlayersChart |
+| `/players/:playerId` | `PlayerPage` | PlayerBioBar, GameLogPanel, PlayerRadarChart, LeagueBeeswarm, TeamUsagePanel |
 | `/about` | `AboutPage` | Static copy and data freshness (`/players/latest-week`) |
 
 `src/main.tsx` mounts the app under `BrowserRouter`. `vercel.json` rewrites every non-asset path to `index.html`.
@@ -114,18 +114,18 @@ Every file opens with a two-line contract comment (file name, then purpose). Rea
 - **Layout and chrome:** `Navbar` (title, tabs, search), `Panel` (card wrapper), `Modal` + `ExpandButton` (fuller view of a panel), `PositionGroupToggle` (pill buttons, also used for tabs), `AxisSelect` (stat picker), `SearchBar`.
 - **Identity:** `PlayerBioBar`, `TeamHeaderBar`, `PlayerAvatar` (headshot, or initials as fallback), `TeamLogo` (HTML badge + SVG marker), `TeamLink`, `StatusBadge` (injury/availability), `RankChange` (movement arrows).
 - **Tables:** `DetailedLeaderTable` (sortable ranked table), `StatLeadersPanel`, `TeamLeadersPanel`, `GameLogPanel` + `GameLogTable`, `DivisionStandings` + `DivisionStandingsTable`, `DepthChartTable`, `TeamDepthChartPanel`, `PreviousWeekScores`.
-- **Charts:** `MetricScatter` (pick-your-axes scatter, shared by Compare Teams and `PlayerComparisonScatter`; a click or a `HighlightPicker` search highlights one mark, drawn on top while the rest fade, and a second click opens its page), `TeamEfficiencyScatter`, `TrendChart` (+ `TrendingPlayersChart` wrapper), `PlayerRadarChart` / `TeamRadarChart`, `LeagueComparisonBeeswarm` / `TeamLeagueComparisonBeeswarm` (all four use `RadarAxisTick` for two-line labels), `TeamScoringComposition` (donut), `TeamUsagePanel` (weekly lines/bars + season donut, the largest file), `TeamPlaymakingPanel`, `TeamTendenciesPanel`.
+- **Charts:** `MetricScatter` (pick-your-axes scatter, shared by Compare Teams and `PlayerComparisonScatter`; a click or a `HighlightPicker` search highlights one mark, drawn on top while the rest fade, and a second click opens its page), `TeamEfficiencyScatter`, `TrendChart` (+ `TrendingPlayersChart` wrapper), `PlayerRadarChart` / `TeamRadarChart`, `LeagueBeeswarm` (League Comparison for players or teams, with an optional focus row; the radars and it use `RadarAxisTick` for two-line labels), `TeamScoringComposition` (donut), `TeamUsagePanel` (weekly lines/bars + season donut, the largest file), `TeamPlaymakingPanel`, `TeamTendenciesPanel`.
 - **Chart accessibility and touch:** `ChartDataTable` ("show data as table"), `TapDetails` (on touchscreens, a details box below the chart replaces the tooltip).
 - `evilcharts/ui/`: `recharts-chart.tsx` (chart container and config context) and `recharts-tooltip.tsx`, adapted from Evil Charts.
 
 ### `src/data/`: per-feature types and pure logic (no React)
 
-`teams` (team type, logo lookup, team URLs), `standings`, `scores`, `efficiency`, `teamMetrics` (team stat catalog), `playerMetrics` (player metric catalog, `/players` path builders, `SNAP_SHARE_FIELD`), `leaderCategories` + `leaderStatsTypes` + `leaderMovement` (Stat Leaders config and week-over-week rank change), `trendingPlayers` (snap-share qualification), `gameLog` (per-position game log columns), `playerBio`, `usage` (usage payload type, color assignment), `playmaking`, `depthChart`, `search`.
+`teams` (team type, logo lookup, team URLs), `standings`, `scores`, `efficiency`, `teamMetrics` (team stat catalog), `playerMetrics` (player metric catalog, `/players` path builders, `SNAP_SHARE_FIELD`), `leaderCategories` + `leaderStatsTypes` + `leaderMovement` (Stat Leaders config and week-over-week rank change; `PROFILE_GROUPS` = positions with radar profiles), `trendingPlayers` (snap-share qualification), `gameLog` (per-position game log columns), `playerBio`, `usage` (usage payload type, color assignment), `playmaking`, `depthChart`, `search`.
 
 ### `src/lib/`: cross-cutting helpers
 
 - **Fetching:** `api.ts` (`fetchJson`, 429 message), `useFetch.ts` (cache + in-flight dedupe).
-- **Hooks:** `useMediaQuery`, `usePageTitle`, `useTapToOpen` (first tap previews, second tap opens).
+- **Hooks:** `useMediaQuery`, `usePageTitle`, `useTapToOpen` (first tap previews, second tap opens; `selectFirst` makes a mouse click preview first too).
 - **Hit-testing for touch:** `pieSliceAt` (donuts), `swarmDotAt` (beeswarms), `activateOnKey` (Enter/Space on role="button" marks).
 - **Pure helpers:** `footballStats` (passer rating etc.), `chartSummaries` (plain-language text for screen readers), `playerVisuals`, `imageUrls` (CDN-resized headshots and logos), `site` (`SITE_NAME`), `utils` (`cn()`).
 
@@ -155,7 +155,7 @@ Tailwind 4 via `@tailwindcss/vite`. Theme tokens (`--surface-*`, `--text-*`, `--
 - **Partial weeks:** nflverse loads a week one game day at a time. Use `schedules.last_complete_week` when "the latest week" has to be complete.
 - **Memoized results are shared objects.** Never mutate what a `@memoized` function returns.
 - **Running Python:** use `uv run`. The code uses 3.12 syntax (`def f[**P, R]`), so the system `python3` (3.9) can't even parse it.
-- **Charts:** reference lines use median and raw units, not mean and standard deviation. Touch follows the `useTapToOpen` + `TapDetails` pattern: no tooltip covering the chart on phones. The Compare scatters instead make the first click highlight and the second open, for mouse and touch alike.
+- **Charts:** reference lines use median and raw units, not mean and standard deviation. Touch follows the `useTapToOpen` + `TapDetails` pattern: no tooltip covering the chart on phones. The Compare scatters and `LeagueBeeswarm` instead make the first click highlight and the second open, for mouse and touch alike, with `HighlightPicker` as the search.
 - **Shortcuts are marked with `ponytail:` comments,** each naming its limit and the upgrade path.
 
 ## Keeping this map current

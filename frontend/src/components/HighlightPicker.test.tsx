@@ -1,5 +1,5 @@
 // HighlightPicker.test.tsx
-// Tests for the chart highlight search: picking by suggestion or Enter, and clearing the pick's chip.
+// Tests for the chart highlight search: picking by suggestion or Enter, and the chip that replaces it to clear the pick.
 import { fireEvent, render, screen } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
 import HighlightPicker, { type HighlightOption } from "./HighlightPicker"
@@ -10,21 +10,17 @@ const OPTIONS: HighlightOption[] = [
   { id: "c", label: "Patrick Mahomes · KC" },
 ]
 
-function picker(picked: HighlightOption | null = null) {
+function picker() {
   const onPick = vi.fn()
-  const onClear = vi.fn()
-  render(<HighlightPicker noun="players" options={OPTIONS} picked={picked} onPick={onPick} onClear={onClear} />)
-  return { onPick, onClear, input: screen.getByLabelText("Highlight") }
+  render(<HighlightPicker noun="players" options={OPTIONS} picked={null} onPick={onPick} onClear={vi.fn()} />)
+  return { onPick, input: screen.getByLabelText("Highlight") }
 }
 
 describe("HighlightPicker", () => {
-  it("suggests every option except the current pick", () => {
-    const { input } = picker(OPTIONS[0])
+  it("suggests every option", () => {
+    const { input } = picker()
     const list = document.getElementById(input.getAttribute("list")!)!
-    expect([...list.querySelectorAll("option")].map((option) => option.value)).toEqual([
-      "Joshua Palmer · BUF",
-      "Patrick Mahomes · KC",
-    ])
+    expect([...list.querySelectorAll("option")].map((option) => option.value)).toEqual(OPTIONS.map((o) => o.label))
   })
 
   it("picks an option when a suggestion is chosen, then clears the box", () => {
@@ -48,15 +44,10 @@ describe("HighlightPicker", () => {
     expect(onPick).toHaveBeenCalledWith("b")
   })
 
-  it("stays usable with a pick, so a new pick can replace it", () => {
-    const { input, onPick } = picker(OPTIONS[2])
-    expect(input).toBeEnabled()
-    fireEvent.change(input, { target: { value: "Josh Allen · BUF" } })
-    expect(onPick).toHaveBeenCalledWith("a")
-  })
-
-  it("shows the pick as a chip that clears it", () => {
-    const { onClear } = picker(OPTIONS[2])
+  it("swaps the search box for a chip that clears the pick", () => {
+    const onClear = vi.fn()
+    render(<HighlightPicker noun="players" options={OPTIONS} picked={OPTIONS[2]} onPick={vi.fn()} onClear={onClear} />)
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "Stop highlighting Patrick Mahomes · KC" }))
     expect(onClear).toHaveBeenCalled()
   })
