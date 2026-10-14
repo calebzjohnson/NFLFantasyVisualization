@@ -1,12 +1,12 @@
 // useTapToOpen.ts
-// Chart marks that open a page: a mouse click opens it straight away; a tap (which can't hover first) selects the mark, and a second tap on it opens it.
+// Chart marks that open a page: a mouse click opens it straight away; a tap (which can't hover first) selects the mark, and a second tap on it opens it. With selectFirst, a mouse click selects first too.
 import { useRef, useState } from "react"
 import type * as React from "react"
 
 // A press that moved further than this (px) was a drag or scroll, not a tap.
 const TAP_SLOP = 10
 
-export function useTapToOpen<Id>(open: (id: Id) => void) {
+export function useTapToOpen<Id>(open: (id: Id) => void, { selectFirst = false }: { selectFirst?: boolean } = {}) {
   // The input behind the click about to arrive, recorded on pointerdown
   // (clicks don't reliably carry their pointer type across browsers).
   const pointerType = useRef("mouse")
@@ -21,13 +21,15 @@ export function useTapToOpen<Id>(open: (id: Id) => void) {
   // A click on a mark, or on empty chart space (null), which clears the selection.
   function tap(id: Id | null) {
     if (id === null) setSelected(null)
-    else if (pointerType.current === "mouse" || id === selected) open(id)
+    else if ((pointerType.current === "mouse" && !selectFirst) || id === selected) open(id)
     else setSelected(id)
   }
 
   return {
     // The mark a tap selected, for highlighting it and showing its details.
     selected,
+    // Sets the selection directly (e.g. from a search box), or clears it with null.
+    select: setSelected,
     // Put on the element wrapping the chart, when its marks handle clicks themselves.
     onPointerDown,
     tap,

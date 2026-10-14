@@ -4,19 +4,15 @@
 // have them.
 import { useParams } from "react-router-dom"
 import GameLogPanel from "../components/GameLogPanel"
-import LeagueComparisonBeeswarm from "../components/LeagueComparisonBeeswarm"
+import LeagueBeeswarm from "../components/LeagueBeeswarm"
 import PlayerBioBar from "../components/PlayerBioBar"
 import PlayerRadarChart from "../components/PlayerRadarChart"
 import TeamUsagePanel from "../components/TeamUsagePanel"
-import type { PositionGroup } from "../data/leaderCategories"
+import { PROFILE_GROUPS, type PositionGroup } from "../data/leaderCategories"
 import type { PlayerBio } from "../data/playerBio"
 import type { TeamInfo } from "../data/teams"
 import { useFetch } from "../lib/useFetch"
 import { usePageTitle } from "../lib/usePageTitle"
-
-// Groups the backend builds radar and usage profiles for. Offensive linemen
-// and specialists have no per-player stats worth a percentile profile.
-const PROFILE_GROUPS = new Set<string>(["QB", "RB", "WR", "TE", "EDGE", "DL", "LB", "CB", "S"])
 
 function PlayerPage() {
   const { playerId } = useParams<{ playerId: string }>()
@@ -46,7 +42,7 @@ function PlayerPage() {
                 <PlayerRadarChart playerId={playerId} position={group} teamColor={team?.team_color ?? "var(--accent)"} />
                 <TeamUsagePanel playerId={playerId} playerName={bio.data.display_name} />
               </div>
-              <LeagueComparisonBeeswarm playerId={playerId} position={group} teamColor={team?.team_color ?? "var(--accent)"} />
+              <LeagueBeeswarm kind="players" position={group} focusId={playerId} />
             </>
           )}
         </>

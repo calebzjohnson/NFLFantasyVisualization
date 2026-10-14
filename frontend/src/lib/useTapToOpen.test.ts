@@ -1,13 +1,13 @@
 // useTapToOpen.test.ts
-// Tests for chart-mark taps: a mouse click opens at once; a touch tap selects, and a second tap on the same mark opens it.
+// Tests for chart-mark taps: a mouse click opens at once (or selects first, with selectFirst); a touch tap selects, and a second tap on the same mark opens it.
 import { act, renderHook } from "@testing-library/react"
 import type * as React from "react"
 import { describe, expect, it, vi } from "vitest"
 import { useTapToOpen } from "./useTapToOpen"
 
-function setup() {
+function setup(options?: { selectFirst?: boolean }) {
   const open = vi.fn()
-  const { result } = renderHook(() => useTapToOpen<string>(open))
+  const { result } = renderHook(() => useTapToOpen<string>(open, options))
   // A click is always preceded by its pointerdown, which records the input type.
   const click = (pointerType: string, id: string | null) =>
     act(() => {
@@ -40,6 +40,25 @@ describe("useTapToOpen", () => {
     click("touch", "KC")
     click("touch", "BUF")
     expect(result.current.selected).toBe("BUF")
+    expect(open).not.toHaveBeenCalled()
+  })
+
+  it("with selectFirst, a mouse click selects and a second click opens", () => {
+    const { open, result, click } = setup({ selectFirst: true })
+    click("mouse", "KC")
+    expect(result.current.selected).toBe("KC")
+    expect(open).not.toHaveBeenCalled()
+
+    click("mouse", "KC")
+    expect(open).toHaveBeenCalledWith("KC")
+  })
+
+  it("select sets or clears the selection without opening", () => {
+    const { open, result } = setup()
+    act(() => result.current.select("KC"))
+    expect(result.current.selected).toBe("KC")
+    act(() => result.current.select(null))
+    expect(result.current.selected).toBeNull()
     expect(open).not.toHaveBeenCalled()
   })
 

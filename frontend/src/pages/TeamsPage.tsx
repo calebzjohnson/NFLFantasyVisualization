@@ -1,9 +1,10 @@
 // TeamsPage.tsx
-// Teams route: team search, team leaders, a pick-your-axes team scatter, and trending
-// teams - all built from one /teams/weekly fetch. Clicking a team anywhere
-// opens its team page.
+// Teams route: team search, team leaders, a pick-your-axes team scatter, a
+// league comparison beeswarm, and trending teams - all but the beeswarm built
+// from one /teams/weekly fetch. Every chart leads to a team's page.
 import { useCallback, useMemo } from "react"
 import { useNavigate } from "react-router-dom"
+import LeagueBeeswarm from "../components/LeagueBeeswarm"
 import MetricScatter from "../components/MetricScatter"
 import SearchBar from "../components/SearchBar"
 import TeamLeadersPanel from "../components/TeamLeadersPanel"
@@ -57,7 +58,9 @@ function TeamsPage() {
         rowId={(row) => row.team}
         onOpen={(row) => navigate(teamPath(row.team))}
         tapPrompt="Tap a logo to see that team's numbers."
-        Dot={(props) => <TeamLogoMarker {...props} />}
+        Dot={(props) => (
+          <TeamLogoMarker {...props} label={props.selected ? undefined : `Highlight the ${props.payload?.name}`} />
+        )}
         renderTooltipHeader={(row) => (
           <div className="flex items-center gap-2">
             <TeamLogoBadge logo={row.logo} size="h-7 w-7" />
@@ -68,10 +71,12 @@ function TeamsPage() {
           <>
             Each logo is a team, positioned by its per-game average in the two stats you pick above.
             The lighter lines mark the median team in each stat, splitting the chart into four
-            quadrants. For stats a defense allows, lower is better.
+            quadrants. For stats a defense allows, lower is better. Click or tap a logo to highlight
+            that team, then again to open its page.
           </>
         }
       />
+      <LeagueBeeswarm kind="teams" />
       <TrendChart
         title="Trending Teams"
         metrics={TEAM_METRICS}

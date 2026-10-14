@@ -32,12 +32,15 @@ export function TeamLogoMarker({
   payload,
   onSelect,
   selected = false,
+  label,
 }: {
   cx?: number
   cy?: number
   payload?: { logo: string; name: string }
   onSelect?: () => void
   selected?: boolean
+  // Screen-reader name when activating does something other than open the team page.
+  label?: string
 }) {
   if (cx === undefined || cy === undefined || !payload) return null
   return (
@@ -47,7 +50,7 @@ export function TeamLogoMarker({
         role: "button",
         tabIndex: 0,
         onKeyDown: activateOnKey(onSelect),
-        "aria-label": `View the ${payload.name} team page`,
+        "aria-label": label ?? `View the ${payload.name} team page`,
       })}
       className={`origin-center cursor-pointer transition-transform duration-150 [transform-box:fill-box] hover:scale-125 hover:[filter:drop-shadow(0_0_6px_rgba(37,106,191,0.45))] ${
         selected ? "[filter:drop-shadow(0_0_6px_rgba(37,106,191,0.45))]" : ""

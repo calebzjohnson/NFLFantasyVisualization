@@ -9,7 +9,7 @@ import PositionGroupToggle from "../components/PositionGroupToggle"
 import TeamDepthChartPanel from "../components/TeamDepthChartPanel"
 import TeamHeaderBar from "../components/TeamHeaderBar"
 import TeamPlaymakingPanel from "../components/TeamPlaymakingPanel"
-import TeamLeagueComparisonBeeswarm from "../components/TeamLeagueComparisonBeeswarm"
+import LeagueBeeswarm from "../components/LeagueBeeswarm"
 import TeamRadarChart from "../components/TeamRadarChart"
 import TeamScoringComposition from "../components/TeamScoringComposition"
 import TeamTendenciesPanel from "../components/TeamTendenciesPanel"
@@ -85,7 +85,7 @@ function TeamPage() {
             <TeamRadarChart teamAbbr={team.team_abbr} teamColor={team.team_color} />
             <TeamScoringComposition teamAbbr={team.team_abbr} />
           </div>
-          <TeamLeagueComparisonBeeswarm teamAbbr={team.team_abbr} teamColor={team.team_color} />
+          <LeagueBeeswarm kind="teams" focusId={team.team_abbr} />
           <TeamTendenciesPanel teamAbbr={team.team_abbr} />
         </>
       )}

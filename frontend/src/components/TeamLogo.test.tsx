@@ -1,5 +1,5 @@
 // TeamLogo.test.tsx
-// Tests for the team scatter marker: clickable and keyboard-accessible only when given onSelect.
+// Tests for the team scatter marker: clickable and keyboard-accessible only when given onSelect, with an optional name override.
 import { fireEvent, render, screen } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
 import { TeamLogoMarker } from "./TeamLogo"
@@ -25,6 +25,15 @@ describe("TeamLogoMarker", () => {
     // Like a native button: Space activates and doesn't scroll the page.
     expect(fireEvent.keyDown(marker, { key: " " })).toBe(false)
     expect(onSelect).toHaveBeenCalledTimes(3)
+  })
+
+  it("takes a different screen-reader name when activating it highlights instead", () => {
+    render(
+      <svg>
+        <TeamLogoMarker cx={10} cy={10} payload={payload} onSelect={() => {}} label="Highlight the Kansas City Chiefs" />
+      </svg>,
+    )
+    expect(screen.getByRole("button", { name: "Highlight the Kansas City Chiefs" })).toBeInTheDocument()
   })
 
   it("isn't a button without onSelect", () => {
