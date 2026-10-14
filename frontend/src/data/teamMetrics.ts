@@ -94,7 +94,9 @@ export const TEAM_METRICS: TeamMetric[] = [
     side: "Offense",
     key: "sacks_taken",
     label: "Sacks Taken / Game",
-    short: "SCK",
+    // Not "SACKS": the defensive table uses that for sacks recorded, which is
+    // the opposite of giving one up.
+    short: "SCK TKN",
     lowerIsBetter: true,
     value: (row) => perGame(row, num(row, "sacks_suffered")),
   },
@@ -134,7 +136,7 @@ export const TEAM_METRICS: TeamMetric[] = [
     side: "Defense",
     key: "sacks",
     label: "Sacks / Game",
-    short: "SCK",
+    short: "SACKS",
     value: (row) => perGame(row, num(row, "def_sacks")),
   },
   {

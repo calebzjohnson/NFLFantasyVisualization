@@ -71,3 +71,40 @@ def test_get_team_depth_chart_unknown_team(depth_chart_sources: None) -> None:
     response = client.get("/teams/XYZ/depth-chart")
 
     assert response.status_code == 404
+
+
+def test_get_team_playmaking(playmaking_sources: None) -> None:
+    response = client.get("/teams/DAL/playmaking")
+
+    assert response.status_code == 200
+    body = response.json()
+
+    assert body["team"] == "DAL"
+    assert body["touches"]["team_value"] == 12
+    assert body["targets"]["team_value"] == 22
+    assert body["red_zone"]["total"] == 3
+    assert [group["key"] for group in body["leaders"]][0] == "receiving_yards"
+
+
+def test_get_team_playmaking_unknown_team(playmaking_sources: None) -> None:
+    response = client.get("/teams/XYZ/playmaking")
+
+    assert response.status_code == 404
+
+
+def test_get_team_tendencies(tendency_plays: None) -> None:
+    response = client.get("/teams/DAL/tendencies")
+
+    assert response.status_code == 200
+    body = response.json()
+
+    assert body["team"] == "DAL"
+    dropbacks = next(t for t in body["tendencies"] if t["key"] == "dropback_rate")
+    assert dropbacks["value"] == 60.0
+    assert dropbacks["rank"] == 1
+
+
+def test_get_team_tendencies_unknown_team(tendency_plays: None) -> None:
+    response = client.get("/teams/XYZ/tendencies")
+
+    assert response.status_code == 404
