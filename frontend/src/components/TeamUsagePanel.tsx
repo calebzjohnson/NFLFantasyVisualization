@@ -2,7 +2,9 @@
 // "Team Usage" panel with two views, toggled at the top: a week-by-week
 // line chart of this player's share of the team's touches/targets/TDs (the
 // default view, so a trend - workload growing/shrinking - is what you see
-// first) and a season-snapshot donut of the same split.
+// first) and a season-snapshot donut of the same split. On a touchscreen the
+// weekly chart's hover card moves to a box below the chart: a tap selects a
+// dot, line, or bar, and a second tap (or the box's button) opens that player.
 import { useCallback, useLayoutEffect, useRef, useState } from "react"
 import type * as React from "react"
 import { useNavigate } from "react-router-dom"
@@ -14,6 +16,7 @@ import {
   Line,
   Pie,
   PieChart,
+  Rectangle,
   Scatter,
   Tooltip,
   XAxis,
@@ -26,11 +29,15 @@ import {
   type UsagePlayerAmount,
   type UsageShare,
 } from "../data/usage"
+import { pieSliceAt } from "../lib/pieSliceAt"
 import { useFetch } from "../lib/useFetch"
+import { TOUCH_QUERY, useMediaQuery } from "../lib/useMediaQuery"
+import { useTapToOpen } from "../lib/useTapToOpen"
 import { ChartContainer, type ChartConfig } from "./evilcharts/ui/recharts-chart"
 import Panel from "./Panel"
 import PlayerAvatar from "./PlayerAvatar"
 import PositionGroupToggle from "./PositionGroupToggle"
+import { OpenButton, TapDetails } from "./TapDetails"
 
 
 
@@ -118,11 +125,18 @@ function UsageTooltip({ slice }: { slice: DonutSlice | null }) {
   // in from the corner every time.
   if (!slice) return <span className="p-4" />
   return (
-    <div className="flex items-baseline justify-between gap-4 rounded-lg border border-[var(--border)] bg-[var(--surface-2)]/70 px-2.5 py-1.5 text-xs shadow-xl backdrop-blur-sm">
+    <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)]/70 px-2.5 py-1.5 text-xs shadow-xl backdrop-blur-sm">
+      <SliceRow slice={slice} />
+    </div>
+  )
+}
+
+// A slice's name and amount: the tooltip's content, and the touchscreen box's.
+function SliceRow({ slice }: { slice: DonutSlice }) {
+  return (
+    <div className="flex items-baseline justify-between gap-4">
       <span className="font-medium text-[var(--text-primary)]">{slice.name}</span>
-      <span className="font-mono font-medium tabular-nums text-[var(--text-primary)]">
-        {slice.value}
-      </span>
+      <span className="font-mono font-medium tabular-nums text-[var(--text-primary)]">{slice.value}</span>
     </div>
   )
 }
@@ -164,6 +178,15 @@ export function UsageDonut({
   // to one per frame instead.
   const frameRef = useRef<number | null>(null)
 
+  // Slices by index in `data`. A mouse click on a teammate's slice opens
+  // their page; a tap shows the slice below the donut first (useTapToOpen).
+  const touchScreen = useMediaQuery(TOUCH_QUERY)
+  const tap = useTapToOpen<number>((index) => {
+    const playerId = data[index]?.player_id
+    if (playerId) onSelect(playerId)
+  })
+  const selected = tap.selected === null ? undefined : data[tap.selected]
+
   // recharts' default Pie tooltip snaps to wherever a slice first activates
   // and stays there while the cursor moves around inside that same slice -
   // overriding position with the live cursor coordinates makes it track
@@ -194,7 +217,12 @@ export function UsageDonut({
 
   return (
     <>
-      <div ref={containerRef} className="relative p-3" onMouseMove={handleMouseMove}>
+      <div
+        ref={containerRef}
+        className="relative p-3"
+        onMouseMove={handleMouseMove}
+        {...tap.pressHandlers(pieSliceAt)}
+      >
         <ChartContainer
           config={chartConfig}
           className="aspect-[4/3]"
@@ -205,16 +233,19 @@ export function UsageDonut({
           }
         >
           <PieChart>
-            <Tooltip
-              content={<UsageTooltip slice={hoveredSlice} />}
-              // Recharts animates the tooltip's *position*, so moving between
-              // slices slides the card across instead of it following the
-              // cursor. Off, it tracks immediately.
-              isAnimationActive={false}
-              animationDuration={0}
-              wrapperStyle={{ zIndex: 20 }}
-              position={cursorPos ?? undefined}
-            />
+            {/* On a touchscreen, the box below stands in for the tooltip. */}
+            {!touchScreen && (
+              <Tooltip
+                content={<UsageTooltip slice={hoveredSlice} />}
+                // Recharts animates the tooltip's *position*, so moving between
+                // slices slides the card across instead of it following the
+                // cursor. Off, it tracks immediately.
+                isAnimationActive={false}
+                animationDuration={0}
+                wrapperStyle={{ zIndex: 20 }}
+                position={cursorPos ?? undefined}
+              />
+            )}
             <Pie
               data={data}
               dataKey="value"
@@ -229,13 +260,17 @@ export function UsageDonut({
               // blank for a frame as the cursor crosses one. Tracking the last
               // sector entered keeps the card steady until the next takes
               // over; Recharts hides the wrapper on leave, so it can't go stale.
-              onMouseEnter={(_: unknown, index: number) => setHoveredSlice(data[index] ?? null)}
-              onClick={(sector: { player_id?: string; payload?: DonutSlice }) => {
-                const playerId = sector.player_id ?? sector.payload?.player_id
-                if (playerId) onSelect(playerId)
-              }}
+              // Mouse only: on a touchscreen the tap flow below owns selection,
+              // and a click handler here would open a player on first tap.
+              {...(!touchScreen && {
+                onMouseEnter: (_: unknown, index: number) => setHoveredSlice(data[index] ?? null),
+                onClick: (sector: { player_id?: string; payload?: DonutSlice }) => {
+                  const playerId = sector.player_id ?? sector.payload?.player_id
+                  if (playerId) onSelect(playerId)
+                },
+              })}
             >
-              {data.map((slice) => (
+              {data.map((slice, index) => (
                 <Cell
                   key={slice.name}
                   fill={colorByKey.get(slice.player_id ?? "") ?? TEAMMATE_FILL}
@@ -244,6 +279,7 @@ export function UsageDonut({
                   // nobody recedes.
                   fillOpacity={!playerName || slice.isPlayer ? 1 : 0.4}
                   cursor={slice.player_id ? "pointer" : "default"}
+                  {...(index === tap.selected && { stroke: "var(--accent)", strokeWidth: 3 })}
                 />
               ))}
             </Pie>
@@ -258,6 +294,19 @@ export function UsageDonut({
           </span>
         </div>
       </div>
+      {touchScreen && (
+        <div className="px-3 pb-2">
+          {/* Held at a teammate's box height (74px, with its button), so taps don't shift the caption. */}
+          <TapDetails prompt="Tap a slice to see its numbers." className="min-h-19">
+            {selected && (
+              <div className="flex flex-col gap-1.5">
+                <SliceRow slice={selected} />
+                {selected.player_id && <OpenButton name={selected.name} onClick={() => onSelect(selected.player_id!)} />}
+              </div>
+            )}
+          </TapDetails>
+        </div>
+      )}
       <p className="px-3 pb-2 text-xs text-[var(--text-muted)]">
         {usageCaption(usage.metric, false, Boolean(playerName))}
       </p>
@@ -312,22 +361,28 @@ interface HoverPoint {
 // built-in one.
 const HOVER_HIT_RADIUS = 10
 
+// Clicks and taps are resolved by the chart container from `data-tap-key`
+// (see markAt): recharts recreates these dot nodes when hover re-renders the
+// chart mid-click, so a click event never reliably arrives at all.
 function HoverDot({
   cx,
   cy,
   payload,
   focusKey,
+  tapKey,
+  selected,
   onEnter,
   onLeave,
-  onSelect,
 }: {
   cx?: number
   cy?: number
   payload?: HoverPoint
   focusKey: string | null
+  tapKey: string
+  // Picked by a tap: ringed in the accent color.
+  selected: boolean
   onEnter: (point: HoverPoint) => void
   onLeave: () => void
-  onSelect: (playerId: string) => void
 }) {
   if (cx === undefined || cy === undefined || !payload) return null
   const solo = payload.members.length === 1 ? payload.members[0] : null
@@ -343,17 +398,13 @@ function HoverDot({
 
   return (
     <g
+      data-tap-key={tapKey}
       onMouseEnter={() => onEnter(payload)}
       onMouseLeave={onLeave}
-      // mousedown, not click: hovering already updates state (mounting the
-      // hover card) on the way to a click, and recharts recreates these dot
-      // nodes on that re-render mid-gesture - by the time mouseup happens
-      // the original DOM node is gone, so the browser never synthesizes a
-      // click on it. mousedown fires immediately, before any of that churn.
-      onMouseDown={() => clickable && onSelect(solo.key)}
       className={clickable ? "cursor-pointer" : undefined}
     >
       <circle cx={cx} cy={cy} r={HOVER_HIT_RADIUS} fill="transparent" />
+      {selected && <circle cx={cx} cy={cy} r={radius + 3.5} fill="none" stroke="var(--accent)" strokeWidth={2} />}
       <circle
         cx={cx}
         cy={cy}
@@ -369,6 +420,16 @@ function HoverDot({
 function HoverCard({ point }: { point: HoverPoint }) {
   return (
     <div className="grid w-max max-w-56 gap-1 rounded-lg border border-[var(--border)] bg-[var(--surface-2)]/90 px-2 py-1.5 text-xs shadow-xl backdrop-blur-sm">
+      <PointRows point={point} />
+    </div>
+  )
+}
+
+// The week and each player at a point: the hover card's content, and the
+// touchscreen details box's.
+function PointRows({ point }: { point: HoverPoint }) {
+  return (
+    <div className="grid gap-1">
       <div className="font-medium text-[var(--text-primary)]">{point.week}</div>
       {point.members.map((member) => (
         <div key={member.key} className="flex items-center gap-2">
@@ -395,6 +456,22 @@ function HoverCard({ point }: { point: HoverPoint }) {
           </span>
         </div>
       ))}
+    </div>
+  )
+}
+
+// A tapped line: the player and their share each week.
+function LineRows({ name, shares }: { name: string; shares: [string, number][] }) {
+  return (
+    <div className="grid gap-1">
+      <div className="font-medium text-[var(--text-primary)]">{name}</div>
+      <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[var(--text-secondary)]">
+        {shares.map(([week, share]) => (
+          <span key={week}>
+            {week} <span className="font-mono tabular-nums text-[var(--text-primary)]">{Math.round(share)}%</span>
+          </span>
+        ))}
+      </div>
     </div>
   )
 }
@@ -557,6 +634,48 @@ export function UsageWeeklyChart({
     hoverPoints.flatMap((point) => point.members.map((member) => [`${point.week}|${member.key}`, member])),
   )
 
+  // Every tappable mark has a key: a dot "dot:<index in hoverPoints>", a bar
+  // segment "bar:<week>|<player>", or a whole line "line:<player>". A mouse
+  // click opens the player at once; a tap selects the mark first (see useTapToOpen).
+  const touchScreen = useMediaQuery(TOUCH_QUERY)
+  function playerFor(key: string): string | null {
+    if (key.startsWith("line:")) return key.slice("line:".length)
+    if (key.startsWith("bar:")) return key.split("|")[1] ?? null
+    const point = hoverPoints[Number(key.slice("dot:".length))]
+    return point?.members.length === 1 ? point.members[0].key : null
+  }
+  const tap = useTapToOpen<string>((key) => {
+    const player = playerFor(key)
+    if (player && player !== OTHER_KEY) onSelect(player)
+  })
+
+  // The mark under a press, read off the DOM rather than the event's target:
+  // hovering re-renders the chart and recharts recreates its marks mid-press.
+  function markAt(clientX: number, clientY: number): string | null {
+    const el = document.elementFromPoint(clientX, clientY)
+    const tagged = el?.closest("[data-tap-key]")
+    if (tagged) return tagged.getAttribute("data-tap-key")
+    if (el?.classList.contains("recharts-line-curve") && el.getAttribute("stroke") === "transparent") {
+      return el.getAttribute("name")
+    }
+    return null
+  }
+
+  // What the touchscreen box shows for the selected mark.
+  const selectedKey = tap.selected
+  const selectedPlayer = selectedKey && playerFor(selectedKey)
+  const selectedPoint: HoverPoint | undefined = !selectedKey
+    ? undefined
+    : selectedKey.startsWith("dot:")
+      ? hoverPoints[Number(selectedKey.slice("dot:".length))]
+      : selectedKey.startsWith("bar:")
+        ? (() => {
+            const [week, key] = selectedKey.slice("bar:".length).split("|")
+            const member = memberByWeekKey.get(`${week}|${key}`)
+            return member && { week, sharePct: member.sharePct, members: [member] }
+          })()
+        : undefined
+
   return (
     <div className="p-3">
       {playerId && peak && (
@@ -581,6 +700,10 @@ export function UsageWeeklyChart({
       <div
         ref={containerRef}
         className="relative"
+        // On pointerup, not click: a tap's emulated mouseover re-renders the
+        // chart (hover state), and recharts replaces the mark's node between
+        // mousedown and mouseup, so the browser never fires the click.
+        {...tap.pressHandlers(markAt)}
         onMouseMove={
           stacked
             ? (event) => {
@@ -650,9 +773,19 @@ export function UsageWeeklyChart({
                     })
                   }}
                   onMouseLeave={() => setHovered(null)}
-                  onClick={(bar: { payload?: WeekSharePoint }) => {
-                    const key = slotPlayers.get(String(bar.payload?.week))?.[slot]
-                    if (key && key !== OTHER_KEY) onSelect(key)
+                  shape={(bar: React.ComponentProps<typeof Rectangle> & { payload?: WeekSharePoint }) => {
+                    const week = String(bar.payload?.week)
+                    const key = slotPlayers.get(week)?.[slot]
+                    if (!key) return <Rectangle {...bar} />
+                    const tapKey = `bar:${week}|${key}`
+                    return (
+                      <g data-tap-key={tapKey}>
+                        <Rectangle
+                          {...bar}
+                          {...(tapKey === tap.selected && { stroke: "var(--accent)", strokeWidth: 2.5 })}
+                        />
+                      </g>
+                    )
                   }}
                 >
                   {slotData.map((row) => {
@@ -708,7 +841,7 @@ export function UsageWeeklyChart({
                   isAnimationActive={false}
                   connectNulls
                   className="cursor-pointer"
-                  onClick={() => onSelect(key)}
+                  name={`line:${key}`}
                 />
               ))}
             {!stacked && playerId && (
@@ -721,7 +854,7 @@ export function UsageWeeklyChart({
                 activeDot={false}
                 isAnimationActive={false}
                 className="cursor-pointer"
-                onClick={() => onSelect(playerId)}
+                name={`line:${playerId}`}
               />
             )}
             {!stacked && (
@@ -729,27 +862,50 @@ export function UsageWeeklyChart({
                 data={hoverPoints}
                 dataKey="sharePct"
                 isAnimationActive={false}
-                shape={(props: { cx?: number; cy?: number; payload?: HoverPoint }) => (
+                shape={(props: { cx?: number; cy?: number; payload?: HoverPoint; index?: number }) => (
                   <HoverDot
-                    {...props}
+                    cx={props.cx}
+                    cy={props.cy}
+                    payload={props.payload}
                     focusKey={playerId}
+                    tapKey={`dot:${props.index}`}
+                    selected={`dot:${props.index}` === tap.selected}
                     onEnter={(point) =>
                       setHovered({ point, cx: props.cx ?? 0, cy: props.cy ?? 0 })
                     }
                     onLeave={() => setHovered(null)}
-                    onSelect={onSelect}
                   />
                 )}
               />
             )}
           </ComposedChart>
         </ChartContainer>
-        {hovered && (
+        {/* On a touchscreen, the details box below stands in for this card. */}
+        {hovered && !touchScreen && (
           <div ref={cardRef} className="pointer-events-none absolute z-10">
             <HoverCard point={hovered.point} />
           </div>
         )}
       </div>
+      {touchScreen && (
+        <TapDetails
+          prompt={stacked ? "Tap a bar to see that week's numbers." : "Tap a dot or line to see the numbers."}
+          className="min-h-32"
+        >
+          {selectedKey && (
+            <div className="flex flex-col gap-1.5">
+              {selectedPoint ? (
+                <PointRows point={selectedPoint} />
+              ) : (
+                selectedPlayer && <LineRows name={nameByKey.get(selectedPlayer) ?? selectedPlayer} shares={data.map((row) => [row.week, Number(row[selectedPlayer]) || 0])} />
+              )}
+              {selectedPlayer && selectedPlayer !== OTHER_KEY && selectedPlayer !== playerId && (
+                <OpenButton name={nameByKey.get(selectedPlayer) ?? "player"} onClick={() => onSelect(selectedPlayer)} />
+              )}
+            </div>
+          )}
+        </TapDetails>
+      )}
       <p className="pt-2 text-xs text-[var(--text-muted)]">
         {usageCaption(usage.metric, true, Boolean(playerId))}
         {(usage.metric === "pressures" || usage.metric === "targets_against") &&
