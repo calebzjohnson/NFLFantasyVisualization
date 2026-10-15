@@ -1,27 +1,27 @@
 // LeagueBeeswarm.tsx
 // "League Comparison": one swarm column per radar axis, a dot per qualifying player at a position (or per team), placed by percentile. A click, tap, or search highlights one player/team in every column; clicking them again opens their page.
 // The optional focus (the page's own player or team) is always drawn in team
-// color. On a phone the chart scrolls sideways (with two-line column labels),
-// and on a touchscreen a tap picks the nearest dot and shows its numbers below
-// the chart instead of a tooltip.
+// color. A mouse's hover and clicks, and a finger's taps, go to the nearest dot
+// within reach (see chartMarks). On a phone the chart scrolls sideways (with
+// two-line column labels), and on a touchscreen a tap shows its dot's numbers
+// below the chart instead of a hover card.
 import { memo, useMemo } from "react"
 import { useNavigate } from "react-router-dom"
 import { Scatter, ScatterChart, XAxis, YAxis } from "recharts"
 import { ordinal } from "../data/efficiency"
 import { teamPath, type TeamInfo } from "../data/teams"
 import { activateOnKey } from "../lib/activateOnKey"
+import { nearestMarkAt, useHoveredMark } from "../lib/chartMarks"
 import { swarmCell } from "../lib/chartSummaries"
 import { useFetch } from "../lib/useFetch"
 import { PHONE_QUERY, TOUCH_QUERY, useMediaQuery } from "../lib/useMediaQuery"
-import { swarmDotAt } from "../lib/swarmDotAt"
 import { useTapToOpen } from "../lib/useTapToOpen"
 import ChartDataTable from "./ChartDataTable"
 import { ChartContainer, type ChartConfig } from "./evilcharts/ui/recharts-chart"
-import { ChartTooltip } from "./evilcharts/ui/recharts-tooltip"
 import HighlightPicker from "./HighlightPicker"
 import Panel from "./Panel"
 import RadarAxisTick from "./RadarAxisTick"
-import { OpenButton, TapDetails } from "./TapDetails"
+import { HoverCard, OpenButton, TapDetails } from "./TapDetails"
 
 interface PoolAxis {
   key: string
@@ -118,6 +118,7 @@ const SwarmDot = memo(function SwarmDot({
   cy,
   payload,
   role,
+  hovered,
   color,
   tapKey,
   actionLabel,
@@ -127,9 +128,11 @@ const SwarmDot = memo(function SwarmDot({
   cy?: number
   payload?: SwarmPoint
   role: DotRole
+  // Nearest the mouse: gets a neutral ring, so it's clear which dot the hover card describes.
+  hovered: boolean
   color: string
   // Clicks and taps are resolved by the chart's wrapper from this key (see
-  // swarmDotAt); `onActivate` here is keyboard activation.
+  // chartMarks); `onActivate` here is keyboard activation.
   tapKey: string
   actionLabel: string
   onActivate: () => void
@@ -148,8 +151,15 @@ const SwarmDot = memo(function SwarmDot({
       className="cursor-pointer"
     >
       <circle cx={cx} cy={cy} r={10} fill="transparent" />
-      {role === "highlighted" && (
-        <circle cx={cx} cy={cy} r={radius + 3.5} fill="none" stroke="var(--accent)" strokeWidth={2} />
+      {(role === "highlighted" || hovered) && (
+        <circle
+          cx={cx}
+          cy={cy}
+          r={radius + 3.5}
+          fill="none"
+          stroke={role === "highlighted" ? "var(--accent)" : "var(--text-secondary)"}
+          strokeWidth={role === "highlighted" ? 2 : 1.5}
+        />
       )}
       <circle
         cx={cx}
@@ -164,27 +174,8 @@ const SwarmDot = memo(function SwarmDot({
   )
 })
 
-export function SwarmTooltip({
-  active,
-  payload,
-  showTeam,
-}: {
-  active?: boolean
-  payload?: { payload: SwarmPoint }[]
-  showTeam: boolean
-}) {
-  // An empty-but-present element, not null - keeps the tooltip from
-  // resetting position to (0,0) and flying in from the corner on each hover.
-  if (!active || !payload?.length) return <span className="p-4" />
-  return (
-    <div className="min-w-36 rounded-lg border border-[var(--border)] bg-[var(--surface-2)]/70 px-2.5 py-1.5 text-xs shadow-xl backdrop-blur-sm">
-      <SwarmRows point={payload[0].payload} showTeam={showTeam} />
-    </div>
-  )
-}
-
-// A dot's name, stat, value, and percentile: the tooltip's content, and the touchscreen box's.
-function SwarmRows({ point, showTeam }: { point: SwarmPoint; showTeam: boolean }) {
+// A dot's name, stat, value, and percentile: the hover card's content, and the touchscreen box's.
+export function SwarmRows({ point, showTeam }: { point: SwarmPoint; showTeam: boolean }) {
   return (
     <div className="grid gap-1">
       <div className="font-medium text-[var(--text-primary)]">
@@ -274,6 +265,8 @@ function LeagueBeeswarm(props: LeagueBeeswarmProps) {
   const highlightedId = tap.selected === null ? null : idOfKey(tap.selected)
   const highlightedRow = chart?.rows.find((row) => row.id === highlightedId)
   const selectedPoint = tap.selected === null ? undefined : pointByKey.get(tap.selected)
+  const hover = useHoveredMark()
+  const hoveredPoint = hover.hovered && pointByKey.get(hover.hovered.key)
   // A press on any of the highlighted row's dots counts as "the same mark"
   // (the hook compares keys), so a second click in another column opens it too.
   const sameRow = (key: string | null) =>
@@ -320,9 +313,10 @@ function LeagueBeeswarm(props: LeagueBeeswarmProps) {
               chart keeps a minimum width and scrolls sideways (a swipe is a
               pointercancel, never a tap). */}
           <div
-            data-swarm-chart
-            className={phone ? "overflow-x-auto" : undefined}
-            {...tap.pressHandlers((x, y, pointerType) => sameRow(swarmDotAt(x, y, pointerType)))}
+            data-chart-marks
+            className={`relative ${phone ? "overflow-x-auto" : ""} ${hover.hovered ? "cursor-pointer" : ""}`}
+            {...tap.pressHandlers((x, y) => sameRow(nearestMarkAt(x, y)))}
+            {...hover.hoverHandlers}
           >
             <ChartContainer
               config={chartConfig}
@@ -366,8 +360,6 @@ function LeagueBeeswarm(props: LeagueBeeswarmProps) {
                   tick={{ fill: "var(--text-secondary)", fontSize: 11 }}
                   width={32}
                 />
-                {/* On a touchscreen, the box below stands in for the tooltip. */}
-                {!touchScreen && <ChartTooltip content={<SwarmTooltip showTeam={players} />} cursor={false} />}
                 <Scatter
                   data={drawn}
                   shape={(dot: { cx?: number; cy?: number; payload?: SwarmPoint }) => {
@@ -379,6 +371,7 @@ function LeagueBeeswarm(props: LeagueBeeswarmProps) {
                       <SwarmDot
                         {...dot}
                         role={role}
+                        hovered={key === hover.hovered?.key}
                         color={colorByTeam.get(dot.payload.row.team) ?? "var(--accent)"}
                         tapKey={key}
                         actionLabel={
@@ -394,6 +387,11 @@ function LeagueBeeswarm(props: LeagueBeeswarmProps) {
                 />
               </ScatterChart>
             </ChartContainer>
+            {!touchScreen && hover.hovered && hoveredPoint && (
+              <HoverCard mark={hover.hovered}>
+                <SwarmRows point={hoveredPoint} showTeam={players} />
+              </HoverCard>
+            )}
           </div>
           {touchScreen && (
             // The filled box's height (134px), so a tap doesn't shift the caption.
