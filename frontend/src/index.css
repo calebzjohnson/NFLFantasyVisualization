@@ -31,3 +31,14 @@ body {
   color: var(--text-primary);
   font-family: system-ui, "Segoe UI", Roboto, sans-serif;
 }
+
+/* iOS Safari zooms the page into any focused field under 16px. Unlayered so it
+   beats the fields' text-sm; touch only, so desktop keeps the compact size.
+   (Disabling zoom in the viewport meta would also stop it, but blocks pinch-zoom.) */
+@media (hover: none) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
