@@ -1,15 +1,17 @@
 // PlayersPage.tsx
 // Players route: search, a page-wide position-group toggle (drives every
-// panel below it), stat leaders, a player-comparison scatter, and a
+// panel below it), stat leaders, a player-comparison scatter, a league
+// comparison beeswarm (positions with radar profiles only), and a
 // trending-players line chart for the active position. The position lives in
 // the URL (?position=WR) so the browser's back button returns to it.
 import { useSearchParams } from "react-router-dom"
+import LeagueBeeswarm from "../components/LeagueBeeswarm"
 import PlayerComparisonScatter from "../components/PlayerComparisonScatter"
 import PositionGroupToggle from "../components/PositionGroupToggle"
 import SearchBar from "../components/SearchBar"
 import StatLeadersPanel from "../components/StatLeadersPanel"
 import TrendingPlayersChart from "../components/TrendingPlayersChart"
-import { POSITION_GROUPS, type PositionGroup } from "../data/leaderCategories"
+import { POSITION_GROUPS, PROFILE_GROUPS, type PositionGroup } from "../data/leaderCategories"
 import { usePageTitle } from "../lib/usePageTitle"
 
 function isPositionGroup(value: string | null): value is PositionGroup {
@@ -47,6 +49,8 @@ function PlayersPage() {
       </div>
       <StatLeadersPanel position={position} expandable />
       <PlayerComparisonScatter position={position} />
+      {/* Keyed so switching positions drops the highlight along with the old pool. */}
+      {PROFILE_GROUPS.has(position) && <LeagueBeeswarm key={position} kind="players" position={position} />}
       <TrendingPlayersChart position={position} />
     </div>
   )

@@ -66,4 +66,35 @@ describe("TeamLeadersPanel", () => {
     renderWithRouter(<TeamLeadersPanel rows={null} loading={false} error="boom" />)
     expect(screen.getByText("Couldn't load team leaders: boom")).toBeInTheDocument()
   })
+
+  it("expands to every team in the league, keeping the active sort", () => {
+    renderWithRouter(<TeamLeadersPanel rows={rows} loading={false} error={null} />)
+    expect(teamNamesInOrder()).toHaveLength(5)
+
+    fireEvent.click(screen.getByRole("button", { name: "Show all teams" }))
+
+    const modal = screen.getByRole("dialog")
+    const names = within(modal)
+      .getAllByRole("row")
+      .slice(1)
+      .map((row) => within(row).getByText(/^Team \d$/).textContent)
+    expect(names).toEqual(["Team 6", "Team 5", "Team 4", "Team 3", "Team 2", "Team 1"])
+  })
+
+  it("names the modal for the side of the ball on show", () => {
+    renderWithRouter(<TeamLeadersPanel rows={rows} loading={false} error={null} />)
+    fireEvent.click(screen.getByRole("button", { name: "Defense" }))
+    fireEvent.click(screen.getByRole("button", { name: "Show all teams" }))
+
+    expect(screen.getByRole("dialog", { name: "Defense - Every Team" })).toBeInTheDocument()
+  })
+
+  it("tells sacks taken apart from sacks recorded", () => {
+    renderWithRouter(<TeamLeadersPanel rows={rows} loading={false} error={null} />)
+    expect(screen.getByRole("columnheader", { name: /SCK TKN/ })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Defense" }))
+    expect(screen.getByRole("columnheader", { name: /^SACKS/ })).toBeInTheDocument()
+    expect(screen.queryByRole("columnheader", { name: /SCK TKN/ })).not.toBeInTheDocument()
+  })
 })

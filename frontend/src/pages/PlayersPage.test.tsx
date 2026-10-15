@@ -1,5 +1,5 @@
 // PlayersPage.test.tsx
-// Tests for the players page's position toggle: read from and written to the URL so Back returns to it.
+// Tests for the players page's position toggle (read from and written to the URL so Back returns to it), and which positions get a league comparison.
 import { fireEvent, render, screen } from "@testing-library/react"
 import { MemoryRouter, Route, Routes, useNavigate } from "react-router-dom"
 import { describe, expect, it, vi } from "vitest"
@@ -12,6 +12,9 @@ vi.mock("../components/StatLeadersPanel", () => ({
 vi.mock("../components/PlayerComparisonScatter", () => ({ default: () => null }))
 vi.mock("../components/TrendingPlayersChart", () => ({ default: () => null }))
 vi.mock("../components/SearchBar", () => ({ default: () => null }))
+vi.mock("../components/LeagueBeeswarm", () => ({
+  default: ({ position }: { position: string }) => <p>Beeswarm: {position}</p>,
+}))
 
 // Stand-in player page with a working Back button, like the browser's.
 function FakePlayerPage() {
@@ -43,6 +46,16 @@ describe("PlayersPage", () => {
     renderAt("/players?position=WR")
     expect(pressed()).toHaveTextContent("WR")
     expect(screen.getByText("Leaders: WR")).toBeInTheDocument()
+  })
+
+  it("shows the league comparison only for positions with radar profiles", () => {
+    renderAt("/players?position=CB")
+    expect(screen.getByText("Beeswarm: CB")).toBeInTheDocument()
+  })
+
+  it.each(["OL", "K", "P"])("has no league comparison for %s", (position) => {
+    renderAt(`/players?position=${position}`)
+    expect(screen.queryByText(/^Beeswarm/)).not.toBeInTheDocument()
   })
 
   it("accepts a lowercase position in the URL", () => {

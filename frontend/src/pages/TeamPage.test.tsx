@@ -32,6 +32,19 @@ describe("TeamPage", () => {
         { team: "MIA", week: 1, opponent_team: "BUF", points_for: 10, points_against: 24 },
       ],
       "/teams/BUF/depth-chart": depthChart(),
+      "/teams/BUF/playmaking": {
+        team: "BUF",
+        touches: {
+          player_id: null, team: "BUF", metric: "touches", label: "Touch Share vs Backfield",
+          player_value: 0, team_value: 0, teammates: [], weekly: [],
+        },
+        targets: {
+          player_id: null, team: "BUF", metric: "targets", label: "Target Share",
+          player_value: 0, team_value: 0, teammates: [], weekly: [],
+        },
+        red_zone: { total: 0, players: [] },
+        leaders: [],
+      },
     })
   })
 
@@ -56,7 +69,7 @@ describe("TeamPage", () => {
       await screen.findByRole("figure", { name: /^The Buffalo Bills compared with every other team .* Strongest: Pass Offense \(75th\)/ }),
     ).toBeInTheDocument()
     expect(
-      screen.getByRole("figure", { name: /^All 2 teams this season, .* with the Buffalo Bills highlighted\.$/ }),
+      screen.getByRole("figure", { name: /^All 2 teams this season, .* with Buffalo Bills in team color\.$/ }),
     ).toBeInTheDocument()
     expect(screen.getByRole("table", { name: "Buffalo Bills percentile ranks across the league" })).toHaveTextContent(
       "Pass Offense0.1575th",
@@ -87,6 +100,25 @@ describe("TeamPage", () => {
 
     expect(await screen.findByRole("heading", { name: "3WR 1TE" })).toBeInTheDocument()
     expect(screen.queryByRole("heading", { name: "Game Log" })).not.toBeInTheDocument()
+  })
+
+  it("puts Playmaking between Overview and the depth chart", async () => {
+    renderTeamPage("/teams/BUF")
+
+    await screen.findByRole("heading", { name: "Game Log" })
+    const tabs = screen.getAllByRole("button").map((button) => button.textContent)
+    expect(tabs.slice(0, 3)).toEqual(["Overview", "Playmaking", "Depth Chart"])
+  })
+
+  it("opens onto Playmaking when the URL names it", async () => {
+    renderTeamPage("/teams/BUF?tab=playmaking")
+
+    expect(await screen.findByRole("heading", { name: "Team Leaders" })).toBeInTheDocument()
+    expect(screen.queryByRole("heading", { name: "Game Log" })).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Playmaking" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    )
   })
 
   it("opens straight onto the depth chart when the URL names it", async () => {

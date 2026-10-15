@@ -283,19 +283,20 @@ def _weekly_player_lines(
     season_totals: "pd.Series[int]",
     name_by_id: dict[str, str],
     headshot_by_id: dict[str, str],
-    focus_player_id: str,
+    focus_player_id: str | None,
 ) -> list[dict[str, Any]]:
     """Every week's amount broken out by player - one line per player in the
     pool, biggest season total first. The focus player takes whatever rank he
     earned rather than being pinned to the front, so the order says something
     about the pool. weekly_totals and season_totals are both indexed by
     player_id (weekly_totals additionally by week).
+
+    focus_player_id is None for the team view, which ranks the pool with
+    nobody singled out.
     """
-    all_ids = list(
-        season_totals.sort_values(ascending=False, kind="stable").index
-        if focus_player_id in season_totals.index
-        else [focus_player_id, *season_totals.sort_values(ascending=False, kind="stable").index]
-    )
+    ranked = list(season_totals.sort_values(ascending=False, kind="stable").index)
+    pinned = focus_player_id is not None and focus_player_id not in ranked
+    all_ids = [focus_player_id, *ranked] if pinned else ranked
 
     weeks = sorted({week for week, _ in weekly_totals.index})
     rows = []
@@ -414,7 +415,9 @@ def _qb_td_involvement(player_id: str, player_name: str, team: str, season: int)
     }
 
 
-def _usage_weekly(team: str, season: int, player_id: str, metric: str) -> list[dict[str, Any]]:
+def _usage_weekly(
+    team: str, season: int, player_id: str | None, metric: str
+) -> list[dict[str, Any]]:
     week_stats = player_stats.get_week_stats(season)
     if week_stats.empty:
         week_stats = player_stats.get_week_stats(season - 1)

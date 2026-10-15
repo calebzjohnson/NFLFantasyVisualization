@@ -26,7 +26,7 @@ interface RadarAxis {
 }
 
 // Only the fields this chart reads - the pool is shared with (and fetched
-// for) TeamLeagueComparisonBeeswarm, which uses the rest.
+// for) LeagueBeeswarm, which uses the rest.
 interface TeamRadarPool {
   teams: { team: string; axes: RadarAxis[] }[]
 }
@@ -71,7 +71,7 @@ function AxisTooltip({ active, payload }: { active?: boolean; payload?: { payloa
 }
 
 function TeamRadarChart({ teamAbbr, teamColor }: { teamAbbr: string; teamColor: string }) {
-  // Same path as TeamLeagueComparisonBeeswarm, so useFetch's cache serves
+  // Same path as LeagueBeeswarm, so useFetch's cache serves
   // both charts from one request - this chart just picks out its own row.
   const pool = useFetch<TeamRadarPool>("/teams/radar-pool")
   const { error, loading } = pool

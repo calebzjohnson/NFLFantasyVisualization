@@ -8,20 +8,23 @@ import Panel from "../components/Panel"
 import PositionGroupToggle from "../components/PositionGroupToggle"
 import TeamDepthChartPanel from "../components/TeamDepthChartPanel"
 import TeamHeaderBar from "../components/TeamHeaderBar"
-import TeamLeagueComparisonBeeswarm from "../components/TeamLeagueComparisonBeeswarm"
+import TeamPlaymakingPanel from "../components/TeamPlaymakingPanel"
+import LeagueBeeswarm from "../components/LeagueBeeswarm"
 import TeamRadarChart from "../components/TeamRadarChart"
 import TeamScoringComposition from "../components/TeamScoringComposition"
+import TeamTendenciesPanel from "../components/TeamTendenciesPanel"
 import { findTeamStanding, type DivisionStanding } from "../data/standings"
 import { teamGameLog, type TeamGameRow } from "../data/teamMetrics"
 import type { TeamInfo } from "../data/teams"
 import { useFetch } from "../lib/useFetch"
 import { usePageTitle } from "../lib/usePageTitle"
 
-const TEAM_TABS = ["overview", "depth-chart"] as const
+const TEAM_TABS = ["overview", "playmaking", "depth-chart"] as const
 type TeamTab = (typeof TEAM_TABS)[number]
 
 const TAB_LABELS: Record<TeamTab, string> = {
   overview: "Overview",
+  playmaking: "Playmaking",
   "depth-chart": "Depth Chart",
 }
 
@@ -82,9 +85,11 @@ function TeamPage() {
             <TeamRadarChart teamAbbr={team.team_abbr} teamColor={team.team_color} />
             <TeamScoringComposition teamAbbr={team.team_abbr} />
           </div>
-          <TeamLeagueComparisonBeeswarm teamAbbr={team.team_abbr} teamColor={team.team_color} />
+          <LeagueBeeswarm kind="teams" focusId={team.team_abbr} />
+          <TeamTendenciesPanel teamAbbr={team.team_abbr} />
         </>
       )}
+      {team && tab === "playmaking" && <TeamPlaymakingPanel teamAbbr={team.team_abbr} />}
       {team && tab === "depth-chart" && <TeamDepthChartPanel teamAbbr={team.team_abbr} />}
     </div>
   )

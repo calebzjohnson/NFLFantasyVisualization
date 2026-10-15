@@ -2,20 +2,23 @@
 // Pick-your-axes scatterplot shared by Compare Players and Compare Teams: two
 // metric pickers, median quadrant lines, and a tooltip. The caller supplies
 // the rows, the marker, and the tooltip header. Built on the Evil Charts
-// chart/tooltip base. On a touchscreen the tooltip is replaced by a details box
-// below the chart: a tap selects a mark, and a second tap (or the box's button)
-// opens its page (see useTapToOpen).
+// chart base. A mouse's hover and clicks go to the nearest mark within reach
+// (see chartMarks), not whichever is drawn on top. Clicking a mark (or picking
+// it in the search box) highlights it: drawn on top, ringed and labeled, with
+// everything else faded. Clicking the highlighted mark again opens its page.
+// On a touchscreen the tooltip is replaced by a details box below the chart.
 import { type ReactElement, type ReactNode, useMemo, useState } from "react"
 import { CartesianGrid, ReferenceLine, Scatter, ScatterChart, XAxis, YAxis } from "recharts"
 import { metricMedian, type PlayerMetric, type StatFields } from "../data/playerMetrics"
+import { markUnder, nearestMarkAt, useHoveredMark } from "../lib/chartMarks"
 import { TOUCH_QUERY, useMediaQuery } from "../lib/useMediaQuery"
 import { useTapToOpen } from "../lib/useTapToOpen"
 import AxisSelect from "./AxisSelect"
 import { ChartContainer, type ChartConfig } from "./evilcharts/ui/recharts-chart"
-import { ChartTooltip, ChartTooltipContent } from "./evilcharts/ui/recharts-tooltip"
 import ChartDataTable from "./ChartDataTable"
+import HighlightPicker from "./HighlightPicker"
 import Panel from "./Panel"
-import { OpenButton, TapDetails } from "./TapDetails"
+import { HoverCard, OpenButton, TapDetails } from "./TapDetails"
 
 const chartConfig = {
   point: { label: "Point" },
@@ -46,6 +49,41 @@ export function groupCoincidentPoints<Row>(rows: (Row & { x: number; y: number }
   )
 }
 
+// The highlighted row comes out of any tie cluster and goes last, since SVG
+// draws later marks on top - so it's never hidden behind its neighbors.
+export function withHighlightedOnTop<Row>(
+  rows: (Row & { x: number; y: number })[],
+  highlightedId: string | null,
+  rowId: (row: Row) => string,
+): PlotPoint<Row>[] {
+  const picked = rows.filter((row) => rowId(row) === highlightedId)
+  const rest = rows.filter((row) => rowId(row) !== highlightedId)
+  return [
+    ...groupCoincidentPoints(rest),
+    ...picked.map((row): PlotPoint<Row> => ({ kind: "solo", x: row.x, y: row.y, row })),
+  ]
+}
+
+// Label for a highlighted mark: above it, or below when it sits near the top edge.
+function HighlightLabel({ cx, cy, text }: { cx: number; cy: number; text: string }) {
+  return (
+    <text
+      x={cx}
+      y={cy < 32 ? cy + 28 : cy - 19}
+      textAnchor="middle"
+      fontSize={11}
+      fontWeight={700}
+      fill="var(--text-primary)"
+      stroke="var(--surface-1)"
+      strokeWidth={3}
+      paintOrder="stroke"
+      pointerEvents="none"
+    >
+      {text}
+    </text>
+  )
+}
+
 // Radius grows with count but flattens out - a 30-way tie shouldn't dwarf
 // the plot, it just needs to read as "clearly the biggest cluster here."
 function clusterRadius(count: number): number {
@@ -58,23 +96,23 @@ function ClusterBadge({
   cy,
   count,
   selected,
-  onSelect,
+  hovered,
 }: {
   cx?: number
   cy?: number
   count: number
   selected: boolean
-  onSelect: () => void
+  hovered: boolean
 }) {
   if (cx === undefined || cy === undefined) return null
   return (
-    <g onClick={onSelect}>
+    <g className="cursor-pointer">
       <circle
         cx={cx}
         cy={cy}
         r={clusterRadius(count)}
         fill="var(--accent)"
-        fillOpacity={selected ? 0.35 : 0.15}
+        fillOpacity={selected ? 0.35 : hovered ? 0.25 : 0.15}
         stroke="var(--accent)"
         strokeWidth={1.5}
       />
@@ -179,13 +217,23 @@ interface MetricScatterProps<Row extends StatFields> {
   noun: string
   emptyText: string
   caption: ReactNode
-  // The marker. Clicking it (or Enter) must call `onSelect`; `selected` marks the one a tap picked.
-  Dot: (props: { cx?: number; cy?: number; payload?: Row; selected?: boolean; onSelect?: () => void }) => ReactElement | null
+  // The marker. Enter/Space on it must call `onSelect` (clicks are resolved by the chart); `selected`
+  // marks the highlighted one and `hovered` the one nearest the mouse.
+  Dot: (props: {
+    cx?: number
+    cy?: number
+    payload?: Row
+    selected?: boolean
+    hovered?: boolean
+    onSelect?: () => void
+  }) => ReactElement | null
   // Names a row in the chart's data table, e.g. the player or team name.
   rowName: (row: Row) => string
-  // Stable id for a row (player or team id), for tap selection.
+  // Stable id for a row (player or team id), for highlighting.
   rowId: (row: Row) => string
-  // Opens a row's page: on click, or a tapped mark's second tap / "View" button.
+  // How a row reads in the highlight search, when the name alone could be ambiguous. Defaults to rowName.
+  searchLabel?: (row: Row) => string
+  // Opens a row's page: a click on the already-highlighted mark, or the touchscreen "View" button.
   onOpen?: (row: Row) => void
   // Shown below the chart on a touchscreen before anything is tapped.
   tapPrompt: string
@@ -206,12 +254,26 @@ function MetricScatter<Row extends StatFields>({
   Dot,
   rowName,
   rowId,
+  searchLabel = rowName,
   onOpen,
   tapPrompt,
   renderTooltipHeader,
 }: MetricScatterProps<Row>) {
   const [xKey, setXKey] = useState(initialX)
   const [yKey, setYKey] = useState(initialY)
+  // First click or tap highlights a mark; a second one on it opens its page.
+  // `selected` is the highlighted row's id, or a tie cluster's key
+  // (touchscreens list its members below the chart).
+  const tap = useTapToOpen<string>(
+    (key) => {
+      // A solo mark's key is its row id; a cluster's matches no row, so it never opens.
+      const row = rows?.find((r) => rowId(r) === key)
+      if (row) onOpen?.(row)
+    },
+    { selectFirst: true },
+  )
+  const selected = tap.selected
+  const hover = useHoveredMark()
 
   const xMetric = metrics.find((metric) => metric.key === xKey) ?? metrics[0]
   const yMetric = metrics.find((metric) => metric.key === yKey) ?? metrics[0]
@@ -229,7 +291,11 @@ function MetricScatter<Row extends StatFields>({
 
   // Re-grouped whenever the chosen axes change, since which rows coincide
   // depends entirely on the two stats currently picked.
-  const plotPoints = useMemo(() => (points ? groupCoincidentPoints(points) : null), [points])
+  // Not memoized: callers pass a new rowId every render, and the inline `shape`
+  // below redraws every mark on each render regardless.
+  const plotPoints = points ? withHighlightedOnTop(points, selected, rowId) : null
+  // Undefined when nothing's selected, a cluster is, or the row is gone (e.g. after a refetch).
+  const highlightedRow = rows?.find((row) => rowId(row) === selected)
 
   const xDomain = useMemo(() => valueDomain(points?.map((p) => p.x) ?? []), [points])
   const yDomain = useMemo(() => valueDomain(points?.map((p) => p.y) ?? []), [points])
@@ -239,12 +305,24 @@ function MetricScatter<Row extends StatFields>({
   const touchScreen = useMediaQuery(TOUCH_QUERY)
   const pointKey = (point: PlotPoint<Row>) => (point.kind === "solo" ? rowId(point.row) : `cluster:${point.x},${point.y}`)
   const pointByKey = new Map(plotPoints?.map((point) => [pointKey(point), point]))
-  const tap = useTapToOpen<string>((key) => {
-    const point = pointByKey.get(key)
-    if (point?.kind === "solo") onOpen?.(point.row)
-  })
-  // Gone if the axes changed and the tapped row now sits in a cluster.
-  const selectedPoint = tap.selected === null ? undefined : pointByKey.get(tap.selected)
+  // Gone if the axes changed and a selected cluster split up.
+  const selectedPoint = selected === null ? undefined : pointByKey.get(selected)
+  const hoveredPoint = hover.hovered && pointByKey.get(hover.hovered.key)
+
+  // A point's name(s) and both values: the hover card's content, and the touchscreen box's.
+  function pointDetails(point: PlotPoint<Row>) {
+    return (
+      <>
+        {point.kind === "cluster" ? (
+          <ClusterTooltipHeader members={point.members} renderHeader={renderTooltipHeader} />
+        ) : (
+          renderTooltipHeader(point.row)
+        )}
+        <TooltipRow name={xMetric.label} value={point.x} unit={xMetric.unit} offset={point.x - xMedian} />
+        <TooltipRow name={yMetric.label} value={point.y} unit={yMetric.unit} offset={point.y - yMedian} />
+      </>
+    )
+  }
 
   return (
     <Panel title={title}>
@@ -261,6 +339,15 @@ function MetricScatter<Row extends StatFields>({
           options={metrics.map((metric) => metric.label)}
           onChange={(label) => setYKey(optionByLabel.get(label)?.key ?? metrics[0].key)}
         />
+        {rows && rows.length > 0 && (
+          <HighlightPicker
+            noun={noun}
+            options={rows.map((row) => ({ id: rowId(row), label: searchLabel(row) }))}
+            picked={highlightedRow ? { id: rowId(highlightedRow), label: searchLabel(highlightedRow) } : null}
+            onPick={tap.select}
+            onClear={() => tap.select(null)}
+          />
+        )}
       </div>
       {loading && <p className="p-4 text-sm text-[var(--text-secondary)]">Loading…</p>}
       {error && (
@@ -271,15 +358,21 @@ function MetricScatter<Row extends StatFields>({
       {points && points.length === 0 && <p className="p-4 text-sm text-[var(--text-secondary)]">{emptyText}</p>}
       {points && points.length > 0 && (
         <div className="p-3">
-          {/* A tap on empty chart space (not a mark) clears the selection. */}
+          {/* Clicks resolve here, to the nearest mark for a mouse (a finger
+              gets the mark it lands on); one on empty chart space clears the
+              highlight. */}
           <div
-            onPointerDown={tap.onPointerDown}
-            onClick={(event) => !(event.target as Element).closest(".recharts-scatter-symbol") && tap.tap(null)}
+            data-chart-marks
+            className={`relative ${hover.hovered ? "cursor-pointer" : ""}`}
+            {...tap.pressHandlers((x, y, pointerType) => (pointerType === "mouse" ? nearestMarkAt(x, y) : markUnder(x, y)))}
+            {...hover.hoverHandlers}
           >
             <ChartContainer
               config={chartConfig}
               className="aspect-[3/2]"
-              label={`${title}: ${points.length} ${noun} plotted by ${xMetric.label} (across) and ${yMetric.label} (up). Lines mark the median in each stat.`}
+              label={`${title}: ${points.length} ${noun} plotted by ${xMetric.label} (across) and ${yMetric.label} (up). Lines mark the median in each stat.${
+                highlightedRow ? ` Highlighted: ${rowName(highlightedRow)}.` : ""
+              }`}
             >
               <ScatterChart margin={{ top: 8, right: 16, bottom: 24, left: 4 }}>
                 <CartesianGrid stroke="var(--border)" strokeOpacity={0.6} />
@@ -322,68 +415,52 @@ function MetricScatter<Row extends StatFields>({
                 />
                 <ReferenceLine x={xMedian} stroke="var(--text-muted)" strokeOpacity={0.5} />
                 <ReferenceLine y={yMedian} stroke="var(--text-muted)" strokeOpacity={0.5} />
-                {/* On a touchscreen, the details box below stands in for the tooltip. */}
-                {!touchScreen && (
-                  <ChartTooltip
-                    cursor={false}
-                    content={
-                      <ChartTooltipContent
-                        variant="frosted-glass"
-                        hideIndicator
-                        labelFormatter={(_, items) => {
-                          const point = items[0]?.payload as PlotPoint<Row> | undefined
-                          if (!point) return null
-                          return point.kind === "cluster" ? (
-                            <ClusterTooltipHeader members={point.members} renderHeader={renderTooltipHeader} />
-                          ) : (
-                            renderTooltipHeader(point.row)
-                          )
-                        }}
-                        formatter={(value, name) => {
-                          const metric: PlayerMetric | undefined =
-                            name === xMetric.label ? xMetric : name === yMetric.label ? yMetric : undefined
-                          const median = name === xMetric.label ? xMedian : yMedian
-                          return (
-                            <TooltipRow
-                              name={String(name)}
-                              value={Number(value)}
-                              unit={metric?.unit}
-                              offset={Number(value) - median}
-                            />
-                          )
-                        }}
-                      />
-                    }
-                  />
-                )}
                 <Scatter
                   data={plotPoints ?? []}
                   shape={(props: { cx?: number; cy?: number; payload?: PlotPoint<Row> }) => {
                     const point = props.payload
                     if (!point) return null
                     const key = pointKey(point)
-                    return point.kind === "cluster" ? (
-                      <ClusterBadge
-                        cx={props.cx}
-                        cy={props.cy}
-                        count={point.members.length}
-                        selected={key === tap.selected}
-                        onSelect={() => tap.tap(key)}
-                      />
-                    ) : (
-                      <Dot
-                        cx={props.cx}
-                        cy={props.cy}
-                        payload={point.row}
-                        selected={key === tap.selected}
-                        onSelect={() => tap.tap(key)}
-                      />
+                    const picked = point.kind === "solo" && key === selected
+                    const hovered = key === hover.hovered?.key
+                    // data-tap-key marks what chartMarks measures, so the label stays outside it.
+                    const mark = (
+                      <g data-tap-key={key}>
+                        {point.kind === "cluster" ? (
+                          <ClusterBadge
+                            cx={props.cx}
+                            cy={props.cy}
+                            count={point.members.length}
+                            selected={key === selected}
+                            hovered={hovered}
+                          />
+                        ) : (
+                          <Dot
+                            cx={props.cx}
+                            cy={props.cy}
+                            payload={point.row}
+                            selected={picked}
+                            hovered={hovered}
+                            onSelect={() => tap.tap(key)}
+                          />
+                        )}
+                      </g>
                     )
+                    if (picked && props.cx !== undefined && props.cy !== undefined) {
+                      return (
+                        <g>
+                          {mark}
+                          <HighlightLabel cx={props.cx} cy={props.cy} text={rowName(point.row)} />
+                        </g>
+                      )
+                    }
+                    return highlightedRow ? <g opacity={0.25}>{mark}</g> : mark
                   }}
                   isAnimationActive={false}
                 />
               </ScatterChart>
             </ChartContainer>
+            {!touchScreen && hover.hovered && hoveredPoint && <HoverCard mark={hover.hovered}>{pointDetails(hoveredPoint)}</HoverCard>}
           </div>
           {touchScreen && (
             // The tallest filled box at default axes (146px: a team's values wrap on
@@ -392,13 +469,7 @@ function MetricScatter<Row extends StatFields>({
             <TapDetails prompt={tapPrompt} className="min-h-37">
               {selectedPoint && (
                 <div className="flex flex-col gap-1.5">
-                  {selectedPoint.kind === "cluster" ? (
-                    <ClusterTooltipHeader members={selectedPoint.members} renderHeader={renderTooltipHeader} />
-                  ) : (
-                    renderTooltipHeader(selectedPoint.row)
-                  )}
-                  <TooltipRow name={xMetric.label} value={selectedPoint.x} unit={xMetric.unit} offset={selectedPoint.x - xMedian} />
-                  <TooltipRow name={yMetric.label} value={selectedPoint.y} unit={yMetric.unit} offset={selectedPoint.y - yMedian} />
+                  {pointDetails(selectedPoint)}
                   {selectedPoint.kind === "solo" && onOpen && (
                     <OpenButton name={rowName(selectedPoint.row)} onClick={() => onOpen(selectedPoint.row)} />
                   )}

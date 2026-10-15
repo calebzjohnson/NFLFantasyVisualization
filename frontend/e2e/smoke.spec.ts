@@ -37,6 +37,11 @@ const PAGES = [
   { name: "teams", path: "/teams", title: "Teams · Plot the Pigskin" },
   { name: "team", path: "/teams/KC", title: "Kansas City Chiefs · Plot the Pigskin" },
   {
+    name: "team playmaking",
+    path: "/teams/KC?tab=playmaking",
+    title: "Kansas City Chiefs · Plot the Pigskin",
+  },
+  {
     name: "team depth chart",
     path: "/teams/KC?tab=depth-chart",
     title: "Kansas City Chiefs · Plot the Pigskin",
@@ -185,56 +190,159 @@ test("trending chart lines preview then open, by hover or by tap", async ({ page
   await expect(page).toHaveURL(`/players/${again.id}`)
 })
 
-// Same pattern on the scatters: hover/click with a mouse; on a touchscreen a
-// tap shows the mark's numbers below the chart, and the box's button or a
-// second tap opens its page.
-const SCATTERS = [
-  { path: "/", heading: "Team Efficiency", opened: /\/teams\/[A-Z]+$/ },
+// Team Efficiency follows the same pattern: hover/click with a mouse; on a
+// touchscreen a tap shows the mark's numbers below the chart, and the box's
+// button or a second tap opens its page.
+test("Team Efficiency marks preview then open, by hover or by tap", async ({ page, hasTouch }) => {
+  const path = "/"
+  const opened = /\/teams\/[A-Z]+$/
+  const chart = page.locator("section", { has: page.getByRole("heading", { name: "Team Efficiency" }) }).first()
+  // Marks are tapped/clicked through the locator, which re-finds the node if
+  // recharts re-renders it; force, because neighboring marks overlap and
+  // whichever is on top at that point is the one the user would hit.
+  const mark = chart.locator("svg [role=button]").nth(5)
+  async function visit() {
+    await page.goto(path)
+    await mark.waitFor({ timeout: 60_000 })
+    // Panels (and their images) still loading would shift the layout, and
+    // the chart re-measures itself - its marks briefly have no size.
+    await expect(page.getByText("Loading…")).toHaveCount(0, { timeout: 60_000 })
+    await page.waitForLoadState("networkidle")
+    await chart.scrollIntoViewIfNeeded()
+  }
+
+  await visit()
+  if (!hasTouch) {
+    await mark.hover({ force: true })
+    await expect(chart.locator("[data-hover-card]")).toBeVisible()
+    await mark.click({ force: true })
+    await expect(page).toHaveURL(opened)
+    return
+  }
+
+  await expect(chart.getByText("Tap a logo to see that team's numbers.")).toBeVisible()
+  await mark.tap({ force: true })
+  const open = chart.getByRole("button", { name: /^View .+ →$/ })
+  await expect(open).toBeVisible()
+  await expect(page).toHaveURL(path)
+  const chartBox = (await chart.getByRole("figure").boundingBox())!
+  expect((await open.boundingBox())!.y, "details sit below the chart").toBeGreaterThanOrEqual(chartBox.y + chartBox.height)
+  await open.tap()
+  await expect(page).toHaveURL(opened)
+
+  await visit()
+  await mark.tap({ force: true })
+  await expect(open).toBeVisible()
+  await mark.tap({ force: true })
+  await expect(page).toHaveURL(opened)
+})
+
+// Compare Teams/Players: a click or tap highlights a mark (another click moves
+// the highlight, the chip's x clears it), and a second click on the
+// highlighted mark opens its page. On a touchscreen the highlighted mark's
+// numbers show below the chart too, with a button to open it.
+const COMPARE_SCATTERS = [
   { path: "/teams", heading: "Compare Teams", opened: /\/teams\/[A-Z]+$/ },
   { path: "/players", heading: "Compare Players", opened: /\/players\/[^/]+$/ },
 ]
 
-for (const { path, heading, opened } of SCATTERS) {
-  test(`${heading} marks preview then open, by hover or by tap`, async ({ page, hasTouch }) => {
+for (const { path, heading, opened } of COMPARE_SCATTERS) {
+  test(`${heading} marks highlight, then open, by click or by tap`, async ({ page, hasTouch }) => {
     const chart = page.locator("section", { has: page.getByRole("heading", { name: heading }) }).first()
-    // Marks are tapped/clicked through the locator, which re-finds the node if
-    // recharts re-renders it; force, because neighboring marks overlap and
-    // whichever is on top at that point is the one the user would hit.
-    const mark = chart.locator("svg [role=button]").nth(5)
+    // Unhighlighted marks are named "Highlight ..."; the highlighted one,
+    // which moves to the end of the draw order, "View ... page".
+    const mark = chart.locator('svg [role=button][aria-label^="Highlight"]')
+    const highlighted = chart.locator('svg [role=button][aria-label^="View"]')
+    const chip = chart.getByRole("button", { name: /^Stop highlighting / })
     async function visit() {
       await page.goto(path)
-      await mark.waitFor({ timeout: 60_000 })
-      // Panels (and their images) still loading would shift the layout, and
-      // the chart re-measures itself - its marks briefly have no size.
+      await mark.first().waitFor({ timeout: 60_000 })
       await expect(page.getByText("Loading…")).toHaveCount(0, { timeout: 60_000 })
       await page.waitForLoadState("networkidle")
       await chart.scrollIntoViewIfNeeded()
     }
+    const press = (target: import("@playwright/test").Locator) =>
+      hasTouch ? target.tap({ force: true }) : target.click({ force: true })
 
     await visit()
     if (!hasTouch) {
-      await mark.hover({ force: true })
-      await expect(chart.locator(".recharts-tooltip-wrapper")).toHaveCSS("visibility", "visible")
-      await mark.click({ force: true })
-      await expect(page).toHaveURL(opened)
-      return
+      await mark.nth(5).hover({ force: true })
+      await expect(chart.locator("[data-hover-card]")).toBeVisible()
     }
-
-    await expect(chart.getByText(/^Tap a (logo|player) to see/)).toBeVisible()
-    await mark.tap({ force: true })
-    const open = chart.getByRole("button", { name: /^View .+ →$/ })
-    await expect(open).toBeVisible()
+    await press(mark.nth(5))
+    await expect(highlighted).toHaveCount(1)
+    await expect(chip).toBeVisible()
     await expect(page).toHaveURL(path)
-    const chartBox = (await chart.getByRole("figure").boundingBox())!
-    expect((await open.boundingBox())!.y, "details sit below the chart").toBeGreaterThanOrEqual(chartBox.y + chartBox.height)
-    await open.tap()
-    await expect(page).toHaveURL(opened)
+    const first = await chip.textContent()
 
-    await visit()
-    await mark.tap({ force: true })
-    await expect(open).toBeVisible()
-    await mark.tap({ force: true })
+    // Another mark takes the highlight over.
+    await press(mark.nth(20))
+    await expect(highlighted).toHaveCount(1)
+    await expect(chip).not.toHaveText(first!)
+    await expect(page).toHaveURL(path)
+
+    // The chip clears it.
+    await chip.click()
+    await expect(highlighted).toHaveCount(0)
+
+    await press(mark.nth(5))
+    if (hasTouch) {
+      const open = chart.getByRole("button", { name: /^View .+ →$/ })
+      await expect(open).toBeVisible()
+      const chartBox = (await chart.getByRole("figure").boundingBox())!
+      expect((await open.boundingBox())!.y, "details sit below the chart").toBeGreaterThanOrEqual(chartBox.y + chartBox.height)
+    }
+    await press(highlighted)
     await expect(page).toHaveURL(opened)
+  })
+}
+
+// With a mouse, the hover card follows the mark whose center is nearest the
+// pointer (within 20px, chartMarks.REACH), not whichever mark's shape is under it: marks overlap,
+// and the one drawn on top is often not the closest.
+const NEAREST_HOVER = [
+  { path: "/", heading: "Team Efficiency" },
+  { path: "/teams", heading: "Compare Teams" },
+  { path: "/players", heading: "Compare Players" },
+  { path: "/teams", heading: "League Comparison" },
+]
+
+for (const { path, heading } of NEAREST_HOVER) {
+  test(`${heading} on ${path} hovers the nearest mark`, async ({ page, hasTouch }) => {
+    test.skip(hasTouch, "a touchscreen has no hover")
+    await page.goto(path)
+    const chart = page.locator("section", { has: page.getByRole("heading", { name: heading }) }).first()
+    await chart.locator("[data-tap-key]").first().waitFor({ timeout: 60_000 })
+    await expect(page.getByText("Loading…")).toHaveCount(0, { timeout: 60_000 })
+    await page.waitForLoadState("networkidle")
+    await chart.scrollIntoViewIfNeeded()
+
+    // A point near a named mark where the browser's own hit test disagrees:
+    // a different mark's shape is under it, or none is.
+    const probe = await chart.evaluate((section) => {
+      const marks = [...section.querySelectorAll("[data-chart-marks] [data-tap-key]")].map((el) => {
+        const box = el.getBoundingClientRect()
+        // The mark's name, from its button label ("Highlight X", "View the X team page", ...).
+        const label = (el.matches("[role=button]") ? el : el.querySelector("[role=button]"))?.getAttribute("aria-label")
+        const name = label?.replace(/^(Highlight|View) (the )?/, "").replace(/('s (player|team) page| team page)$/, "") ?? null
+        return { el, name, x: box.x + box.width / 2, y: box.y + box.height / 2 }
+      })
+      for (const mark of marks) {
+        for (const [dx, dy] of [[14, 0], [-14, 0], [0, 14], [0, -14], [10, 10], [-10, -10], [10, -10], [-10, 10]]) {
+          const x = mark.x + dx
+          const y = mark.y + dy
+          const nearest = marks.reduce((a, b) => (Math.hypot(b.x - x, b.y - y) <= Math.hypot(a.x - x, a.y - y) ? b : a))
+          if (!nearest.name || Math.hypot(nearest.x - x, nearest.y - y) > 20) continue
+          const under = section.ownerDocument.elementFromPoint(x, y)?.closest("[data-tap-key]")
+          if (under !== nearest.el) return { x, y, name: nearest.name }
+        }
+      }
+      return null
+    })
+    expect(probe, "a point where the mark under the pointer isn't the nearest").toBeTruthy()
+
+    await page.mouse.move(probe!.x, probe!.y)
+    await expect(chart.locator("[data-hover-card]")).toContainText(probe!.name)
   })
 }
 
@@ -392,16 +500,21 @@ test("season usage donut slices preview then open a teammate, by click or by tap
   await expect(page).toHaveURL(/\/players\/(?!00-0030279)[^/]+$/)
 })
 
-// League Comparison beeswarms: hover/click a dot with a mouse. On a phone the
-// chart scrolls sideways so its column labels don't collide, and a tap picks
-// the nearest dot (dots are 3.5px, too small to hit exactly with a finger).
+// League Comparison beeswarms: a mouse hovers a dot for its numbers, and a
+// click highlights that player/team in every column (a second click opens
+// their page). On a phone the chart scrolls sideways so its column labels
+// don't collide, and a tap picks the nearest dot (dots are 3.5px, too small to
+// hit exactly with a finger), showing its numbers below the chart.
 const SWARMS = [
   { path: "/players/00-0033873", prompt: "Tap a dot to see that player's numbers.", opened: (id: string) => `/players/${id}` },
   { path: "/teams/KC", prompt: "Tap a dot to see that team's numbers.", opened: (id: string) => `/teams/${id}` },
+  { path: "/players", prompt: "Tap a dot to see that player's numbers.", opened: (id: string) => `/players/${id}` },
+  { path: "/teams", prompt: "Tap a dot to see that team's numbers.", opened: (id: string) => `/teams/${id}` },
 ]
 
 for (const { path, prompt, opened } of SWARMS) {
-  test(`league comparison dots on ${path} preview then open, by hover or by tap`, async ({ page, hasTouch }) => {
+  test(`league comparison dots on ${path} highlight then open, by click or by tap`, async ({ page, hasTouch }) => {
+    // The page's own player/team, on their page; none on the league-wide pages.
     const self = path.split("/")[2]
     const chart = page.locator("section", { has: page.getByRole("heading", { name: "League Comparison" }) })
     // A point 12px right of some other player's/team's dot, where that dot is
@@ -434,7 +547,11 @@ for (const { path, prompt, opened } of SWARMS) {
     if (!hasTouch) {
       const target = (await nearDot(0))!
       await page.mouse.move(target.x, target.y)
-      await expect(chart.locator(".recharts-tooltip-wrapper")).toContainText("Percentile")
+      await expect(chart.locator("[data-hover-card]")).toContainText("Percentile")
+      await page.mouse.click(target.x, target.y)
+      await expect(chart.getByRole("button", { name: /^Stop highlighting / })).toBeVisible()
+      await expect(chart.getByRole("figure")).toHaveAttribute("aria-label", /Highlighted: /)
+      await expect(page).toHaveURL(path)
       await page.mouse.click(target.x, target.y)
       await expect(page).toHaveURL(opened(target.id))
       return
@@ -444,7 +561,7 @@ for (const { path, prompt, opened } of SWARMS) {
     expect(target, "a dot with room to tap beside it").toBeTruthy()
     await expect(chart.getByText(prompt)).toBeVisible()
     // Scrolls sideways, and its column labels don't run into each other.
-    const scroller = chart.locator("[data-swarm-chart]")
+    const scroller = chart.locator("[data-chart-marks]")
     expect(await scroller.evaluate((el) => el.scrollWidth > el.clientWidth), "chart scrolls sideways").toBe(true)
     const overlaps = await chart.locator(".recharts-xAxis-tick-labels text").evaluateAll((labels) =>
       labels.slice(1).filter((label, i) => label.getBoundingClientRect().left < labels[i].getBoundingClientRect().right).length,
@@ -569,4 +686,63 @@ test("back from a tab leaves the team page rather than stepping through tabs", a
 
   await page.goBack()
   await expect(page).toHaveURL("/teams")
+})
+
+
+test("playmaking sits between overview and the depth chart", async ({ page }) => {
+  await page.goto("/teams/KC")
+  const tabs = page.getByRole("group", { name: "Team view" })
+  await expect(tabs.getByRole("button")).toHaveText(["Overview", "Playmaking", "Depth Chart"])
+
+  await tabs.getByRole("button", { name: "Playmaking" }).click()
+  await expect(page).toHaveURL("/teams/KC?tab=playmaking")
+  await expect(page.getByRole("heading", { name: "Game Log" })).toHaveCount(0)
+})
+
+test("playmaking shows share charts with nobody singled out", async ({ page }) => {
+  await page.goto("/teams/KC?tab=playmaking")
+
+  // The team wording - the player page says "<name>'s share of..." instead.
+  await expect(page.getByRole("figure", { name: /^This team's backfield split/ })).toBeVisible()
+  await expect(page.getByRole("figure", { name: /^This team's target split/ })).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Red Zone Touches" })).toBeVisible()
+})
+
+test("team leaders switch stat without leaving the tab", async ({ page }) => {
+  await page.goto("/teams/KC?tab=playmaking")
+  const leaders = page.locator("section", { has: page.getByRole("heading", { name: "Team Leaders" }) })
+  await expect(leaders.getByRole("link")).toHaveCount(5)
+
+  await leaders.getByRole("button", { name: "Tackles" }).click()
+  await expect(leaders.getByRole("button", { name: "Tackles" })).toHaveAttribute("aria-pressed", "true")
+  await expect(leaders.getByRole("link")).toHaveCount(5)
+  await expect(page).toHaveURL("/teams/KC?tab=playmaking")
+})
+
+test("play calling groups its rates and ranks each one", async ({ page }) => {
+  await page.goto("/teams/KC")
+  const panel = page.locator("section", { has: page.getByRole("heading", { name: "Play Calling" }) })
+
+  for (const group of ["Balance", "Formation", "Run Direction", "Tempo", "Conversions"]) {
+    await expect(panel.getByRole("heading", { name: group })).toBeVisible()
+  }
+  // Both sides of a split are listed, so nothing has to be inferred.
+  await expect(panel.getByText("Dropback Rate")).toBeVisible()
+  await expect(panel.getByText("Run Rate", { exact: true })).toBeVisible()
+  // Every rate carries a league rank.
+  await expect(panel.getByText(/^\d+(st|nd|rd|th)$/).first()).toBeVisible()
+})
+
+test("team leaders expands to the whole league", async ({ page }) => {
+  await page.goto("/teams")
+  const panel = page.locator("section", { has: page.getByRole("heading", { name: "Team Leaders" }) })
+  await expect(panel.getByRole("row")).toHaveCount(6, { timeout: 60_000 })
+
+  await panel.getByRole("button", { name: "Show all teams" }).click()
+  const modal = page.getByRole("dialog")
+  // 32 teams plus the header row.
+  await expect(modal.getByRole("row")).toHaveCount(33)
+
+  // The two sack columns are told apart: taken on offense, recorded on defense.
+  await expect(modal.getByRole("columnheader", { name: /SCK TKN/ })).toBeVisible()
 })
