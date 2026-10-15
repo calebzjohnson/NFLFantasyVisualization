@@ -1,8 +1,10 @@
 // TeamEfficiencyScatter.tsx
 // Offense vs defense EPA-per-play scatter: one team logo per point, with
-// league-average lines and quadrant labels. Clicking a logo opens that team's page. Built on the Evil Charts chart and
-// tooltip base. On a touchscreen a details box below the chart replaces the
-// tooltip: a tap selects a logo, a second tap (or the box's button) opens its page.
+// league-average lines and quadrant labels. Clicking a logo opens that team's page. Built on the Evil Charts chart
+// base. A mouse's hover and clicks go to the nearest logo within reach (see
+// chartMarks), not whichever is drawn on top. On a touchscreen a details box
+// below the chart replaces the tooltip: a tap selects a logo, a second tap (or
+// the box's button) opens its page.
 import { useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import {
@@ -23,16 +25,16 @@ import {
   type TeamPoint,
 } from "../data/efficiency"
 import { teamPath, type TeamInfo } from "../data/teams"
+import { markUnder, nearestMarkAt, useHoveredMark } from "../lib/chartMarks"
 import { useFetch } from "../lib/useFetch"
 import { TOUCH_QUERY, useMediaQuery } from "../lib/useMediaQuery"
 import { useTapToOpen } from "../lib/useTapToOpen"
 import { ChartContainer, type ChartConfig } from "./evilcharts/ui/recharts-chart"
-import { ChartTooltip, ChartTooltipContent } from "./evilcharts/ui/recharts-tooltip"
 import ChartDataTable from "./ChartDataTable"
 import ExpandButton from "./ExpandButton"
 import Modal from "./Modal"
 import Panel from "./Panel"
-import { OpenButton, TapDetails } from "./TapDetails"
+import { HoverCard, OpenButton, TapDetails } from "./TapDetails"
 import { TeamLogoBadge, TeamLogoMarker } from "./TeamLogo"
 
 const chartConfig = {
@@ -99,14 +101,18 @@ function EfficiencyChart({ points }: { points: TeamPoint[] }) {
   const touchScreen = useMediaQuery(TOUCH_QUERY)
   const tap = useTapToOpen<string>((team) => navigate(teamPath(team)))
   const selected = points.find((point) => point.team === tap.selected)
+  const hover = useHoveredMark()
+  const hovered = hover.hovered && points.find((point) => point.team === hover.hovered!.key)
 
   return (
     <div className="flex min-h-0 flex-1 flex-col p-3">
-      {/* A tap on empty chart space (not a logo) clears the selection. */}
+      {/* Clicks resolve here, to the nearest logo for a mouse (a finger gets
+          the logo it lands on); a tap on empty chart space clears the selection. */}
       <div
-        className="flex min-h-0 flex-1 flex-col"
-        onPointerDown={tap.onPointerDown}
-        onClick={(event) => !(event.target as Element).closest(".recharts-scatter-symbol") && tap.tap(null)}
+        data-chart-marks
+        className={`relative flex min-h-0 flex-1 flex-col ${hover.hovered ? "cursor-pointer" : ""}`}
+        {...tap.pressHandlers((x, y, pointerType) => (pointerType === "mouse" ? nearestMarkAt(x, y) : markUnder(x, y)))}
+        {...hover.hoverHandlers}
       >
         {/* Fills the panel on desktop. On a touchscreen the details box below
             would squeeze a fill-the-panel chart (it was only ~140px tall on a
@@ -193,34 +199,29 @@ function EfficiencyChart({ points }: { points: TeamPoint[] }) {
             />
             <ReferenceLine x={average.offense} stroke="var(--text-muted)" strokeOpacity={0.5} />
             <ReferenceLine y={average.defense} stroke="var(--text-muted)" strokeOpacity={0.5} />
-            {/* On a touchscreen, the details box below stands in for the tooltip. */}
-            {!touchScreen && (
-              <ChartTooltip
-                cursor={false}
-                content={
-                  <ChartTooltipContent
-                    variant="frosted-glass"
-                    hideIndicator
-                    labelFormatter={(_, items) => (
-                      <TooltipHeader point={items[0]?.payload as TeamPoint | undefined} />
-                    )}
-                    formatter={(value, name) => <TooltipRow name={String(name)} value={Number(value)} />}
-                  />
-                }
-              />
-            )}
             <Scatter
               data={points}
               shape={(props: { cx?: number; cy?: number; payload?: TeamPoint }) => (
-                <TeamLogoMarker
-                  {...props}
-                  selected={props.payload?.team === tap.selected}
-                  onSelect={() => props.payload && tap.tap(props.payload.team)}
-                />
+                // data-tap-key marks what chartMarks measures.
+                <g data-tap-key={props.payload?.team}>
+                  <TeamLogoMarker
+                    {...props}
+                    selected={props.payload?.team === tap.selected}
+                    hovered={props.payload?.team === hover.hovered?.key}
+                    onSelect={() => props.payload && tap.tap(props.payload.team)}
+                  />
+                </g>
               )}
             />
           </ScatterChart>
         </ChartContainer>
+        {!touchScreen && hover.hovered && hovered && (
+          <HoverCard mark={hover.hovered}>
+            <TooltipHeader point={hovered} />
+            <TooltipRow name="Offense EPA/play" value={hovered.offense} />
+            <TooltipRow name="Defense EPA/play allowed" value={hovered.defense} />
+          </HoverCard>
+        )}
       </div>
       {touchScreen && (
         // The filled box's height (135px), so the first tap doesn't shift what's below.

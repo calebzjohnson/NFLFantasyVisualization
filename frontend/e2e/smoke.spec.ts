@@ -214,7 +214,7 @@ test("Team Efficiency marks preview then open, by hover or by tap", async ({ pag
   await visit()
   if (!hasTouch) {
     await mark.hover({ force: true })
-    await expect(chart.locator(".recharts-tooltip-wrapper")).toHaveCSS("visibility", "visible")
+    await expect(chart.locator("[data-hover-card]")).toBeVisible()
     await mark.click({ force: true })
     await expect(page).toHaveURL(opened)
     return
@@ -267,7 +267,7 @@ for (const { path, heading, opened } of COMPARE_SCATTERS) {
     await visit()
     if (!hasTouch) {
       await mark.nth(5).hover({ force: true })
-      await expect(chart.locator(".recharts-tooltip-wrapper")).toHaveCSS("visibility", "visible")
+      await expect(chart.locator("[data-hover-card]")).toBeVisible()
     }
     await press(mark.nth(5))
     await expect(highlighted).toHaveCount(1)
@@ -294,6 +294,55 @@ for (const { path, heading, opened } of COMPARE_SCATTERS) {
     }
     await press(highlighted)
     await expect(page).toHaveURL(opened)
+  })
+}
+
+// With a mouse, the hover card follows the mark whose center is nearest the
+// pointer (within 20px, chartMarks.REACH), not whichever mark's shape is under it: marks overlap,
+// and the one drawn on top is often not the closest.
+const NEAREST_HOVER = [
+  { path: "/", heading: "Team Efficiency" },
+  { path: "/teams", heading: "Compare Teams" },
+  { path: "/players", heading: "Compare Players" },
+  { path: "/teams", heading: "League Comparison" },
+]
+
+for (const { path, heading } of NEAREST_HOVER) {
+  test(`${heading} on ${path} hovers the nearest mark`, async ({ page, hasTouch }) => {
+    test.skip(hasTouch, "a touchscreen has no hover")
+    await page.goto(path)
+    const chart = page.locator("section", { has: page.getByRole("heading", { name: heading }) }).first()
+    await chart.locator("[data-tap-key]").first().waitFor({ timeout: 60_000 })
+    await expect(page.getByText("Loading…")).toHaveCount(0, { timeout: 60_000 })
+    await page.waitForLoadState("networkidle")
+    await chart.scrollIntoViewIfNeeded()
+
+    // A point near a named mark where the browser's own hit test disagrees:
+    // a different mark's shape is under it, or none is.
+    const probe = await chart.evaluate((section) => {
+      const marks = [...section.querySelectorAll("[data-chart-marks] [data-tap-key]")].map((el) => {
+        const box = el.getBoundingClientRect()
+        // The mark's name, from its button label ("Highlight X", "View the X team page", ...).
+        const label = (el.matches("[role=button]") ? el : el.querySelector("[role=button]"))?.getAttribute("aria-label")
+        const name = label?.replace(/^(Highlight|View) (the )?/, "").replace(/('s (player|team) page| team page)$/, "") ?? null
+        return { el, name, x: box.x + box.width / 2, y: box.y + box.height / 2 }
+      })
+      for (const mark of marks) {
+        for (const [dx, dy] of [[14, 0], [-14, 0], [0, 14], [0, -14], [10, 10], [-10, -10], [10, -10], [-10, 10]]) {
+          const x = mark.x + dx
+          const y = mark.y + dy
+          const nearest = marks.reduce((a, b) => (Math.hypot(b.x - x, b.y - y) <= Math.hypot(a.x - x, a.y - y) ? b : a))
+          if (!nearest.name || Math.hypot(nearest.x - x, nearest.y - y) > 20) continue
+          const under = section.ownerDocument.elementFromPoint(x, y)?.closest("[data-tap-key]")
+          if (under !== nearest.el) return { x, y, name: nearest.name }
+        }
+      }
+      return null
+    })
+    expect(probe, "a point where the mark under the pointer isn't the nearest").toBeTruthy()
+
+    await page.mouse.move(probe!.x, probe!.y)
+    await expect(chart.locator("[data-hover-card]")).toContainText(probe!.name)
   })
 }
 
@@ -498,7 +547,7 @@ for (const { path, prompt, opened } of SWARMS) {
     if (!hasTouch) {
       const target = (await nearDot(0))!
       await page.mouse.move(target.x, target.y)
-      await expect(chart.locator(".recharts-tooltip-wrapper")).toContainText("Percentile")
+      await expect(chart.locator("[data-hover-card]")).toContainText("Percentile")
       await page.mouse.click(target.x, target.y)
       await expect(chart.getByRole("button", { name: /^Stop highlighting / })).toBeVisible()
       await expect(chart.getByRole("figure")).toHaveAttribute("aria-label", /Highlighted: /)
@@ -512,7 +561,7 @@ for (const { path, prompt, opened } of SWARMS) {
     expect(target, "a dot with room to tap beside it").toBeTruthy()
     await expect(chart.getByText(prompt)).toBeVisible()
     // Scrolls sideways, and its column labels don't run into each other.
-    const scroller = chart.locator("[data-swarm-chart]")
+    const scroller = chart.locator("[data-chart-marks]")
     expect(await scroller.evaluate((el) => el.scrollWidth > el.clientWidth), "chart scrolls sideways").toBe(true)
     const overlaps = await chart.locator(".recharts-xAxis-tick-labels text").evaluateAll((labels) =>
       labels.slice(1).filter((label, i) => label.getBoundingClientRect().left < labels[i].getBoundingClientRect().right).length,

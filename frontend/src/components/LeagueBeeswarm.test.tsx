@@ -1,11 +1,11 @@
 // LeagueBeeswarm.test.tsx
-// Tests the league beeswarm's tooltip, pool requests, prompts, focus and volume states, and its highlight search, for players and teams.
+// Tests the league beeswarm's dot details (hover card and tap box), pool requests, prompts, focus and volume states, and its highlight search, for players and teams.
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { fetchJson } from "../lib/api"
 import { teamInfo } from "../test/fixtures"
 import { mockApi, renderWithRouter } from "../test/render"
-import LeagueBeeswarm, { SwarmTooltip, type SwarmPoint } from "./LeagueBeeswarm"
+import LeagueBeeswarm, { SwarmRows, type SwarmPoint } from "./LeagueBeeswarm"
 
 vi.mock("../lib/api", () => ({ fetchJson: vi.fn() }))
 
@@ -18,9 +18,9 @@ function point(value: number | null): SwarmPoint {
   return { row, axisIndex: 0, axisLabel: "EPA/Dropback", value, x: 0, y: 82.4 }
 }
 
-describe("SwarmTooltip", () => {
+describe("SwarmRows", () => {
   it("shows the name, team, stat value, and percentile", () => {
-    render(<SwarmTooltip active payload={[{ payload: point(0.21) }]} showTeam />)
+    render(<SwarmRows point={point(0.21)} showTeam />)
     expect(screen.getByText("Jane Doe")).toBeInTheDocument()
     expect(screen.getByText("· KC")).toBeInTheDocument()
     expect(screen.getByText("EPA/Dropback")).toBeInTheDocument()
@@ -29,7 +29,7 @@ describe("SwarmTooltip", () => {
   })
 
   it("leaves the team off for a team's own dot, and dashes a missing value", () => {
-    render(<SwarmTooltip active payload={[{ payload: point(null) }]} showTeam={false} />)
+    render(<SwarmRows point={point(null)} showTeam={false} />)
     expect(screen.queryByText("· KC")).not.toBeInTheDocument()
     expect(screen.getByText("—")).toBeInTheDocument()
   })

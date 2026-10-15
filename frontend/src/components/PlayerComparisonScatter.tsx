@@ -27,8 +27,8 @@ const MARKER_PHOTO_PX = 128
 
 // A team-colored dot showing the player's headshot (or initials, with no
 // photo), with a surface-color ring so it stays legible where points overlap.
-// The transparent hit circle keeps the hover/focus target >=24px even though
-// the visible mark is smaller.
+// The chart resolves clicks and hover to the nearest mark (see chartMarks)
+// and passes `hovered`; a finger still hits the transparent 32px circle.
 // Memoized so hovering one marker doesn't force the other ~170 to re-render.
 const PlayerDot = memo(function PlayerDot({
   cx,
@@ -36,6 +36,7 @@ const PlayerDot = memo(function PlayerDot({
   payload,
   onSelect,
   selected = false,
+  hovered = false,
 }: {
   cx?: number
   cy?: number
@@ -45,17 +46,17 @@ const PlayerDot = memo(function PlayerDot({
   // bigger mark would cover neighbors and catch taps meant for them).
   // Activating it then opens the player page.
   selected?: boolean
+  hovered?: boolean
 }) {
   if (cx === undefined || cy === undefined || !payload) return null
 
   return (
     <g
-      onClick={onSelect}
       role="button"
       tabIndex={0}
       onKeyDown={onSelect && activateOnKey(onSelect)}
       aria-label={selected ? `View ${payload.player_display_name}'s player page` : `Highlight ${payload.player_display_name}`}
-      className="origin-center cursor-pointer transition-transform duration-150 [transform-box:fill-box] hover:scale-125"
+      className={`origin-center cursor-pointer transition-transform duration-150 [transform-box:fill-box] ${hovered ? "scale-125" : ""}`}
     >
       <circle cx={cx} cy={cy} r={16} fill="transparent" />
       <circle
