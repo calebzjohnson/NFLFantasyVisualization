@@ -298,7 +298,7 @@ for (const { path, heading, opened } of COMPARE_SCATTERS) {
 }
 
 // With a mouse, the hover card follows the mark whose center is nearest the
-// pointer (within 24px), not whichever mark's shape is under it: marks overlap,
+// pointer (within 20px, chartMarks.REACH), not whichever mark's shape is under it: marks overlap,
 // and the one drawn on top is often not the closest.
 const NEAREST_HOVER = [
   { path: "/", heading: "Team Efficiency" },
