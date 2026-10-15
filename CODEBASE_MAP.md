@@ -155,6 +155,7 @@ Tailwind 4 via `@tailwindcss/vite`. Theme tokens (`--surface-*`, `--text-*`, `--
 - **Partial weeks:** nflverse loads a week one game day at a time. Use `schedules.last_complete_week` when "the latest week" has to be complete.
 - **Memoized results are shared objects.** Never mutate what a `@memoized` function returns.
 - **Running Python:** use `uv run`. The code uses 3.12 syntax (`def f[**P, R]`), so the system `python3` (3.9) can't even parse it.
+- **iOS zooms into focused fields under 16px.** `index.css` sets inputs/selects to 16px on touchscreens (`hover: none`); never fix it with `maximum-scale` in the viewport meta.
 - **Charts:** reference lines use median and raw units, not mean and standard deviation. Touch follows the `useTapToOpen` + `TapDetails` pattern: no tooltip covering the chart on phones. The Compare scatters and `LeagueBeeswarm` instead make the first click highlight and the second open, for mouse and touch alike, with `HighlightPicker` as the search. On those charts and Team Efficiency, recharts' own tooltip is replaced: it can only follow the shape under the pointer, so `chartMarks` resolves hover and clicks to the nearest mark (`data-tap-key` inside `data-chart-marks`) and `HoverCard` shows it.
 - **Shortcuts are marked with `ponytail:` comments,** each naming its limit and the upgrade path.
 

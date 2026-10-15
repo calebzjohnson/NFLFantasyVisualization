@@ -406,7 +406,7 @@ function LeagueBeeswarm(props: LeagueBeeswarmProps) {
               )}
             </TapDetails>
           )}
-          <p className="px-3 pb-1 text-xs text-[var(--text-muted)]">
+          <p className="px-3 pt-2 pb-1 text-xs text-[var(--text-muted)]">
             {players ? "Every qualifying player at the position" : "Every team in the league"} this season, positioned
             by percentile rank on each axis. {touchScreen ? "Tap" : "Click"} a dot to highlight that {noun} in every
             column, then again to open {players ? "their" : "its"} page.

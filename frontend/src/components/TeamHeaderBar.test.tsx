@@ -29,4 +29,9 @@ describe("TeamHeaderBar", () => {
     expect(screen.getByRole("heading", { name: "Buffalo Bills" })).toBeInTheDocument()
     expect(screen.queryByText("Record")).not.toBeInTheDocument()
   })
+
+  it("stretches the facts list to the card's width once it wraps below the name on smaller screens", () => {
+    render(<TeamHeaderBar team={team} standing={{ record: teamRecord("BUF"), division: "AFC East", place: 1 }} />)
+    expect(screen.getByText("Record").closest("dl")).toHaveClass("max-md:w-full")
+  })
 })

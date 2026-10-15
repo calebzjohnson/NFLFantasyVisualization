@@ -39,7 +39,7 @@ function TeamHeaderBar({ team, standing }: { team: TeamInfo; standing: ReturnTyp
         </div>
 
         {standing && (
-          <dl className="min-w-[240px] divide-y divide-[var(--border)]">
+          <dl className="min-w-[240px] divide-y divide-[var(--border)] max-md:w-full">
             <Fact label="Record" value={formatRecord(standing.record)} />
             <Fact label="Points For" value={String(standing.record.points_for)} />
             <Fact label="Points Against" value={String(standing.record.points_against)} />

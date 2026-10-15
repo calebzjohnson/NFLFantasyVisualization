@@ -39,6 +39,23 @@ describe("DetailedLeaderTable", () => {
     expect(screen.getAllByRole("row")).toHaveLength(3)
   })
 
+  it("pins the rank and name columns so they stay visible while the stats scroll sideways", () => {
+    renderTable()
+    const [header, first] = screen.getAllByRole("row")
+
+    for (const row of [header, first]) {
+      const [rank, name, stat] = within(row).getAllByRole(row === header ? "columnheader" : "cell")
+      expect(rank).toHaveClass("sticky", "left-0")
+      expect(name).toHaveClass("sticky", "left-[calc(3rem-1px)]")
+      expect(stat).not.toHaveClass("sticky")
+    }
+  })
+
+  it("sizes the phone rank column to the widest rank", () => {
+    renderTable()
+    expect(screen.getByRole("table")).toHaveStyle({ "--rank-w": "33px" })
+  })
+
   it("marks the active sort column and reports header clicks", () => {
     const onSort = renderTable()
 

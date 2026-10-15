@@ -16,10 +16,11 @@ interface PlayerAvatarProps {
 function PlayerAvatar({ name, headshot, color, size, imageSize }: PlayerAvatarProps) {
   if (headshot) {
     return (
+      // max-w-none: preflight caps img at 100% width, which squashes the circle into an oval in a shrinking flex row.
       <img
         src={headshotUrl(headshot, imageSize)}
         alt=""
-        className={`${size} shrink-0 rounded-full object-cover`}
+        className={`${size} max-w-none shrink-0 rounded-full object-cover`}
         style={{ backgroundColor: color }}
       />
     )

@@ -60,13 +60,14 @@ describe("LeagueBeeswarm", () => {
     await waitFor(() => expect(fetchJson).toHaveBeenCalledWith("/players/radar-pool?position=W%2FR%3Fx%3D1%23y"))
   })
 
+  // pt-2 matches MetricScatter's caption, so both sit the same distance below the tap box.
   it("on a touchscreen phone, prompts a tap and says to swipe for every stat", async () => {
     vi.stubGlobal("matchMedia", () => ({ matches: true, addEventListener: () => {}, removeEventListener: () => {} }))
     mockApi(playerPool("QB"))
     renderWithRouter(<LeagueBeeswarm kind="players" position="QB" />)
     expect(await screen.findByText("Tap a dot to see that player's numbers.")).toBeInTheDocument()
     expect(screen.getByText(/Tap a dot to highlight that player in every column/)).toBeInTheDocument()
-    expect(screen.getByText(/Swipe the chart sideways to see all 1 stats\./)).toBeInTheDocument()
+    expect(screen.getByText(/Swipe the chart sideways to see all 1 stats\./)).toHaveClass("pt-2")
   })
 
   it("with a mouse on a wide screen, says to click instead", async () => {
