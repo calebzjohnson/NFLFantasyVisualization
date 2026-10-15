@@ -61,7 +61,7 @@ function PlayerBioBar({ bio, team }: PlayerBioBarProps) {
           </div>
         </div>
 
-        <dl className="min-w-[240px] divide-y divide-[var(--border)]">
+        <dl className="min-w-[240px] divide-y divide-[var(--border)] max-md:w-full">
           <Fact label="HT/WT" value={formatHeightWeight(bio)} />
           <Fact label="Birthdate" value={birthdate} />
           <Fact label="College" value={bio.college} />
