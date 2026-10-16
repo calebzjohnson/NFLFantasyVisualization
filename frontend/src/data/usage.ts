@@ -38,8 +38,8 @@ export const OTHER_KEY = "__other__"
 // A validated categorical palette (see the dataviz skill's palette.md) -
 // fixed hue order, cycled for pools deeper than 8 players (a tackle-share
 // pool can run 30+). The focus player uses their own team color instead, so
-// this only needs to cover teammates.
-const CATEGORICAL_PALETTE = [
+// this only needs to cover teammates. The Create page colors its picks with it too.
+export const CATEGORICAL_PALETTE = [
   "#2a78d6", // blue
   "#eb6834", // orange
   "#1baf7a", // aqua

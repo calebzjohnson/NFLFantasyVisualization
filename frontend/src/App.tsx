@@ -4,6 +4,7 @@ import type * as React from "react"
 import { Route, Routes } from "react-router-dom"
 import Navbar from "./components/Navbar"
 import AboutPage from "./pages/AboutPage"
+import CreatePage from "./pages/CreatePage"
 import HomePage from "./pages/HomePage"
 import PlayerPage from "./pages/PlayerPage"
 import PlayersPage from "./pages/PlayersPage"
@@ -35,6 +36,7 @@ function App() {
           <Route path="/teams/:teamAbbr" element={<TeamPage />} />
           <Route path="/players" element={<PlayersPage />} />
           <Route path="/players/:playerId" element={<PlayerPage />} />
+          <Route path="/create" element={<CreatePage />} />
           <Route path="/about" element={<AboutPage />} />
         </Routes>
       </main>

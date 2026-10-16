@@ -89,6 +89,31 @@ describe("MetricScatter", () => {
 
   })
 
+  it("leaves out rows under a per-play stat's minimum, and says so", () => {
+    const sample = { noun: "carries", min: 10, count: (row: Record<string, unknown>) => Number(row.carries) }
+    const metrics = [
+      { key: "carries", label: "Carries", value: (row: Record<string, unknown>) => Number(row.carries) },
+      { key: "ypc", label: "Yards / Carry", minSample: sample, value: (row: Record<string, unknown>) => Number(row.ypc) },
+    ]
+    const rows = [
+      { name: "Starter", carries: 120, ypc: 4.5 },
+      { name: "Backup", carries: 3, ypc: 11 },
+    ]
+    const { rerender } = render(scatter({ metrics, rows, rowName: (row) => String(row.name), rowId: (row) => String(row.name) }))
+
+    const table = screen.getByRole("table")
+    expect(table).toHaveTextContent("Starter")
+    expect(table).not.toHaveTextContent("Backup")
+    expect(
+      screen.getByText("Things with fewer than 10 carries aren't shown, since Yards / Carry swings a lot on a handful of plays."),
+    ).toBeInTheDocument()
+
+    // With nobody over the minimum, the note explains the empty chart.
+    rerender(scatter({ metrics, rows: [rows[1]], rowName: (row) => String(row.name), rowId: (row) => String(row.name) }))
+    expect(screen.queryByText("Nothing yet.")).not.toBeInTheDocument()
+    expect(screen.getByText(/^Things with fewer than 10 carries aren't shown/)).toBeInTheDocument()
+  })
+
   it("hides the highlight search until there are rows", () => {
     render(scatter({ loading: true }))
     expect(screen.queryByLabelText("Highlight")).not.toBeInTheDocument()

@@ -6,13 +6,11 @@
 // opens one, Escape closes the list.
 import { type KeyboardEvent, type ReactNode, useId, useRef, useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
-import { searchResults, type SearchPlayer, type SearchScope } from "../data/search"
+import { SEARCH_PLAYERS_PATH, searchResults, type SearchPlayer, type SearchScope } from "../data/search"
 import { teamPath, type TeamInfo } from "../data/teams"
 import { teamLogoUrl } from "../lib/imageUrls"
 import { useFetch } from "../lib/useFetch"
 import { TeamLogoBadge } from "./TeamLogo"
-
-const PLAYERS_PATH = "/players?fields=player_id,player_display_name,recent_team,position"
 
 const NO_RESULTS: Record<SearchScope, string> = {
   players: "No players found",
@@ -42,7 +40,7 @@ interface SearchBarProps {
 
 function SearchBar({ placeholder, label = placeholder, scope, wideDropdown = false }: SearchBarProps) {
   const navigate = useNavigate()
-  const players = useFetch<SearchPlayer[]>(scope === "teams" ? null : PLAYERS_PATH)
+  const players = useFetch<SearchPlayer[]>(scope === "teams" ? null : SEARCH_PLAYERS_PATH)
   const teams = useFetch<TeamInfo[]>(scope === "players" ? null : "/teams")
   const [query, setQuery] = useState("")
   const [open, setOpen] = useState(false)

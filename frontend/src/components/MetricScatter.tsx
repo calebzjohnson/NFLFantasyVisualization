@@ -9,7 +9,7 @@
 // On a touchscreen the tooltip is replaced by a details box below the chart.
 import { type ReactElement, type ReactNode, useMemo, useState } from "react"
 import { CartesianGrid, ReferenceLine, Scatter, ScatterChart, XAxis, YAxis } from "recharts"
-import { metricMedian, type PlayerMetric, type StatFields } from "../data/playerMetrics"
+import { formatValue, meetsMinimum, metricMedian, roundTo, type MetricFormat, type PlayerMetric, type StatFields } from "../data/playerMetrics"
 import { markUnder, nearestMarkAt, useHoveredMark } from "../lib/chartMarks"
 import { TOUCH_QUERY, useMediaQuery } from "../lib/useMediaQuery"
 import { useTapToOpen } from "../lib/useTapToOpen"
@@ -155,17 +155,12 @@ function ClusterTooltipHeader<Row>({
   )
 }
 
-function formatValue(value: number, unit?: string): string {
-  const rounded = Number.isInteger(value) ? value : Math.round(value * 10) / 10
-  return `${rounded.toLocaleString()}${unit ?? ""}`
-}
-
 // "+120" / "−45" / "0" - for the tooltip's "how far from the median" note, in
 // the metric's own unit rather than a statistical score.
-function formatOffset(value: number, unit?: string): string {
-  const rounded = Number.isInteger(value) ? value : Math.round(value * 10) / 10
-  if (rounded === 0) return `0${unit ?? ""}`
-  return `${rounded > 0 ? "+" : "−"}${Math.abs(rounded).toLocaleString()}${unit ?? ""}`
+function formatOffset(value: number, format: MetricFormat): string {
+  const rounded = roundTo(value, format.decimals)
+  if (rounded === 0) return `0${format.unit ?? ""}`
+  return `${rounded > 0 ? "+" : "−"}${Math.abs(rounded).toLocaleString()}${format.unit ?? ""}`
 }
 
 // Pad the domain so no marker sits flush against the plot edge. Percentage
@@ -183,21 +178,21 @@ function valueDomain(values: number[]): [number, number] {
 function TooltipRow({
   name,
   value,
-  unit,
+  format,
   offset,
 }: {
   name: string
   value: number
-  unit?: string
+  format: MetricFormat
   offset: number
 }) {
   return (
     <div className="flex w-full items-baseline justify-between gap-4">
       <span className="text-[var(--text-secondary)]">{name}</span>
       <span className="font-mono font-medium tabular-nums text-[var(--text-primary)]">
-        {formatValue(value, unit)}{" "}
+        {formatValue(value, format)}{" "}
         <span className="text-[10px] text-[var(--text-muted)]">
-          ({formatOffset(offset, unit)} vs. median)
+          ({formatOffset(offset, format)} vs. median)
         </span>
       </span>
     </div>
@@ -261,13 +256,31 @@ function MetricScatter<Row extends StatFields>({
 }: MetricScatterProps<Row>) {
   const [xKey, setXKey] = useState(initialX)
   const [yKey, setYKey] = useState(initialY)
+  const xMetric = metrics.find((metric) => metric.key === xKey) ?? metrics[0]
+  const yMetric = metrics.find((metric) => metric.key === yKey) ?? metrics[0]
+  // Rows with enough plays for both picked stats (see MinSample): a handful
+  // of plays would stretch an axis and squash everyone else into a corner.
+  // Everything below - medians, marks, search, table - uses only these.
+  const shown = useMemo(
+    () => rows?.filter((row) => meetsMinimum(row, xMetric) && meetsMinimum(row, yMetric)) ?? null,
+    [rows, xMetric, yMetric],
+  )
+  // e.g. "Players with fewer than 25 dropbacks aren't shown, since Completion % and EPA / Dropback swing a lot on a handful of plays."
+  const minimumNotes = [...new Set([xMetric.minSample, yMetric.minSample])].flatMap((sample) => {
+    if (!sample) return []
+    const labels = [...new Set([xMetric, yMetric].filter((m) => m.minSample === sample).map((m) => m.label))]
+    return [
+      `${noun[0].toUpperCase()}${noun.slice(1)} with fewer than ${sample.min} ${sample.noun} aren't shown, since ${labels.join(" and ")} ${labels.length > 1 ? "swing" : "swings"} a lot on a handful of plays.`,
+    ]
+  })
+
   // First click or tap highlights a mark; a second one on it opens its page.
   // `selected` is the highlighted row's id, or a tie cluster's key
   // (touchscreens list its members below the chart).
   const tap = useTapToOpen<string>(
     (key) => {
       // A solo mark's key is its row id; a cluster's matches no row, so it never opens.
-      const row = rows?.find((r) => rowId(r) === key)
+      const row = shown?.find((r) => rowId(r) === key)
       if (row) onOpen?.(row)
     },
     { selectFirst: true },
@@ -275,18 +288,15 @@ function MetricScatter<Row extends StatFields>({
   const selected = tap.selected
   const hover = useHoveredMark()
 
-  const xMetric = metrics.find((metric) => metric.key === xKey) ?? metrics[0]
-  const yMetric = metrics.find((metric) => metric.key === yKey) ?? metrics[0]
-
   // The quadrant lines sit at the median, but each axis plots the real stat -
   // ticks, dot positions, and the tooltip's headline number are all in the
   // metric's own unit; only the tooltip's small "vs. median" note is an offset.
-  const xMedian = useMemo(() => (rows ? metricMedian(rows, xMetric) : 0), [rows, xMetric])
-  const yMedian = useMemo(() => (rows ? metricMedian(rows, yMetric) : 0), [rows, yMetric])
+  const xMedian = useMemo(() => (shown ? metricMedian(shown, xMetric) : 0), [shown, xMetric])
+  const yMedian = useMemo(() => (shown ? metricMedian(shown, yMetric) : 0), [shown, yMetric])
 
   const points = useMemo(
-    () => rows?.map((row) => ({ ...row, x: xMetric.value(row), y: yMetric.value(row) })) ?? null,
-    [rows, xMetric, yMetric],
+    () => shown?.map((row) => ({ ...row, x: xMetric.value(row), y: yMetric.value(row) })) ?? null,
+    [shown, xMetric, yMetric],
   )
 
   // Re-grouped whenever the chosen axes change, since which rows coincide
@@ -295,7 +305,7 @@ function MetricScatter<Row extends StatFields>({
   // below redraws every mark on each render regardless.
   const plotPoints = points ? withHighlightedOnTop(points, selected, rowId) : null
   // Undefined when nothing's selected, a cluster is, or the row is gone (e.g. after a refetch).
-  const highlightedRow = rows?.find((row) => rowId(row) === selected)
+  const highlightedRow = shown?.find((row) => rowId(row) === selected)
 
   const xDomain = useMemo(() => valueDomain(points?.map((p) => p.x) ?? []), [points])
   const yDomain = useMemo(() => valueDomain(points?.map((p) => p.y) ?? []), [points])
@@ -318,8 +328,8 @@ function MetricScatter<Row extends StatFields>({
         ) : (
           renderTooltipHeader(point.row)
         )}
-        <TooltipRow name={xMetric.label} value={point.x} unit={xMetric.unit} offset={point.x - xMedian} />
-        <TooltipRow name={yMetric.label} value={point.y} unit={yMetric.unit} offset={point.y - yMedian} />
+        <TooltipRow name={xMetric.label} value={point.x} format={xMetric} offset={point.x - xMedian} />
+        <TooltipRow name={yMetric.label} value={point.y} format={yMetric} offset={point.y - yMedian} />
       </>
     )
   }
@@ -339,10 +349,10 @@ function MetricScatter<Row extends StatFields>({
           options={metrics.map((metric) => metric.label)}
           onChange={(label) => setYKey(optionByLabel.get(label)?.key ?? metrics[0].key)}
         />
-        {rows && rows.length > 0 && (
+        {shown && shown.length > 0 && (
           <HighlightPicker
             noun={noun}
-            options={rows.map((row) => ({ id: rowId(row), label: searchLabel(row) }))}
+            options={shown.map((row) => ({ id: rowId(row), label: searchLabel(row) }))}
             picked={highlightedRow ? { id: rowId(highlightedRow), label: searchLabel(highlightedRow) } : null}
             onPick={tap.select}
             onClear={() => tap.select(null)}
@@ -355,7 +365,12 @@ function MetricScatter<Row extends StatFields>({
           Couldn't load {noun}: {error}
         </p>
       )}
-      {points && points.length === 0 && <p className="p-4 text-sm text-[var(--text-secondary)]">{emptyText}</p>}
+      {points && points.length === 0 && (
+        <p className="p-4 text-sm text-[var(--text-secondary)]">
+          {/* Rows exist, but none has enough plays yet for the picked stats. */}
+          {rows && rows.length > 0 ? minimumNotes.join(" ") : emptyText}
+        </p>
+      )}
       {points && points.length > 0 && (
         <div className="p-3">
           {/* Clicks resolve here, to the nearest mark for a mouse (a finger
@@ -381,7 +396,7 @@ function MetricScatter<Row extends StatFields>({
                   dataKey="x"
                   name={xMetric.label}
                   domain={xDomain}
-                  tickFormatter={(value) => formatValue(Number(value), xMetric.unit)}
+                  tickFormatter={(value) => formatValue(Number(value), xMetric)}
                   tickLine={false}
                   axisLine={{ stroke: "var(--border)" }}
                   label={{
@@ -398,7 +413,7 @@ function MetricScatter<Row extends StatFields>({
                   dataKey="y"
                   name={yMetric.label}
                   domain={yDomain}
-                  tickFormatter={(value) => formatValue(Number(value), yMetric.unit)}
+                  tickFormatter={(value) => formatValue(Number(value), yMetric)}
                   tickLine={false}
                   axisLine={{ stroke: "var(--border)" }}
                   width={54}
@@ -478,13 +493,18 @@ function MetricScatter<Row extends StatFields>({
             </TapDetails>
           )}
           <p className="pt-2 text-xs text-[var(--text-muted)]">{caption}</p>
+          {minimumNotes.map((note) => (
+            <p key={note} className="pt-1 text-xs text-[var(--text-muted)]">
+              {note}
+            </p>
+          ))}
           <ChartDataTable
             caption={`${xMetric.label} and ${yMetric.label} for each of the ${noun}`}
             columns={["Name", xMetric.label, yMetric.label]}
             rows={points.map((point) => [
               rowName(point),
-              formatValue(point.x, xMetric.unit),
-              formatValue(point.y, yMetric.unit),
+              formatValue(point.x, xMetric),
+              formatValue(point.y, yMetric),
             ])}
           />
         </div>

@@ -49,6 +49,13 @@ const PAGES = [
   { name: "players", path: "/players", title: "Players · Plot the Pigskin" },
   { name: "player", path: "/players/00-0033873", title: "Patrick Mahomes · Plot the Pigskin" },
   { name: "about", path: "/about", title: "About · Plot the Pigskin" },
+  { name: "create", path: "/create", title: "Create · Plot the Pigskin" },
+  {
+    name: "create player bars",
+    path: "/create?kind=players&type=bar&ids=00-0033873&stats=passing_yards,passing_tds",
+    title: "Create · Plot the Pigskin",
+  },
+  { name: "create team lines", path: "/create?kind=teams&type=line&ids=KC,BUF", title: "Create · Plot the Pigskin" },
 ]
 
 for (const { name, path, title } of PAGES) {

@@ -1,9 +1,9 @@
 // useFetch.test.ts
-// Tests for useFetch's loading/data/error states, its per-path cache, and in-flight request sharing.
+// Tests for useFetch/useFetchAll: loading/data/error states, the per-path cache, and in-flight request sharing.
 import { renderHook, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { fetchJson } from "./api"
-import { useFetch } from "./useFetch"
+import { useFetch, useFetchAll } from "./useFetch"
 
 vi.mock("./api", () => ({ fetchJson: vi.fn() }))
 const mockFetchJson = vi.mocked(fetchJson)
@@ -55,5 +55,37 @@ describe("useFetch", () => {
 
     expect(result.current.loading).toBe(true)
     expect(mockFetchJson).not.toHaveBeenCalled()
+  })
+})
+
+describe("useFetchAll", () => {
+  beforeEach(() => {
+    mockFetchJson.mockReset()
+  })
+
+  it("exposes every path's data in order once all arrive, sharing the cache with useFetch", async () => {
+    mockFetchJson.mockImplementation(async (path: string) => path.toUpperCase())
+    const { result } = renderHook(() => useFetchAll<string>(["/all-a", "/all-b"]))
+
+    await waitFor(() => expect(result.current.data).toEqual(["/ALL-A", "/ALL-B"]))
+    expect(renderHook(() => useFetch<string>("/all-b")).result.current.data).toBe("/ALL-B")
+    expect(mockFetchJson).toHaveBeenCalledTimes(2)
+  })
+
+  it("is done at once for no paths", () => {
+    const { result } = renderHook(() => useFetchAll([]))
+
+    expect(result.current).toEqual({ data: [], error: null, loading: false })
+  })
+
+  it("reports a failing path's error", async () => {
+    mockFetchJson.mockImplementation(async (path: string) => {
+      if (path === "/all-bad") throw new Error("Request to /all-bad failed (404)")
+      return path
+    })
+    const { result } = renderHook(() => useFetchAll(["/all-ok", "/all-bad"]))
+
+    await waitFor(() => expect(result.current.error).toBe("Request to /all-bad failed (404)"))
+    expect(result.current.data).toBeNull()
   })
 })
