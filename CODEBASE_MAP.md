@@ -53,7 +53,7 @@ Each chart fetches its own data. Pages pass ids (team abbreviation, player id, p
 | `radar.py` | Player radar pool: 6 percentile-ranked axes per position, minimum-sample rules. |
 | `team_radar.py` | Team radar pool: 6 EPA/red-zone/special-teams axes with league percentiles. |
 | `team_efficiency.py` | Offensive and defensive EPA per play for each team. |
-| `team_tendencies.py` | Play-calling rates (pass rate in neutral situations, formation, tempo, red zone, 4th down) vs. league. |
+| `team_tendencies.py` | Play-calling rates (balance, formation, pass location and depth, run direction, tempo, red zone, third and fourth down) vs. league. |
 | `team_playmaking.py` | Team usage shares, red-zone touches, top-5 leaders per stat. |
 | `scoring_composition.py` | Points by unit (passing/rushing TDs, kicking, defense/ST). |
 | `depth_chart.py` | Team depth chart by unit, with injury/reserve status merged from injuries and rosters. |
@@ -120,7 +120,7 @@ Every file opens with a two-line contract comment (file name, then purpose). Rea
 
 ### `src/data/`: per-feature types and pure logic (no React)
 
-`teams` (team type, logo lookup, team URLs), `standings`, `scores`, `efficiency`, `teamMetrics` (team stat catalog), `playerMetrics` (player metric catalog, `/players` path builders, `SNAP_SHARE_FIELD`), `leaderCategories` + `leaderStatsTypes` + `leaderMovement` (Stat Leaders config and week-over-week rank change; `PROFILE_GROUPS` = positions with radar profiles), `trendingPlayers` (snap-share qualification), `gameLog` (per-position game log columns), `playerBio`, `usage` (usage payload type, color assignment), `playmaking`, `depthChart`, `search`.
+`teams` (team type, logo lookup, team URLs), `standings`, `scores`, `efficiency`, `teamMetrics` (team stat catalog), `playerMetrics` (player metric catalog, `/players` path builders, `SNAP_SHARE_FIELD`), `leaderCategories` + `leaderStatsTypes` + `leaderMovement` (Stat Leaders config and week-over-week rank change; `PROFILE_GROUPS` = positions with radar profiles), `trendingPlayers` (snap-share qualification), `gameLog` (per-position game log columns), `playerBio`, `usage` (usage payload type, color assignment), `playmaking`, `tendencies` (pairs play-calling rates into 100% split bars), `depthChart`, `search`.
 
 ### `src/lib/`: cross-cutting helpers
 

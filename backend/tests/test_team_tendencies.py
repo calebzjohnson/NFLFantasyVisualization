@@ -21,29 +21,33 @@ def test_covers_both_sides_of_the_play_call(tendency_plays: None) -> None:
         "shotgun_pass_rate",
         "under_center_run_rate",
         "shotgun_run_rate",
-        "inside_run_rate",
-        "outside_run_rate",
+        "middle_pass_rate",
+        "outside_pass_rate",
         "short_pass_rate",
         "deep_pass_rate",
+        "inside_run_rate",
+        "outside_run_rate",
         "huddle_rate",
         "no_huddle_rate",
         "red_zone_pass_rate",
         "red_zone_run_rate",
+        "third_down_conversion",
         "go_for_it_rate",
         "kick_rate",
-        "third_down_conversion",
         "fourth_down_conversion",
     ]
     groups = [t["group"] for t in team_tendencies.get_team_tendencies("DAL")["tendencies"]]
     assert groups == (
         ["Balance"] * 4
         + ["Formation"] * 4
-        + ["Run Direction"] * 2
+        + ["Pass Location"] * 2
         + ["Pass Depth"] * 2
+        + ["Run Direction"] * 2
         + ["Tempo"] * 2
         + ["Red Zone"] * 2
-        + ["Fourth Down"] * 2
-        + ["Conversions"] * 2
+        + ["Third Down"]
+        + ["Fourth Down Decision"] * 2
+        + ["Fourth Down"]
     )
 
 
@@ -91,6 +95,7 @@ def test_every_split_shows_both_sides(tendency_plays: None) -> None:
         ("inside_run_rate", "outside_run_rate"),
         ("red_zone_pass_rate", "red_zone_run_rate"),
         ("go_for_it_rate", "kick_rate"),
+        ("middle_pass_rate", "outside_pass_rate"),
         ("no_huddle_rate", "huddle_rate"),
     ]:
         assert rate("DAL", a)["value"] + rate("DAL", b)["value"] == pytest.approx(100, abs=0.2)

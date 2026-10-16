@@ -323,6 +323,7 @@ def _weekly_player_lines(
 def _qb_td_weekly(
     touchdowns: pd.DataFrame,
     involved: "pd.Series[bool]",
+    weeks: list[int],
     player_id: str,
     player_name: str,
     headshot_by_id: dict[str, str],
@@ -330,8 +331,10 @@ def _qb_td_weekly(
     """Every week's touchdowns split into just 2 lines - this QB's own
     involvement vs. every other touchdown lumped together - unlike the other
     usage metrics, which get one line per individual player.
+
+    The weeks come from the games played, not from the touchdowns, so a week
+    the offense was shut out is a zero rather than a gap in the chart.
     """
-    weeks = sorted(touchdowns["week"].unique())
     involved_by_week = touchdowns[involved].groupby("week").size()
     team_by_week = touchdowns.groupby("week").size()
     rows = []
@@ -373,10 +376,9 @@ def _qb_td_involvement(player_id: str, player_name: str, team: str, season: int)
     if plays.empty:
         plays = pbp_data.get_season_pbp(season - 1)
 
-    touchdowns = plays[
-        (plays["season_type"] == REGULAR_SEASON)
-        & (plays["posteam"] == team)
-        & ((plays["pass_touchdown"] == 1) | (plays["rush_touchdown"] == 1))
+    offense = plays[(plays["season_type"] == REGULAR_SEASON) & (plays["posteam"] == team)]
+    touchdowns = offense[
+        (offense["pass_touchdown"] == 1) | (offense["rush_touchdown"] == 1)
     ]
 
     involved = (touchdowns["passer_player_id"] == player_id) | (
@@ -411,7 +413,14 @@ def _qb_td_involvement(player_id: str, player_name: str, team: str, season: int)
             {"player_id": row["player_id"], "name": row["name"], "value": int(row["count"])}
             for _, row in breakdown.iterrows()
         ],
-        "weekly": _qb_td_weekly(touchdowns, involved, player_id, player_name, _headshot_by_id()),
+        "weekly": _qb_td_weekly(
+            touchdowns,
+            involved,
+            sorted(int(week) for week in offense["week"].unique()),
+            player_id,
+            player_name,
+            _headshot_by_id(),
+        ),
     }
 
 
