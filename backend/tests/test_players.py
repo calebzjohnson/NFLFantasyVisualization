@@ -540,6 +540,38 @@ def test_get_player_usage_share_qb_weekly_is_just_two_lines(
     ]
 
 
+def test_get_player_usage_share_qb_weekly_keeps_a_shutout_week(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A week the offense scored no touchdown is a zero, not a missing week -
+    the weeks come from the games played, not from the touchdowns.
+    """
+    season = pd.DataFrame([dict(player_id="Q1", player_display_name="Q One",
+                                 position_group="QB", recent_team="DAL")])
+    plays = pd.DataFrame(
+        [
+            dict(season_type="REG", week=1, posteam="DAL", pass_touchdown=1, rush_touchdown=0,
+                 passer_player_id="Q1", rusher_player_id=None, rusher_player_name=None,
+                 receiver_player_id="W1", receiver_player_name="W One"),
+            # Week 2: DAL played and scored no touchdown.
+            dict(season_type="REG", week=2, posteam="DAL", pass_touchdown=0, rush_touchdown=0,
+                 passer_player_id="Q1", rusher_player_id=None, rusher_player_name=None,
+                 receiver_player_id="W1", receiver_player_name="W One"),
+        ]
+    )
+    monkeypatch.setattr("app.data.player_stats.get_season_stats", lambda s: season)
+    monkeypatch.setattr("app.services.players.nfl.get_current_season", lambda: 2026)
+    monkeypatch.setattr("app.data.pbp.get_season_pbp", lambda s: plays)
+    roster = pd.DataFrame([dict(gsis_id="Q1", headshot=None)])
+    monkeypatch.setattr("app.data.players.get_players", lambda: roster)
+
+    usage = get_player_usage_share("Q1")
+
+    assert [week["week"] for week in usage["weekly"]] == [1, 2]
+    assert usage["weekly"][1]["team_value"] == 0
+    assert [player["value"] for player in usage["weekly"][1]["players"]] == [0, 0]
+
+
 def test_get_player_usage_share_raises_for_groups_without_a_usage_metric(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
