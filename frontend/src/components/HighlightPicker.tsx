@@ -1,6 +1,5 @@
 // HighlightPicker.tsx
 // Search box above a chart that picks one mark to highlight; while one is picked, a chip that clears it takes the box's place.
-// With a different `label` (and `picked` always null) it doubles as the Create page's "Add" box.
 import { useId, useState } from "react"
 import { matchesQuery } from "../data/search"
 
@@ -11,7 +10,6 @@ export interface HighlightOption {
 
 function HighlightPicker({
   noun,
-  label = "Highlight",
   options,
   picked,
   onPick,
@@ -19,7 +17,6 @@ function HighlightPicker({
 }: {
   // Plural noun for the placeholder, e.g. "players".
   noun: string
-  label?: string
   options: HighlightOption[]
   picked: HighlightOption | null
   onPick: (id: string) => void
@@ -39,7 +36,7 @@ function HighlightPicker({
   if (picked) {
     return (
       <div className="flex items-center gap-2 text-sm whitespace-nowrap text-[var(--text-secondary)]">
-        {label}
+        Highlight
         <button
           type="button"
           onClick={onClear}
@@ -57,7 +54,7 @@ function HighlightPicker({
   return (
     <>
       <label className="flex items-center gap-2 text-sm whitespace-nowrap text-[var(--text-secondary)]">
-        {label}
+        Highlight
         {/* Native suggestions: choosing one sets the value to an option's exact label. */}
         <input
           type="search"

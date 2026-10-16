@@ -10,15 +10,19 @@ interface PanelProps {
   titleHref?: string
   actions?: ReactNode
   className?: string
+  // Lets content (e.g. a search box's results) spill past the bottom edge
+  // instead of being clipped to the card.
+  overflow?: boolean
   children: ReactNode
 }
 
-function Panel({ title, titleHref, actions, className = "", children }: PanelProps) {
+function Panel({ title, titleHref, actions, className = "", overflow = false, children }: PanelProps) {
   return (
     <section
-      className={`overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface-1)] shadow-lg shadow-black/30 ${className}`}
+      className={`${overflow ? "" : "overflow-hidden"} rounded-lg border border-[var(--border)] bg-[var(--surface-1)] shadow-lg shadow-black/30 ${className}`}
     >
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] bg-[var(--surface-2)] px-4 py-3">
+      {/* Rounded itself, so its corners stay inside the border when nothing clips them. */}
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-t-lg border-b border-[var(--border)] bg-[var(--surface-2)] px-4 py-3">
         <h2 className="flex items-center gap-2 font-display text-lg font-bold tracking-wider text-[var(--text-primary)] uppercase">
           <span className="h-4 w-1 rounded-sm bg-[var(--accent)]" aria-hidden="true" />
           {titleHref ? (

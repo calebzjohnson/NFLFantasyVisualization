@@ -36,6 +36,7 @@ export function searchResults(
   scope: SearchScope,
   players: SearchPlayer[] | null,
   teams: TeamInfo[] | null,
+  maxResults = MAX_RESULTS,
 ): { teams: TeamInfo[]; players: SearchPlayer[] } {
   const trimmed = query.trim()
   if (trimmed.length === 0) return { teams: [], players: [] }
@@ -45,13 +46,13 @@ export function searchResults(
       ? []
       : (teams ?? [])
           .filter((team) => matchesQuery(`${team.team_name} ${team.team_abbr}`, trimmed))
-          .slice(0, scope === "all" ? MAX_TEAMS_IN_ALL : MAX_RESULTS)
+          .slice(0, scope === "all" ? MAX_TEAMS_IN_ALL : maxResults)
   const playerMatches =
     scope === "teams"
       ? []
       : (players ?? [])
           .filter((player) => player.player_display_name && matchesQuery(player.player_display_name, trimmed))
-          .slice(0, MAX_RESULTS - teamMatches.length)
+          .slice(0, maxResults - teamMatches.length)
 
   return { teams: teamMatches, players: playerMatches }
 }

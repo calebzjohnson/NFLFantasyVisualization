@@ -9,6 +9,11 @@ import {
   parseBuilder,
   pickColor,
   pickedLines,
+  meetsPoolFloor,
+  percentileColumns,
+  poolFloor,
+  radarSeries,
+  seasonWeek,
   type BuilderState,
   type Picked,
 } from "./chartBuilder"
@@ -101,6 +106,106 @@ describe("chartStats", () => {
     expect(keys(chartStats(state({ stats: ["carries"] }), metrics))).toEqual(["fantasy_points_ppr"])
     expect(keys(chartStats(state(), TEAM_METRICS))).toEqual([TEAM_METRICS[0].key])
     expect(chartStats(state(), [])).toEqual([])
+  })
+})
+
+describe("chartStats for scatters and beeswarms", () => {
+  const wr = PLAYER_METRICS.WR
+
+  it("gives a scatter exactly two axes, topping up a single pick from the defaults", () => {
+    expect(keys(chartStats(state({ type: "scatter" }), wr))).toEqual(["fantasy_points_ppr", "receptions"])
+    expect(keys(chartStats(state({ type: "scatter", stats: ["targets"] }), wr))).toEqual(["targets", "fantasy_points_ppr"])
+    expect(keys(chartStats(state({ type: "scatter", stats: ["targets", "ypr", "receiving_tds"] }), wr))).toEqual(["targets", "ypr"])
+    // Teams start on points scored vs. allowed, like Compare Teams.
+    expect(keys(chartStats(state({ type: "scatter" }), TEAM_METRICS))).toEqual(["points", "points_allowed"])
+  })
+
+  it("starts a beeswarm on three columns, takes up to six, and draws none once cleared", () => {
+    expect(keys(chartStats(state({ type: "beeswarm" }), TEAM_METRICS))).toEqual(["points", "points_allowed", "yards"])
+    expect(chartStats(state({ type: "beeswarm", stats: keys(wr) }), wr)).toHaveLength(6)
+    expect(chartStats(state({ type: "beeswarm", stats: [] }), wr)).toEqual([])
+    // A scatter can't be emptied: it always has its two axes.
+    expect(chartStats(state({ type: "scatter", stats: [] }), wr)).toHaveLength(2)
+  })
+})
+
+describe("chartStats for radars", () => {
+  it("starts on six spokes and draws none once cleared", () => {
+    expect(chartStats(state({ type: "radar" }), PLAYER_METRICS.WR)).toHaveLength(6)
+    expect(keys(chartStats(state({ type: "radar" }), TEAM_METRICS)).slice(0, 2)).toEqual(["points", "points_allowed"])
+    expect(chartStats(state({ type: "radar", stats: [] }), PLAYER_METRICS.WR)).toEqual([])
+    // Two picked stats stay two; the page asks for a third rather than topping up.
+    expect(keys(chartStats(state({ type: "radar", stats: ["targets", "ypr"] }), PLAYER_METRICS.WR))).toEqual(["targets", "ypr"])
+  })
+})
+
+describe("radarSeries", () => {
+  it("gives each pick in the pool an outline in its color, in stat order, and skips picks with no stats", () => {
+    const rows = [
+      { id: "a", name: "A", team: "KC", axes: [{ key: "s", value: "10", percentile: 75 }] },
+      { id: "b", name: "B", team: "KC", axes: [{ key: "s", value: "4", percentile: 25 }] },
+    ]
+    const series = radarSeries(rows, [
+      { id: "b", name: "B", color: "#eb6834" },
+      { id: "gone", name: "Gone", color: "#1baf7a" },
+    ])
+    expect(series).toEqual([{ id: "b", name: "B", color: "#eb6834", spokes: [{ value: "4", percentile: 25 }] }])
+  })
+})
+
+describe("percentileColumns", () => {
+  const metric = (key: string) => Object.values(PLAYER_METRICS).flat().find((m) => m.key === key)!
+  const entry = (id: string, row: Record<string, number>) => ({ id, name: `Player ${id}`, team: "KC", row })
+  const cell = (rows: ReturnType<typeof percentileColumns>, id: string, key: string) =>
+    rows.find((row) => row.id === id)!.axes.find((axis) => axis.key === key)!
+
+  it("ranks like the radar: the best is 100, ties share the average rank", () => {
+    const rows = percentileColumns(
+      [entry("a", { targets: 10 }), entry("b", { targets: 30 }), entry("c", { targets: 10 }), entry("d", { targets: 20 })],
+      [metric("targets")],
+      new Set(),
+    )
+    expect(["a", "b", "c", "d"].map((id) => cell(rows, id, "targets").percentile)).toEqual([37.5, 100, 37.5, 75])
+    expect(cell(rows, "b", "targets").value).toBe("30")
+  })
+
+  it("ranks a lower-is-better stat in reverse, so fewer interceptions rank higher", () => {
+    const rows = percentileColumns(
+      [entry("a", { passing_interceptions: 2 }), entry("b", { passing_interceptions: 9 })],
+      [metric("passing_interceptions")],
+      new Set(),
+    )
+    expect(cell(rows, "a", "passing_interceptions").percentile).toBe(100)
+    expect(cell(rows, "b", "passing_interceptions").percentile).toBe(50)
+  })
+
+  it("leaves players under a per-play stat's minimum out of its column, unless they're picks", () => {
+    const pool = [
+      entry("starter", { carries: 100, rushing_yards: 450 }),
+      entry("backup", { carries: 3, rushing_yards: 30 }),
+      entry("pick", { carries: 4, rushing_yards: 8 }),
+    ]
+    const rows = percentileColumns(pool, [metric("ypc"), metric("carries")], new Set(["pick"]))
+    expect(cell(rows, "backup", "ypc")).toEqual({ key: "ypc", value: null, percentile: null })
+    expect(cell(rows, "pick", "ypc").percentile).toBe(50)
+    // A total ranks everyone.
+    expect(cell(rows, "backup", "carries").percentile).not.toBeNull()
+  })
+})
+
+describe("beeswarm pool floor", () => {
+  it("scales the radar's per-week volume floor by the week, with none for positions without a profile", () => {
+    expect(poolFloor("QB", 6)).toMatchObject({ field: "attempts", min: 37.5 })
+    expect(meetsPoolFloor({ targets: 12 }, "WR", 6)).toBe(true)
+    expect(meetsPoolFloor({ targets: 11 }, "WR", 6)).toBe(false)
+    expect(meetsPoolFloor({ defense_snaps: 89 }, "CB", 6)).toBe(false)
+    expect(poolFloor("K", 6)).toBeNull()
+    expect(meetsPoolFloor({}, "K", 6)).toBe(true)
+  })
+
+  it("counts only regular-season weeks", () => {
+    expect(seasonWeek({ week: 6, season_type: "REG" })).toBe(6)
+    expect(seasonWeek({ week: 20, season_type: "POST" })).toBe(18)
   })
 })
 
