@@ -40,7 +40,8 @@ beforeEach(() => {
     [playersWeeklyPathForPosition("WR")]: [
       { player_id: "P1", player_display_name: "Wide One", team: "BUF", headshot_url: null, week: 1, targets: 8 },
     ],
-    "/teams": [teamInfo("BUF"), teamInfo("KC")],
+    // DET has no games here, for the radar's third pick.
+    "/teams": [teamInfo("BUF"), teamInfo("KC"), teamInfo("DET")],
     "/teams/weekly": [
       { team: "BUF", week: 1, week_complete: true, points_for: 20 },
       { team: "BUF", week: 2, week_complete: true, points_for: 31 },
@@ -170,10 +171,30 @@ describe("CreatePage", () => {
     expect(within(table).getAllByRole("row")[1]).toHaveTextContent("BUF Team2031")
   })
 
-  it("offers all four chart types", () => {
+  it("offers all five chart types", () => {
     renderAt("/create")
     const types = within(screen.getByRole("group", { name: "Chart type" })).getAllByRole("button")
-    expect(types.map((button) => button.textContent)).toEqual(["Bar", "Line", "Scatter", "Beeswarm"])
+    expect(types.map((button) => button.textContent)).toEqual(["Bar", "Line", "Scatter", "Beeswarm", "Radar"])
+  })
+
+  it("draws a radar of the picks' percentiles, and asks for a third stat with only two", async () => {
+    renderAt("/create?kind=teams&type=radar&ids=BUF,KC&stats=points,turnovers,yards")
+
+    expect(
+      await screen.findByRole("figure", {
+        name: "Radar of BUF Team, KC Team on 3 stats, as percentile ranks among all teams this season; further out is better, and the dashed ring is the 50th percentile.",
+      }),
+    ).toBeInTheDocument()
+    expect(screen.getByText("Stats (3 to 6)")).toBeInTheDocument()
+    const [, ...rows] = within(screen.getByRole("table")).getAllByRole("row")
+    expect(rows.map((row) => row.textContent)).toEqual([
+      "Points / Game25.5 (100th)17 (50th)",
+      "Turnovers / Game0 (75th)0 (75th)",
+      "Yards / Game0 (75th)0 (75th)",
+    ])
+
+    fireEvent.click(screen.getByRole("button", { name: "Yards / Game" }))
+    expect(screen.getByText("Pick at least 3 stats to draw a radar.")).toBeInTheDocument()
   })
 
   it("rebuilds a scatter from the URL with the picks pinned, and sets its axes from the form", async () => {
@@ -223,6 +244,22 @@ describe("CreatePage", () => {
     // BUF scores more per game (100th); with no turnovers in the data, the two tie.
     const [, ...rows] = within(screen.getByRole("table")).getAllByRole("row")
     expect(rows.map((row) => row.textContent)).toEqual(["BUF Team25.5 (100th)0 (75th)", "KC Team17 (50th)0 (75th)"])
+  })
+
+  it("draws only the first two picks on a radar, and says so", async () => {
+    renderAt("/create?kind=teams&type=radar&ids=BUF,KC,DET&stats=points,turnovers,yards")
+
+    await screen.findByRole("figure", { name: /^Radar of BUF Team, KC Team on 3 stats/ })
+    expect(screen.getByRole("list", { name: "Picks" })).toHaveTextContent("BUF TeamKC Team")
+    expect(
+      screen.getByText("The radar compares 2 at a time, so it shows BUF Team and KC Team. Remove a pick to swap another in."),
+    ).toBeInTheDocument()
+    expect(screen.queryByRole("combobox", { name: "Add a team..." })).not.toBeInTheDocument()
+    expect(screen.getByText("Up to 2 teams on a radar.")).toBeInTheDocument()
+
+    // The third pick is still there for the other charts.
+    fireEvent.click(screen.getByRole("button", { name: "Bar" }))
+    expect(urlQuery().get("ids")).toBe("BUF,KC,DET")
   })
 
   it("starts over when switching between players and teams", async () => {

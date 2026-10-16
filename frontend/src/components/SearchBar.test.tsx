@@ -83,6 +83,17 @@ describe("SearchBar", () => {
     expect(onPick).toHaveBeenLastCalledWith("P2")
   })
 
+  it("shows no more than maxResults results", async () => {
+    render(
+      <MemoryRouter>
+        <SearchBar placeholder="Add a player..." scope="players" onPick={() => {}} maxResults={1} />
+      </MemoryRouter>,
+    )
+    type("josh")
+    await screen.findByRole("option", { name: /Josh Allen/ })
+    expect(screen.getAllByRole("option")).toHaveLength(1)
+  })
+
   it("finds teams and links to their page, without fetching players", async () => {
     renderSearch("teams")
     type("bills")

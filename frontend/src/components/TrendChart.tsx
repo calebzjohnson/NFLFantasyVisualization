@@ -23,6 +23,7 @@ import { initialsFor, readableTextColor } from "../lib/playerVisuals"
 import { useFetch } from "../lib/useFetch"
 import { TOUCH_QUERY, useMediaQuery } from "../lib/useMediaQuery"
 import { useTapToOpen } from "../lib/useTapToOpen"
+import { FIT_SCREEN } from "../lib/utils"
 import AxisSelect from "./AxisSelect"
 import { ChartContainer, type ChartConfig } from "./evilcharts/ui/recharts-chart"
 import ChartDataTable from "./ChartDataTable"
@@ -410,7 +411,7 @@ function TrendChart({
           >
             <ChartContainer
               config={chartConfig}
-              className="aspect-[3/2]"
+              className={`aspect-[3/2] ${FIT_SCREEN}`}
               label={`${title}: ${summary ?? `the ${lineMetas.length} ${plural} trending up or down the most in ${metric.label.toLowerCase()}`}, week ${weeks[0]} to week ${weeks[weeks.length - 1]}.`}
             >
               <LineChart data={chartData} margin={{ top: 8, right: 16, bottom: 24, left: 4 }}>

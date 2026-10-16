@@ -1,14 +1,16 @@
 // CreatePage.tsx
-// Create route: build your own chart from players or teams (never both), a chart type (bar, line, scatter, or beeswarm), up to five picks, and the stats to draw.
+// Create route: build your own chart from players or teams (never both), a chart type (bar, line, scatter, beeswarm, or radar), up to five picks, and the stats to draw.
 // Everything lives in the URL (?kind=&type=&ids=&stats=) so a chart can be
 // shared or reloaded. A player's position group comes from their bio and
 // decides which stats data to fetch and which stats the picks share (see
 // chartBuilder.ts for the rules). The scatter and beeswarm draw everyone at
 // the picked positions (or every team) as background, with the picks pinned
-// on top in their colors.
+// on top in their colors; the beeswarm and radar rank the picks by percentile
+// against the same pool.
 import { useCallback, useMemo, type ReactNode } from "react"
 import { useNavigate, useSearchParams } from "react-router-dom"
 import ComparisonBarChart from "../components/ComparisonBarChart"
+import ComparisonRadarChart from "../components/ComparisonRadarChart"
 import { BeeswarmChart } from "../components/LeagueBeeswarm"
 import MetricScatter from "../components/MetricScatter"
 import Panel from "../components/Panel"
@@ -35,7 +37,11 @@ import {
   percentileColumns,
   poolFloor,
   seasonWeek,
+  MAX_RADAR_PICKS,
+  MIN_RADAR_STATS,
+  radarSeries,
   type BuilderState,
+  type ChartType,
   type Picked,
   type PoolRow,
 } from "../data/chartBuilder"
@@ -60,7 +66,13 @@ import { useFetch, useFetchAll } from "../lib/useFetch"
 import { usePageTitle } from "../lib/usePageTitle"
 
 const KIND_LABELS = { players: "Players", teams: "Teams" } as const
-const TYPE_LABELS = { bar: "Bar", line: "Line", scatter: "Scatter", beeswarm: "Beeswarm" } as const
+const TYPE_LABELS = { bar: "Bar", line: "Line", scatter: "Scatter", beeswarm: "Beeswarm", radar: "Radar" } as const
+// The chart's panel title, for the messages that stand in for it.
+const PANEL_TITLES: Partial<Record<ChartType, string>> = {
+  bar: "Season Comparison",
+  beeswarm: "League Comparison",
+  radar: "Radar Comparison",
+}
 const SINGULAR = { players: "player", teams: "team" } as const
 
 
@@ -265,7 +277,7 @@ function CreatePage() {
     [forPlayers, state.type, data.data, groups],
   )
   // How far into the season we are, which the floors scale by.
-  const needsWeek = forPlayers && state.type === "beeswarm"
+  const needsWeek = forPlayers && (state.type === "beeswarm" || state.type === "radar")
   const latestWeek = useFetch<{ week: number; season_type: string }>(needsWeek ? "/players/latest-week" : null)
   const week = latestWeek.data ? seasonWeek(latestWeek.data) : null
 
@@ -308,8 +320,13 @@ function CreatePage() {
     [chartable, rows, idField],
   )
 
+  // The radar draws two picks at most; every other chart, MAX_PICKS.
+  const pickLimit = state.type === "radar" ? MAX_RADAR_PICKS : MAX_PICKS
+
   const statsHeading =
-    state.type === "bar" || state.type === "beeswarm"
+    state.type === "radar"
+      ? `Stats (${MIN_RADAR_STATS} to ${MAX_STATS.radar})`
+      : state.type === "bar" || state.type === "beeswarm"
       ? `Stats (up to ${MAX_STATS[state.type]})`
       : state.type === "scatter"
         ? "Stats"
@@ -324,7 +341,7 @@ function CreatePage() {
     if (picked.length === 0 && !error && !(list.loading && state.ids.length > 0)) {
       return (
         <p className="rounded-lg border border-dashed border-[var(--border)] p-6 text-center text-sm text-[var(--text-secondary)]">
-          Add up to {MAX_PICKS} {plural} above to build a chart.
+          Add up to {pickLimit} {plural} above to build a chart.
         </p>
       )
     }
@@ -349,12 +366,17 @@ function CreatePage() {
         </p>
       )
     }
-    if (stats.length === 0) {
+    const tooFew = state.type === "radar" ? MIN_RADAR_STATS : 1
+    if (stats.length < tooFew) {
+      const message =
+        metrics.length < tooFew
+          ? `These picks share only ${metrics.length} stat${metrics.length === 1 ? "" : "s"}; a radar needs ${MIN_RADAR_STATS}.`
+          : stats.length === 0
+            ? `No stats picked. Choose ${state.type === "radar" ? `${MIN_RADAR_STATS} to ${MAX_STATS.radar}` : `up to ${MAX_STATS[state.type]}`} above to compare.`
+            : `Pick at least ${MIN_RADAR_STATS} stats to draw a radar.`
       return (
-        <Panel title={state.type === "beeswarm" ? "League Comparison" : "Season Comparison"}>
-          <p className="p-6 text-center text-sm text-[var(--text-secondary)]">
-            No stats picked. Choose up to {MAX_STATS[state.type]} above to compare.
-          </p>
+        <Panel title={PANEL_TITLES[state.type] ?? "Your Chart"}>
+          <p className="p-6 text-center text-sm text-[var(--text-secondary)]">{message}</p>
         </Panel>
       )
     }
@@ -376,6 +398,7 @@ function CreatePage() {
     }
     if (state.type === "scatter") return scatter(glossary)
     if (state.type === "beeswarm") return beeswarm(glossary)
+    if (state.type === "radar") return radar(glossary)
     const [metric] = stats
     return (
       <TrendChart
@@ -488,7 +511,11 @@ function CreatePage() {
     )
   }
 
-  function beeswarm(glossary: ReactNode) {
+  // Who the beeswarm and radar rank the picks against: everyone at the
+  // picked positions over their position's volume floor (every team, for
+  // teams), plus the picks however few their plays - and the caption notes
+  // that say so.
+  function rankedPool() {
     const pinIds = new Set(pins.map((pin) => pin.id))
     const groupOf = (entry: PoolRow) => groupByPlayer.get(entry.id)
     // Teams have no floor; a player is ranked once over their position's (week is loaded by now).
@@ -512,23 +539,52 @@ function CreatePage() {
       ]
     })
     const everyoneRanked = !forPlayers || groups.every((group) => !poolFloor(group, 1))
+    return {
+      ranked,
+      rows: percentileColumns(ranked, stats, pinIds),
+      // e.g. "qualifying WRs and RBs", "all teams".
+      who: forPlayers ? `${everyoneRanked ? "all" : "qualifying"} ${poolName}` : "all teams",
+      notes: [
+        ...floorNotes,
+        ...minimumNotes(plural, stats, "aren't ranked in that stat"),
+        ...smallSampleNotes(pickRows, stats),
+      ],
+    }
+  }
+
+  function beeswarm(glossary: ReactNode) {
+    const { ranked, rows: columns, who, notes } = rankedPool()
+    const Who = `${who[0].toUpperCase()}${who.slice(1)}`
     return (
       <Panel title="League Comparison">
         <BeeswarmChart
           // Keyed so a new set of stats drops a highlight from the old columns.
           key={stats.map((metric) => metric.key).join("|")}
           axes={stats.map((metric) => ({ key: metric.key, label: metric.label }))}
-          rows={percentileColumns(ranked, stats, pinIds)}
+          rows={columns}
           players={forPlayers}
           pinned={pins}
-          who={forPlayers ? `${everyoneRanked ? "All" : "Qualifying"} ${poolName} this season (${ranked.length})` : `All ${ranked.length} teams this season`}
-          poolText={forPlayers ? `${everyoneRanked ? "All" : "Qualifying"} ${poolName}` : "Every team in the league"}
+          who={forPlayers ? `${Who} this season (${ranked.length})` : `All ${ranked.length} teams this season`}
+          poolText={forPlayers ? Who : "Every team in the league"}
           tableCaption={`Every ${forPlayers ? "player's" : "team's"} picked stats with percentile ranks`}
-          notes={[
-            ...floorNotes,
-            ...minimumNotes(plural, stats, "aren't ranked in that stat"),
-            ...smallSampleNotes(pickRows, stats),
-          ]}
+          notes={notes}
+          footer={glossary}
+        />
+      </Panel>
+    )
+  }
+
+  function radar(glossary: ReactNode) {
+    const { rows: columns, who, notes } = rankedPool()
+    return (
+      <Panel title="Radar Comparison">
+        <ComparisonRadarChart
+          // Keyed so a new set of stats drops a spoke picked from the old ones.
+          key={stats.map((metric) => metric.key).join("|")}
+          axes={stats.map((metric) => ({ key: metric.key, label: metric.label }))}
+          outlines={radarSeries(columns, pins.slice(0, MAX_RADAR_PICKS))}
+          poolText={who}
+          notes={notes}
           footer={glossary}
         />
       </Panel>
@@ -543,7 +599,8 @@ function CreatePage() {
           Build your own chart: pick players or teams, a chart type, and the stats to compare.
         </p>
       </div>
-      <Panel title="Build a Chart">
+      {/* overflow: the Add box's results drop below the form rather than getting cut off. */}
+      <Panel title="Build a Chart" overflow>
         <div className="flex flex-col gap-4 p-4">
           <div className="flex flex-wrap gap-6">
             <Field label="Compare">
@@ -590,23 +647,34 @@ function CreatePage() {
                   </button>
                 )
               })}
-              {picked.length < MAX_PICKS ? (
+              {picked.length < pickLimit ? (
                 <div className="w-56">
                   <SearchBar
                     placeholder={`Add a ${singular}...`}
                     scope={state.kind}
                     exclude={pickedIds}
+                    maxResults={5}
                     onPick={(id) => update({ ids: [...picked.map((p) => p.id), id] })}
                   />
                 </div>
               ) : (
                 <Note>
-                  Up to {MAX_PICKS} {plural}.
+                  Up to {pickLimit} {plural}{state.type === "radar" ? " on a radar" : ""}.
                 </Note>
               )}
             </div>
             {unsupported.length > 0 && (
               <Note>No stats to chart for {unsupported.map((pick) => pick.name).join(", ")}.</Note>
+            )}
+            {state.type === "radar" && chartable.length > MAX_RADAR_PICKS && (
+              <Note>
+                The radar compares {MAX_RADAR_PICKS} at a time, so it shows{" "}
+                {chartable
+                  .slice(0, MAX_RADAR_PICKS)
+                  .map((pick) => pick.name)
+                  .join(" and ")}
+                . Remove a pick to swap another in.
+              </Note>
             )}
           </Field>
           <Field label={statsHeading}>
@@ -618,7 +686,7 @@ function CreatePage() {
                     ? "No stat is tracked for all of these positions."
                     : `Add a ${singular} to see the stats you can chart.`}
               </Note>
-            ) : state.type === "bar" || state.type === "beeswarm" ? (
+            ) : state.type === "bar" || state.type === "beeswarm" || state.type === "radar" ? (
               <StatPills
                 metrics={metrics}
                 selected={stats.map((metric) => metric.key)}

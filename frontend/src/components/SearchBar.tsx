@@ -44,9 +44,19 @@ interface SearchBarProps {
   onPick?: (id: string) => void
   // Player ids or team abbreviations to leave out of the results (already picked).
   exclude?: ReadonlySet<string>
+  // Most results to show at once, when the default 8 is too tall for where the box sits.
+  maxResults?: number
 }
 
-function SearchBar({ placeholder, label = placeholder, scope, wideDropdown = false, onPick, exclude }: SearchBarProps) {
+function SearchBar({
+  placeholder,
+  label = placeholder,
+  scope,
+  wideDropdown = false,
+  onPick,
+  exclude,
+  maxResults,
+}: SearchBarProps) {
   const navigate = useNavigate()
   const players = useFetch<SearchPlayer[]>(scope === "teams" ? null : SEARCH_PLAYERS_PATH)
   const teams = useFetch<TeamInfo[]>(scope === "players" ? null : "/teams")
@@ -66,7 +76,7 @@ function SearchBar({ placeholder, label = placeholder, scope, wideDropdown = fal
     () => (exclude ? teams.data?.filter((team) => !exclude.has(team.team_abbr)) : teams.data) ?? null,
     [teams.data, exclude],
   )
-  const matches = searchResults(query, scope, playerList, teamList)
+  const matches = searchResults(query, scope, playerList, teamList, maxResults)
   const teamOptions: SearchOption[] = matches.teams.map((team) => ({
     key: `team-${team.team_abbr}`,
     id: team.team_abbr,

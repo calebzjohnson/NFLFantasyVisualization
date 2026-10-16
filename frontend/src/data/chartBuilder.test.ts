@@ -12,6 +12,7 @@ import {
   meetsPoolFloor,
   percentileColumns,
   poolFloor,
+  radarSeries,
   seasonWeek,
   type BuilderState,
   type Picked,
@@ -125,6 +126,30 @@ describe("chartStats for scatters and beeswarms", () => {
     expect(chartStats(state({ type: "beeswarm", stats: [] }), wr)).toEqual([])
     // A scatter can't be emptied: it always has its two axes.
     expect(chartStats(state({ type: "scatter", stats: [] }), wr)).toHaveLength(2)
+  })
+})
+
+describe("chartStats for radars", () => {
+  it("starts on six spokes and draws none once cleared", () => {
+    expect(chartStats(state({ type: "radar" }), PLAYER_METRICS.WR)).toHaveLength(6)
+    expect(keys(chartStats(state({ type: "radar" }), TEAM_METRICS)).slice(0, 2)).toEqual(["points", "points_allowed"])
+    expect(chartStats(state({ type: "radar", stats: [] }), PLAYER_METRICS.WR)).toEqual([])
+    // Two picked stats stay two; the page asks for a third rather than topping up.
+    expect(keys(chartStats(state({ type: "radar", stats: ["targets", "ypr"] }), PLAYER_METRICS.WR))).toEqual(["targets", "ypr"])
+  })
+})
+
+describe("radarSeries", () => {
+  it("gives each pick in the pool an outline in its color, in stat order, and skips picks with no stats", () => {
+    const rows = [
+      { id: "a", name: "A", team: "KC", axes: [{ key: "s", value: "10", percentile: 75 }] },
+      { id: "b", name: "B", team: "KC", axes: [{ key: "s", value: "4", percentile: 25 }] },
+    ]
+    const series = radarSeries(rows, [
+      { id: "b", name: "B", color: "#eb6834" },
+      { id: "gone", name: "Gone", color: "#1baf7a" },
+    ])
+    expect(series).toEqual([{ id: "b", name: "B", color: "#eb6834", spokes: [{ value: "4", percentile: 25 }] }])
   })
 })
 

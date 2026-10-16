@@ -1,5 +1,5 @@
 // chartBuilder.ts
-// The Create page's rules: its URL state (players or teams, chart type, picks, stats), which stats fit the picks, and the bars, lines, and beeswarm columns each chart draws.
+// The Create page's rules: its URL state (players or teams, chart type, picks, stats), which stats fit the picks, and the bars, lines, beeswarm columns, and radar outlines each chart draws.
 import type { PositionGroup } from "./leaderCategories"
 import { formatValue, meetsMinimum, num, PLAYER_METRICS, type PlayerMetric, type StatFields } from "./playerMetrics"
 import { TEAM_METRICS } from "./teamMetrics"
@@ -10,26 +10,31 @@ import { CATEGORICAL_PALETTE } from "./usage"
 export const BUILDER_KINDS = ["players", "teams"] as const
 export type BuilderKind = (typeof BUILDER_KINDS)[number]
 
-export const CHART_TYPES = ["bar", "line", "scatter", "beeswarm"] as const
+export const CHART_TYPES = ["bar", "line", "scatter", "beeswarm", "radar"] as const
 export type ChartType = (typeof CHART_TYPES)[number]
 
 // More lines than this turn into a tangle (Trending stops at 5 each way too),
 // and it keeps every pick inside the palette without repeating a color.
 export const MAX_PICKS = 5
 // A bar chart draws one small chart per stat, a line chart has one y-axis, a
-// scatter exactly two, and a beeswarm a column per stat (six fit on screen,
-// as on the player page).
-export const MAX_STATS: Record<ChartType, number> = { bar: 4, line: 1, scatter: 2, beeswarm: 6 }
+// scatter exactly two, and a beeswarm a column per stat and a radar a spoke
+// per stat - six of either fit on screen, as on the player page.
+export const MAX_STATS: Record<ChartType, number> = { bar: 4, line: 1, scatter: 2, beeswarm: 6, radar: 6 }
 // How many stats a chart draws before any are picked.
-const DEFAULT_COUNT: Record<ChartType, number> = { bar: 1, line: 1, scatter: 2, beeswarm: 3 }
+const DEFAULT_COUNT: Record<ChartType, number> = { bar: 1, line: 1, scatter: 2, beeswarm: 3, radar: 6 }
+// Fewer spokes than this don't make a shape.
+export const MIN_RADAR_STATS = 3
+// More than two overlapping outlines can't be read apart. Extra picks stay in
+// the URL - the radar draws the first two - so other chart types keep them.
+export const MAX_RADAR_PICKS = 2
 
 export interface BuilderState {
   kind: BuilderKind
   type: ChartType
   ids: string[] // player ids or team abbreviations, in the order picked
   // Metric keys (a scatter's are x, then y). null when none were ever picked
-  // (draw the defaults); [] when the user turned them all off (a bar chart
-  // or beeswarm then draws nothing).
+  // (draw the defaults); [] when the user turned them all off (a bar chart,
+  // beeswarm, or radar then draws nothing).
   stats: string[] | null
 }
 
@@ -95,11 +100,11 @@ export function availableMetrics(kind: BuilderKind, groups: PositionGroup[]): Pl
 const PREFERRED_STATS = ["fantasy_points_ppr", "points", "points_allowed"]
 
 // The stats to draw: the picked ones that are available, up to the chart's
-// limit. A bar chart or beeswarm the user cleared draws none. With none
+// limit. A bar chart, beeswarm, or radar the user cleared draws none. With none
 // available - never picked, or a shared link whose stats this mix doesn't
 // have - the defaults; and a scatter tops up to its two axes.
 export function chartStats(state: BuilderState, metrics: PlayerMetric[]): PlayerMetric[] {
-  const multi = state.type === "bar" || state.type === "beeswarm"
+  const multi = state.type === "bar" || state.type === "beeswarm" || state.type === "radar"
   if (multi && state.stats?.length === 0) return []
   const picked = (state.stats ?? [])
     .map((key) => metrics.find((metric) => metric.key === key))
@@ -217,6 +222,21 @@ export function percentileColumns(
       }
     }),
   }))
+}
+
+// A radar outline per pick: its percentile and formatted value on each
+// spoke, in the columns' stat order, from percentileColumns' rows. A pick
+// with no season stats isn't in the pool, so it has no outline.
+export function radarSeries(
+  rows: ReturnType<typeof percentileColumns>,
+  pins: { id: string; name: string; color: string }[],
+): { id: string; name: string; color: string; spokes: { percentile: number | null; value: string | null }[] }[] {
+  const rowById = new Map(rows.map((row) => [row.id, row]))
+  return pins.flatMap((pin) => {
+    const row = rowById.get(pin.id)
+    if (!row) return []
+    return [{ ...pin, spokes: row.axes.map(({ percentile, value }) => ({ percentile, value })) }]
+  })
 }
 
 // One line per pick over every game this season, in week order (Trending

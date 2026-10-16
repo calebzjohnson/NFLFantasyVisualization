@@ -30,6 +30,7 @@ import {
 import { markUnder, nearestMarkAt, useHoveredMark } from "../lib/chartMarks"
 import { TOUCH_QUERY, useMediaQuery } from "../lib/useMediaQuery"
 import { useTapToOpen } from "../lib/useTapToOpen"
+import { FIT_SCREEN } from "../lib/utils"
 import AxisSelect from "./AxisSelect"
 import { ChartContainer, type ChartConfig } from "./evilcharts/ui/recharts-chart"
 import ChartDataTable from "./ChartDataTable"
@@ -456,7 +457,7 @@ function MetricScatter<Row extends StatFields>({
           >
             <ChartContainer
               config={chartConfig}
-              className="aspect-[3/2]"
+              className={`aspect-[3/2] ${FIT_SCREEN}`}
               label={`${title}: ${points.length} ${noun} plotted by ${xMetric.label} (across) and ${yMetric.label} (up). Lines mark the median in each stat.${
                 pinned?.length ? ` Picked: ${pinned.map((pin) => pin.name).join(", ")}.` : ""
               }${highlightedRow ? ` Highlighted: ${rowName(highlightedRow)}.` : ""}`}

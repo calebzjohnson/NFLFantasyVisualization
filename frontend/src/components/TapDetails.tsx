@@ -11,7 +11,12 @@ export function TapDetails({ prompt, className, children }: { prompt: string; cl
       aria-live="polite"
       className={`mt-2 flex flex-col justify-center rounded-md border border-[var(--border)] bg-[var(--surface-2)] p-2.5 text-xs ${className}`}
     >
-      {children ?? <p className="text-center text-[var(--text-muted)]">{prompt}</p>}
+      {/* `false` too: callers pass `selected && <Details />`, which is false before a tap. */}
+      {children === null || children === undefined || children === false ? (
+        <p className="text-center text-[var(--text-muted)]">{prompt}</p>
+      ) : (
+        children
+      )}
     </div>
   )
 }
