@@ -219,15 +219,17 @@ def tendency_plays(monkeypatch: pytest.MonkeyPatch) -> None:
         row = dict(season_type="REG", posteam=team, play_type=kind, shotgun=0, no_huddle=0,
                    qb_dropback=1 if kind == "pass" else 0, qb_kneel=0, qb_spike=0,
                    wp=0.5, qtr=1, down=1, pass_length=None,
-                   run_location=None, run_gap=None, yardline_100=50,
+                   run_location=None, run_gap=None, pass_location=None, yardline_100=50,
                    third_down_converted=0, third_down_failed=0,
                    fourth_down_converted=0, fourth_down_failed=0)
         row.update(kw)
         return row
 
-    rows = [play("DAL", "pass", shotgun=1, pass_length="deep")]
-    rows += [play("DAL", "pass", shotgun=1, pass_length="short") for _ in range(3)]
-    rows += [play("DAL", "pass", pass_length="short") for _ in range(2)]
+    rows = [play("DAL", "pass", shotgun=1, pass_length="deep", pass_location="middle")]
+    rows += [play("DAL", "pass", shotgun=1, pass_length="short", pass_location="left")
+             for _ in range(3)]
+    rows += [play("DAL", "pass", pass_length="short", pass_location="middle")]
+    rows += [play("DAL", "pass", pass_length="short", pass_location="right")]
     # Three of DAL's four runs are inside (two up the middle, one off guard);
     # the fourth is off end. run_gap is absent on middle runs, as in the real
     # data, so this also covers that case.
@@ -251,7 +253,7 @@ def tendency_plays(monkeypatch: pytest.MonkeyPatch) -> None:
     rows[2]["third_down_failed"] = 1
     punt = dict(season_type="REG", play_type="punt", shotgun=0, no_huddle=0, qb_dropback=0,
                 qb_kneel=0, qb_spike=0, wp=0.5, qtr=1, down=4, pass_length=None,
-                run_location=None, run_gap=None, yardline_100=50,
+                run_location=None, run_gap=None, pass_location=None, yardline_100=50,
                 third_down_converted=0, third_down_failed=0,
                 fourth_down_converted=0, fourth_down_failed=0)
     rows += [dict(punt, posteam="DAL"), dict(punt, posteam="NYG"), dict(punt, posteam="NYG")]

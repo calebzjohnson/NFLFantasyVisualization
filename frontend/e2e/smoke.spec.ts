@@ -726,18 +726,29 @@ test("team leaders switch stat without leaving the tab", async ({ page }) => {
   await expect(page).toHaveURL("/teams/KC?tab=playmaking")
 })
 
-test("play calling groups its rates and ranks each one", async ({ page }) => {
+test("play calling groups its rates and ranks each one", async ({ page, isMobile }) => {
   await page.goto("/teams/KC")
   const panel = page.locator("section", { has: page.getByRole("heading", { name: "Play Calling" }) })
 
-  for (const group of ["Balance", "Formation", "Run Direction", "Tempo", "Conversions"]) {
+  for (const group of ["Balance", "Formation", "Pass Location", "Run Direction", "Third Down"]) {
     await expect(panel.getByRole("heading", { name: group })).toBeVisible()
   }
-  // Both sides of a split are listed, so nothing has to be inferred.
-  await expect(panel.getByText("Dropback Rate")).toBeVisible()
-  await expect(panel.getByText("Run Rate", { exact: true })).toBeVisible()
-  // Every rate carries a league rank.
-  await expect(panel.getByText(/^\d+(st|nd|rd|th)$/).first()).toBeVisible()
+  // Each split is one bar carrying both sides, with the team's and the
+  // league's shares stacked.
+  const split = panel.getByRole("figure", { name: /^Dropback \/ Run\./ })
+  await expect(split).toBeVisible()
+  await expect(split.getByText("Team")).toBeVisible()
+  await expect(split.getByText("League")).toBeVisible()
+  // Each row is its own target, so pointing at one highlights that row alone.
+  const teamBar = split.getByRole("button", { name: /team$/ })
+  // Hover on a mouse, tap on a phone - either way it's the same control.
+  if (isMobile) await teamBar.tap()
+  else await teamBar.hover()
+  await expect(teamBar).toHaveAttribute("aria-pressed", "true")
+  await expect(split.getByRole("button", { name: /league average$/ })).toHaveAttribute(
+    "aria-pressed",
+    "false",
+  )
 })
 
 test("team leaders expands to the whole league", async ({ page }) => {
