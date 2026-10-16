@@ -25,18 +25,20 @@ TENDENCIES = (
     ("shotgun_pass_rate", "Shotgun Pass Rate", "Formation"),
     ("under_center_run_rate", "Under-Center Run Rate", "Formation"),
     ("shotgun_run_rate", "Shotgun Run Rate", "Formation"),
-    ("inside_run_rate", "Inside Run Rate", "Run Direction"),
-    ("outside_run_rate", "Outside Run Rate", "Run Direction"),
+    ("middle_pass_rate", "Middle", "Pass Location"),
+    ("outside_pass_rate", "Outside", "Pass Location"),
     ("short_pass_rate", "Short Pass Rate", "Pass Depth"),
     ("deep_pass_rate", "Deep Pass Rate", "Pass Depth"),
+    ("inside_run_rate", "Inside Run Rate", "Run Direction"),
+    ("outside_run_rate", "Outside Run Rate", "Run Direction"),
     ("huddle_rate", "Huddle Rate", "Tempo"),
     ("no_huddle_rate", "No-Huddle Rate", "Tempo"),
     ("red_zone_pass_rate", "Red Zone Pass Rate", "Red Zone"),
     ("red_zone_run_rate", "Red Zone Run Rate", "Red Zone"),
-    ("go_for_it_rate", "Go For It Rate", "Fourth Down"),
-    ("kick_rate", "Kick Rate", "Fourth Down"),
-    ("third_down_conversion", "Third Down Conversion", "Conversions"),
-    ("fourth_down_conversion", "Fourth Down Conversion", "Conversions"),
+    ("third_down_conversion", "Third Down Conversion", "Third Down"),
+    ("go_for_it_rate", "Go For It Rate", "Fourth Down Decision"),
+    ("kick_rate", "Kick Rate", "Fourth Down Decision"),
+    ("fourth_down_conversion", "Fourth Down Conversion", "Fourth Down"),
 )
 
 RED_ZONE_YARDLINE = 20
@@ -80,6 +82,13 @@ def _rates(plays: pd.DataFrame) -> pd.DataFrame:
     # reader shouldn't have to subtract from 100 to learn the other half.
     rates["run_rate"] = 100 - rates["dropback_rate"]
     rates["huddle_rate"] = 100 - rates["no_huddle_rate"]
+
+    # Where a throw went, not how far: pass_location is left/middle/right, so
+    # outside is the two sides together.
+    located = plays[plays["pass_location"].notna()]
+    over_middle = located.assign(middle=located["pass_location"] == "middle")
+    rates["middle_pass_rate"] = over_middle.groupby("posteam")["middle"].mean() * 100
+    rates["outside_pass_rate"] = 100 - rates["middle_pass_rate"]
 
     thrown = plays[plays["pass_length"].notna()]
     deep = thrown.assign(is_deep=thrown["pass_length"] == "deep")
@@ -171,9 +180,13 @@ def get_team_tendencies(team: str) -> dict[str, Any]:
     # team this early, so a single stop moves it a long way.
     for down, key in ((3, "third_down_conversion"), (4, "fourth_down_conversion")):
         prefix = "third" if down == 3 else "fourth"
+        # nflverse flags neither on a punt or field goal, so the denominator
+        # is already just the plays a team ran or threw. A kneel can carry the
+        # flag though, and that isn't an attempt at anything.
         attempts = full[
             (full["season_type"] == REGULAR_SEASON)
             & full["posteam"].notna()
+            & (full["qb_kneel"] == 0)
             & ((full[f"{prefix}_down_converted"] == 1) | (full[f"{prefix}_down_failed"] == 1))
         ]
         rates[key] = attempts.groupby("posteam")[f"{prefix}_down_converted"].mean() * 100
