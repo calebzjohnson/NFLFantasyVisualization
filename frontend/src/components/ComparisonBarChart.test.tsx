@@ -68,6 +68,23 @@ describe("ComparisonBarChart", () => {
     )
   })
 
+  it("orders each stat's bars greatest to least on its own, picks without stats last", () => {
+    renderWithRouter(
+      <ComparisonBarChart
+        title="Season Comparison"
+        metrics={[YARDS, EPA]}
+        rows={[row("a", { yards: 900, epa: 0.4 }), row("b", { yards: null, epa: null }), row("c", { yards: 1200, epa: -0.1 })]}
+      />,
+    )
+
+    const names = (stat: string) =>
+      within(screen.getByRole("region", { name: stat }))
+        .getAllByRole("link")
+        .map((link) => link.textContent)
+    expect(names("Yards")).toEqual(["Player c", "Player a", "Player b"])
+    expect(names("EPA")).toEqual(["Player a", "Player c", "Player b"])
+  })
+
   it("marks a pick without stats instead of drawing a bar", () => {
     renderWithRouter(<ComparisonBarChart title="Season Comparison" metrics={[YARDS]} rows={[row("a", { yards: null })]} />)
 

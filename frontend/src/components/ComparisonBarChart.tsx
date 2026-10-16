@@ -3,7 +3,8 @@
 // One shared axis would flatten 30 TDs next to 4,000 passing yards. Plain HTML
 // bars with each value written beside its bar, so there's nothing to hover
 // and nothing hidden on a phone; a stat with negative values (EPA) gets a zero line,
-// and picks under a per-play stat's minimum sample are named beneath it.
+// and picks under a per-play stat's minimum sample are named beneath it. Each
+// stat's bars run greatest to least (picks without stats last); colors stay with the pick.
 import type { ReactNode } from "react"
 import { Link } from "react-router-dom"
 import type { BarRow } from "../data/chartBuilder"
@@ -17,12 +18,17 @@ function StatBars({ metric, rows }: { metric: PlayerMetric; rows: BarRow[] }) {
   const span = high - low || 1
   const percent = (value: number) => `${(value / span) * 100}%`
   const small = rows.filter((row) => row.smallSamples[metric.key] !== undefined)
+  const sorted = [...rows].sort((a, b) => {
+    const [x, y] = [a.values[metric.key], b.values[metric.key]]
+    if (x === null || y === null) return (x === null ? 1 : 0) - (y === null ? 1 : 0)
+    return y - x
+  })
 
   return (
     <section aria-label={metric.label}>
       <h3 className="mb-2 text-sm font-semibold text-[var(--text-primary)]">{metric.label}</h3>
       <ul className="flex flex-col gap-1.5">
-        {rows.map((row) => {
+        {sorted.map((row) => {
           const value = row.values[metric.key]
           return (
             <li key={row.id} className="grid grid-cols-[minmax(0,7rem)_1fr_auto] items-center gap-2 text-xs">
