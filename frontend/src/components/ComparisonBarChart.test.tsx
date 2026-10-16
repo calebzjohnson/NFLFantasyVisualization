@@ -85,6 +85,17 @@ describe("ComparisonBarChart", () => {
     expect(names("EPA")).toEqual(["Player a", "Player c", "Player b"])
   })
 
+  it("puts the best first for a lower-is-better stat: least first", () => {
+    const picks: PlayerMetric = { ...YARDS, key: "int", label: "Interceptions", lowerIsBetter: true }
+    renderWithRouter(
+      <ComparisonBarChart title="Season Comparison" metrics={[picks]} rows={[row("a", { int: 9 }), row("b", { int: 2 })]} />,
+    )
+    const names = within(screen.getByRole("region", { name: "Interceptions" }))
+      .getAllByRole("link")
+      .map((link) => link.textContent)
+    expect(names).toEqual(["Player b", "Player a"])
+  })
+
   it("marks a pick without stats instead of drawing a bar", () => {
     renderWithRouter(<ComparisonBarChart title="Season Comparison" metrics={[YARDS]} rows={[row("a", { yards: null })]} />)
 

@@ -4,7 +4,8 @@
 // bars with each value written beside its bar, so there's nothing to hover
 // and nothing hidden on a phone; a stat with negative values (EPA) gets a zero line,
 // and picks under a per-play stat's minimum sample are named beneath it. Each
-// stat's bars run greatest to least (picks without stats last); colors stay with the pick.
+// stat's bars run best to worst - greatest first, or least first for a
+// lower-is-better stat (picks without stats last); colors stay with the pick.
 import type { ReactNode } from "react"
 import { Link } from "react-router-dom"
 import type { BarRow } from "../data/chartBuilder"
@@ -21,7 +22,7 @@ function StatBars({ metric, rows }: { metric: PlayerMetric; rows: BarRow[] }) {
   const sorted = [...rows].sort((a, b) => {
     const [x, y] = [a.values[metric.key], b.values[metric.key]]
     if (x === null || y === null) return (x === null ? 1 : 0) - (y === null ? 1 : 0)
-    return y - x
+    return metric.lowerIsBetter ? x - y : y - x
   })
 
   return (

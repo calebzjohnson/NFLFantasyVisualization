@@ -7,9 +7,26 @@
 // it in the search box) highlights it: drawn on top, ringed and labeled, with
 // everything else faded. Clicking the highlighted mark again opens its page.
 // On a touchscreen the tooltip is replaced by a details box below the chart.
+// With `pinned` (the Create page), the caller owns the axes and picks: the
+// pickers and search give way to a color key, and the picks are always drawn
+// (even under a stat's minimum, with a note), ringed in their color, labeled,
+// and on top of everyone else, who fades. With `onTogglePin` too, a click or
+// tap on a mark adds or removes it as a pick instead of highlighting it; on a
+// touchscreen, where nothing hovers, the tap also highlights it and fills the
+// details box: its numbers, whether it's a pick now, and a button to its page.
 import { type ReactElement, type ReactNode, useMemo, useState } from "react"
 import { CartesianGrid, ReferenceLine, Scatter, ScatterChart, XAxis, YAxis } from "recharts"
-import { formatValue, meetsMinimum, metricMedian, roundTo, type MetricFormat, type PlayerMetric, type StatFields } from "../data/playerMetrics"
+import {
+  formatValue,
+  meetsMinimum,
+  metricMedian,
+  minimumNotes,
+  roundTo,
+  smallSampleNotes,
+  type MetricFormat,
+  type PlayerMetric,
+  type StatFields,
+} from "../data/playerMetrics"
 import { markUnder, nearestMarkAt, useHoveredMark } from "../lib/chartMarks"
 import { TOUCH_QUERY, useMediaQuery } from "../lib/useMediaQuery"
 import { useTapToOpen } from "../lib/useTapToOpen"
@@ -18,6 +35,7 @@ import { ChartContainer, type ChartConfig } from "./evilcharts/ui/recharts-chart
 import ChartDataTable from "./ChartDataTable"
 import HighlightPicker from "./HighlightPicker"
 import Panel from "./Panel"
+import PickLegend, { type Pin } from "./PickLegend"
 import { HoverCard, OpenButton, TapDetails } from "./TapDetails"
 
 const chartConfig = {
@@ -49,20 +67,26 @@ export function groupCoincidentPoints<Row>(rows: (Row & { x: number; y: number }
   )
 }
 
-// The highlighted row comes out of any tie cluster and goes last, since SVG
-// draws later marks on top - so it's never hidden behind its neighbors.
+// The highlighted row (and any pinned ones) come out of tie clusters and go
+// last, since SVG draws later marks on top - so they're never hidden behind
+// their neighbors. The highlighted row is last of all.
 export function withHighlightedOnTop<Row>(
   rows: (Row & { x: number; y: number })[],
   highlightedId: string | null,
   rowId: (row: Row) => string,
+  pinnedIds: ReadonlySet<string> = new Set(),
 ): PlotPoint<Row>[] {
-  const picked = rows.filter((row) => rowId(row) === highlightedId)
-  const rest = rows.filter((row) => rowId(row) !== highlightedId)
+  const solo = (row: Row & { x: number; y: number }): PlotPoint<Row> => ({ kind: "solo", x: row.x, y: row.y, row })
+  const top = (row: Row) => rowId(row) === highlightedId || pinnedIds.has(rowId(row))
   return [
-    ...groupCoincidentPoints(rest),
-    ...picked.map((row): PlotPoint<Row> => ({ kind: "solo", x: row.x, y: row.y, row })),
+    ...groupCoincidentPoints(rows.filter((row) => !top(row))),
+    ...rows.filter((row) => pinnedIds.has(rowId(row)) && rowId(row) !== highlightedId).map(solo),
+    ...rows.filter((row) => rowId(row) === highlightedId).map(solo),
   ]
 }
+
+// Around a pinned mark, outside both the headshot (11px) and logo markers.
+const PIN_RING_RADIUS = 16
 
 // Label for a highlighted mark: above it, or below when it sits near the top edge.
 function HighlightLabel({ cx, cy, text }: { cx: number; cy: number; text: string }) {
@@ -171,7 +195,8 @@ function valueDomain(values: number[]): [number, number] {
   if (values.length === 0) return [-1, 1]
   const min = Math.min(...values)
   const max = Math.max(...values)
-  const pad = Math.max((max - min) * 0.08, 1)
+  // A flat range (every value equal) still gets some room either side.
+  const pad = (max - min) * 0.08 || Math.max(Math.abs(max) * 0.1, 1)
   return [min - pad, max + pad]
 }
 
@@ -228,6 +253,14 @@ interface MetricScatterProps<Row extends StatFields> {
   rowId: (row: Row) => string
   // How a row reads in the highlight search, when the name alone could be ambiguous. Defaults to rowName.
   searchLabel?: (row: Row) => string
+  // Picks to draw in their own color (see the header comment), keyed by rowId.
+  pinned?: Pin[]
+  // A click, tap, or Enter on a mark: add it to the picks, or remove it if it's one.
+  onTogglePin?: (row: Row) => void
+  // There's no room for another pick, so a tap on one that isn't can't add it.
+  pinLimitReached?: boolean
+  // Under the caption, e.g. a stat glossary.
+  footer?: ReactNode
   // Opens a row's page: a click on the already-highlighted mark, or the touchscreen "View" button.
   onOpen?: (row: Row) => void
   // Shown below the chart on a touchscreen before anything is tapped.
@@ -250,6 +283,10 @@ function MetricScatter<Row extends StatFields>({
   rowName,
   rowId,
   searchLabel = rowName,
+  pinned,
+  onTogglePin,
+  pinLimitReached = false,
+  footer,
   onOpen,
   tapPrompt,
   renderTooltipHeader,
@@ -261,18 +298,27 @@ function MetricScatter<Row extends StatFields>({
   // Rows with enough plays for both picked stats (see MinSample): a handful
   // of plays would stretch an axis and squash everyone else into a corner.
   // Everything below - medians, marks, search, table - uses only these.
+  // Picks always stay, however few their plays.
+  const pinById = useMemo(() => new Map(pinned?.map((pin) => [pin.id, pin])), [pinned])
   const shown = useMemo(
-    () => rows?.filter((row) => meetsMinimum(row, xMetric) && meetsMinimum(row, yMetric)) ?? null,
-    [rows, xMetric, yMetric],
+    () =>
+      rows?.filter(
+        (row) => pinById.has(rowId(row)) || (meetsMinimum(row, xMetric) && meetsMinimum(row, yMetric)),
+      ) ?? null,
+    // Callers pass a new rowId each render, so this reruns then too - a
+    // filter over a couple hundred rows, cheap enough not to work around.
+    [rows, xMetric, yMetric, pinById, rowId],
   )
-  // e.g. "Players with fewer than 25 dropbacks aren't shown, since Completion % and EPA / Dropback swing a lot on a handful of plays."
-  const minimumNotes = [...new Set([xMetric.minSample, yMetric.minSample])].flatMap((sample) => {
-    if (!sample) return []
-    const labels = [...new Set([xMetric, yMetric].filter((m) => m.minSample === sample).map((m) => m.label))]
-    return [
-      `${noun[0].toUpperCase()}${noun.slice(1)} with fewer than ${sample.min} ${sample.noun} aren't shown, since ${labels.join(" and ")} ${labels.length > 1 ? "swing" : "swings"} a lot on a handful of plays.`,
-    ]
-  })
+  const minimumNote = [
+    ...minimumNotes(noun, [xMetric, yMetric]),
+    ...smallSampleNotes(
+      (rows ?? []).flatMap((row) => {
+        const pin = pinById.get(rowId(row))
+        return pin ? [{ name: pin.name, row }] : []
+      }),
+      [...new Set([xMetric, yMetric])],
+    ),
+  ]
 
   // First click or tap highlights a mark; a second one on it opens its page.
   // `selected` is the highlighted row's id, or a tie cluster's key
@@ -287,6 +333,27 @@ function MetricScatter<Row extends StatFields>({
   )
   const selected = tap.selected
   const hover = useHoveredMark()
+  const touchScreen = useMediaQuery(TOUCH_QUERY)
+  // In toggle mode a mark's click adds or removes the pick; empty space still
+  // clears, and a tie cluster is still selected (a touchscreen lists its
+  // members). On a touchscreen the toggled mark is selected too, so the
+  // details box shows it - even right after it's removed, so a stray tap is
+  // easy to undo. A mouse has the hover card instead.
+  function activate(key: string | null) {
+    const row = onTogglePin && key !== null ? shown?.find((r) => rowId(r) === key) : undefined
+    if (row) {
+      onTogglePin!(row)
+      if (touchScreen) tap.select(key)
+    } else if (onTogglePin) tap.select(key)
+    else tap.tap(key)
+  }
+
+  // The details box's line on a tapped mark, in toggle mode.
+  function pinStatus(row: Row): string {
+    if (pinById.has(rowId(row))) return "One of your picks. Tap again to remove."
+    if (pinLimitReached) return `You have ${pinById.size} picks. Remove one to add ${rowName(row)}.`
+    return "Not in your picks. Tap again to add."
+  }
 
   // The quadrant lines sit at the median, but each axis plots the real stat -
   // ticks, dot positions, and the tooltip's headline number are all in the
@@ -303,7 +370,7 @@ function MetricScatter<Row extends StatFields>({
   // depends entirely on the two stats currently picked.
   // Not memoized: callers pass a new rowId every render, and the inline `shape`
   // below redraws every mark on each render regardless.
-  const plotPoints = points ? withHighlightedOnTop(points, selected, rowId) : null
+  const plotPoints = points ? withHighlightedOnTop(points, selected, rowId, new Set(pinById.keys())) : null
   // Undefined when nothing's selected, a cluster is, or the row is gone (e.g. after a refetch).
   const highlightedRow = shown?.find((row) => rowId(row) === selected)
 
@@ -312,7 +379,6 @@ function MetricScatter<Row extends StatFields>({
 
   const optionByLabel = new Map(metrics.map((metric) => [metric.label, metric]))
 
-  const touchScreen = useMediaQuery(TOUCH_QUERY)
   const pointKey = (point: PlotPoint<Row>) => (point.kind === "solo" ? rowId(point.row) : `cluster:${point.x},${point.y}`)
   const pointByKey = new Map(plotPoints?.map((point) => [pointKey(point), point]))
   // Gone if the axes changed and a selected cluster split up.
@@ -337,6 +403,10 @@ function MetricScatter<Row extends StatFields>({
   return (
     <Panel title={title}>
       <div className="flex flex-wrap items-center justify-center gap-3 border-b border-[var(--border)] px-4 py-3">
+        {pinned ? (
+          <PickLegend pins={pinned} />
+        ) : (
+          <>
         <AxisSelect
           label="X axis"
           value={xMetric.label}
@@ -358,6 +428,8 @@ function MetricScatter<Row extends StatFields>({
             onClear={() => tap.select(null)}
           />
         )}
+          </>
+        )}
       </div>
       {loading && <p className="p-4 text-sm text-[var(--text-secondary)]">Loading…</p>}
       {error && (
@@ -368,7 +440,7 @@ function MetricScatter<Row extends StatFields>({
       {points && points.length === 0 && (
         <p className="p-4 text-sm text-[var(--text-secondary)]">
           {/* Rows exist, but none has enough plays yet for the picked stats. */}
-          {rows && rows.length > 0 ? minimumNotes.join(" ") : emptyText}
+          {rows && rows.length > 0 ? minimumNote.join(" ") : emptyText}
         </p>
       )}
       {points && points.length > 0 && (
@@ -379,15 +451,15 @@ function MetricScatter<Row extends StatFields>({
           <div
             data-chart-marks
             className={`relative ${hover.hovered ? "cursor-pointer" : ""}`}
-            {...tap.pressHandlers((x, y, pointerType) => (pointerType === "mouse" ? nearestMarkAt(x, y) : markUnder(x, y)))}
+            {...tap.pressHandlers((x, y, pointerType) => (pointerType === "mouse" ? nearestMarkAt(x, y) : markUnder(x, y)), activate)}
             {...hover.hoverHandlers}
           >
             <ChartContainer
               config={chartConfig}
               className="aspect-[3/2]"
               label={`${title}: ${points.length} ${noun} plotted by ${xMetric.label} (across) and ${yMetric.label} (up). Lines mark the median in each stat.${
-                highlightedRow ? ` Highlighted: ${rowName(highlightedRow)}.` : ""
-              }`}
+                pinned?.length ? ` Picked: ${pinned.map((pin) => pin.name).join(", ")}.` : ""
+              }${highlightedRow ? ` Highlighted: ${rowName(highlightedRow)}.` : ""}`}
             >
               <ScatterChart margin={{ top: 8, right: 16, bottom: 24, left: 4 }}>
                 <CartesianGrid stroke="var(--border)" strokeOpacity={0.6} />
@@ -437,6 +509,7 @@ function MetricScatter<Row extends StatFields>({
                     if (!point) return null
                     const key = pointKey(point)
                     const picked = point.kind === "solo" && key === selected
+                    const pin = point.kind === "solo" ? pinById.get(key) : undefined
                     const hovered = key === hover.hovered?.key
                     // data-tap-key marks what chartMarks measures, so the label stays outside it.
                     const mark = (
@@ -456,20 +529,32 @@ function MetricScatter<Row extends StatFields>({
                             payload={point.row}
                             selected={picked}
                             hovered={hovered}
-                            onSelect={() => tap.tap(key)}
+                            onSelect={() => activate(key)}
                           />
                         )}
                       </g>
                     )
-                    if (picked && props.cx !== undefined && props.cy !== undefined) {
+                    if (point.kind === "solo" && (picked || pin) && props.cx !== undefined && props.cy !== undefined) {
+                      // ponytail: labels of picks bunched together can overlap; the
+                      // color key and hover card still name each. Nudge labels apart if it grates.
                       return (
                         <g>
+                          {pin && (
+                            <circle
+                              cx={props.cx}
+                              cy={props.cy}
+                              r={PIN_RING_RADIUS}
+                              fill="none"
+                              stroke={pin.color}
+                              strokeWidth={3}
+                            />
+                          )}
                           {mark}
                           <HighlightLabel cx={props.cx} cy={props.cy} text={rowName(point.row)} />
                         </g>
                       )
                     }
-                    return highlightedRow ? <g opacity={0.25}>{mark}</g> : mark
+                    return highlightedRow || pinById.size > 0 ? <g opacity={0.25}>{mark}</g> : mark
                   }}
                   isAnimationActive={false}
                 />
@@ -485,6 +570,9 @@ function MetricScatter<Row extends StatFields>({
               {selectedPoint && (
                 <div className="flex flex-col gap-1.5">
                   {pointDetails(selectedPoint)}
+                  {selectedPoint.kind === "solo" && onTogglePin && (
+                    <p className="text-[var(--text-secondary)]">{pinStatus(selectedPoint.row)}</p>
+                  )}
                   {selectedPoint.kind === "solo" && onOpen && (
                     <OpenButton name={rowName(selectedPoint.row)} onClick={() => onOpen(selectedPoint.row)} />
                   )}
@@ -493,11 +581,12 @@ function MetricScatter<Row extends StatFields>({
             </TapDetails>
           )}
           <p className="pt-2 text-xs text-[var(--text-muted)]">{caption}</p>
-          {minimumNotes.map((note) => (
+          {minimumNote.map((note) => (
             <p key={note} className="pt-1 text-xs text-[var(--text-muted)]">
               {note}
             </p>
           ))}
+          {footer}
           <ChartDataTable
             caption={`${xMetric.label} and ${yMetric.label} for each of the ${noun}`}
             columns={["Name", xMetric.label, yMetric.label]}

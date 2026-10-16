@@ -22,13 +22,20 @@ beforeEach(() => {
       { player_id: "P2", player_display_name: "Run Two", recent_team: "KC", position: "RB" },
       { player_id: "P3", player_display_name: "Long Snap", recent_team: "KC", position: "LS" },
       { player_id: "P4", player_display_name: "Edge Four", recent_team: "KC", position: "DE" },
+      { player_id: "P5", player_display_name: "Back Up", recent_team: "KC", position: "WR" },
     ],
     "/players/P1/bio": playerBio({ player_id: "P1", position_group: "WR" }),
     "/players/P2/bio": playerBio({ player_id: "P2", position_group: "RB" }),
     "/players/P3/bio": playerBio({ player_id: "P3", position_group: "LS" }),
     "/players/P4/bio": playerBio({ player_id: "P4", position_group: "EDGE" }),
     [playersPathForPosition("EDGE")]: [],
-    [playersPathForPosition("WR")]: [{ ...player("P1", "Wide One", "BUF"), targets: 50, fantasy_points_ppr: 120 }],
+    "/players/P5/bio": playerBio({ player_id: "P5", position_group: "WR" }),
+    "/players/latest-week": { season: 2026, week: 6, season_type: "REG" },
+    [playersPathForPosition("WR")]: [
+      { ...player("P1", "Wide One", "BUF"), targets: 50, fantasy_points_ppr: 120 },
+      // Under the WR floor at week 6 (2 targets a week: 12).
+      { ...player("P5", "Back Up", "KC"), targets: 3, fantasy_points_ppr: 9 },
+    ],
     [playersPathForPosition("RB")]: [{ ...player("P2", "Run Two", "KC"), targets: 20, fantasy_points_ppr: 90 }],
     [playersWeeklyPathForPosition("WR")]: [
       { player_id: "P1", player_display_name: "Wide One", team: "BUF", headshot_url: null, week: 1, targets: 8 },
@@ -117,9 +124,15 @@ describe("CreatePage", () => {
 
   it("adds a pick from the search box and removes it from its chip", async () => {
     renderAt("/create")
-    fireEvent.change(await screen.findByLabelText("Add"), { target: { value: "Wide One · WR · BUF" } })
+    const search = screen.getByRole("combobox", { name: "Add a player..." })
+    fireEvent.focus(search)
+    fireEvent.change(search, { target: { value: "wide" } })
+    fireEvent.click(await screen.findByRole("option", { name: /Wide One/ }))
 
     expect(urlQuery().get("ids")).toBe("P1")
+    // A pick isn't offered again.
+    fireEvent.change(search, { target: { value: "wide" } })
+    expect(await screen.findByText("No players found")).toBeInTheDocument()
     expect(await screen.findByRole("region", { name: "Fantasy Points (PPR)" })).toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "Remove Wide One" }))
     expect(urlQuery().get("ids")).toBeNull()
@@ -155,6 +168,61 @@ describe("CreatePage", () => {
     const table = screen.getByRole("table")
     expect(within(table).getAllByRole("columnheader").map((th) => th.textContent)).toEqual(["Team", "Wk 1", "Wk 2"])
     expect(within(table).getAllByRole("row")[1]).toHaveTextContent("BUF Team2031")
+  })
+
+  it("offers all four chart types", () => {
+    renderAt("/create")
+    const types = within(screen.getByRole("group", { name: "Chart type" })).getAllByRole("button")
+    expect(types.map((button) => button.textContent)).toEqual(["Bar", "Line", "Scatter", "Beeswarm"])
+  })
+
+  it("rebuilds a scatter from the URL with the picks pinned, and sets its axes from the form", async () => {
+    renderAt("/create?type=scatter&ids=P1,P2&stats=targets,fantasy_points_ppr")
+
+    expect(
+      await screen.findByRole("figure", {
+        name: /^Fantasy Points \(PPR\) vs\. Targets: 3 players plotted .* Picked: Wide One, Run Two\.$/,
+      }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole("list", { name: "Picks" })).toHaveTextContent("Wide OneRun Two")
+    expect(screen.getByLabelText("X axis")).toHaveValue("targets")
+
+    fireEvent.change(screen.getByLabelText("Y axis"), { target: { value: "receptions" } })
+    expect(urlQuery().get("stats")).toBe("targets,receptions")
+  })
+
+  it("ranks players on a beeswarm only against those over their position's volume floor", async () => {
+    renderAt("/create?type=beeswarm&ids=P1&stats=targets")
+
+    expect(
+      await screen.findByRole("figure", {
+        name: "Qualifying WRs this season (1), placed by percentile rank on each of 1 stats. Picked: Wide One.",
+      }),
+    ).toBeInTheDocument()
+    expect(within(screen.getByRole("table")).queryByText("Back Up")).not.toBeInTheDocument()
+    expect(screen.getByText(/WRs need 12 targets so far \(2 a week\) to be ranked\./)).toBeInTheDocument()
+  })
+
+  it("keeps a pick under the floor on the beeswarm, and says so", async () => {
+    renderAt("/create?type=beeswarm&ids=P1,P5&stats=targets")
+
+    await screen.findByRole("figure", { name: /^Qualifying WRs this season \(2\)/ })
+    expect(within(screen.getByRole("table")).getByText("Back Up")).toBeInTheDocument()
+    expect(screen.getByText(/WRs need 12 targets so far \(2 a week\) to be ranked; Back Up is under that but shown anyway\./)).toBeInTheDocument()
+  })
+
+  it("ranks teams on a beeswarm of the picked stats, with the picks pinned", async () => {
+    renderAt("/create?kind=teams&type=beeswarm&ids=BUF&stats=points,turnovers")
+
+    expect(
+      await screen.findByRole("figure", {
+        name: "All 2 teams this season, placed by percentile rank on each of 2 stats. Picked: BUF Team.",
+      }),
+    ).toBeInTheDocument()
+    expect(screen.getByText("Stats (up to 6)")).toBeInTheDocument()
+    // BUF scores more per game (100th); with no turnovers in the data, the two tie.
+    const [, ...rows] = within(screen.getByRole("table")).getAllByRole("row")
+    expect(rows.map((row) => row.textContent)).toEqual(["BUF Team25.5 (100th)0 (75th)", "KC Team17 (50th)0 (75th)"])
   })
 
   it("starts over when switching between players and teams", async () => {

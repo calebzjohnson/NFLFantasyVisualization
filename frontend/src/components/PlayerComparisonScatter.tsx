@@ -4,7 +4,8 @@
 // a team-colored ring (initials when there's no photo). An earlier headshot
 // version was slow because it drew ~170 full-size (~630 KB, 3400px) photos,
 // each with its own clipPath; these are 128px, pre-cropped round by the CDN
-// (~7 KB each), so there's nothing to clip.
+// (~7 KB each), so there's nothing to clip. The Create page's scatter reuses
+// the marker and tooltip header.
 import { memo, useMemo } from "react"
 import { useNavigate } from "react-router-dom"
 import { positionPlural, type PositionGroup } from "../data/leaderCategories"
@@ -17,7 +18,7 @@ import { useFetch } from "../lib/useFetch"
 import MetricScatter from "./MetricScatter"
 import PlayerAvatar from "./PlayerAvatar"
 
-type PlayerPoint = PlayerStatsRow & { color: string }
+export type PlayerPoint = PlayerStatsRow & { color: string }
 
 const MARKER_RADIUS = 11
 // Team-color ring width around a headshot.
@@ -30,18 +31,21 @@ const MARKER_PHOTO_PX = 128
 // The chart resolves clicks and hover to the nearest mark (see chartMarks)
 // and passes `hovered`; a finger still hits the transparent 32px circle.
 // Memoized so hovering one marker doesn't force the other ~170 to re-render.
-const PlayerDot = memo(function PlayerDot({
+export const PlayerDot = memo(function PlayerDot({
   cx,
   cy,
   payload,
   onSelect,
   selected = false,
   hovered = false,
+  label,
 }: {
   cx?: number
   cy?: number
   payload?: PlayerPoint
   onSelect?: () => void
+  // Screen-reader name when activating does something else (the Create page's add/remove).
+  label?: string
   // Highlighted: ringed in the accent color, not enlarged like hover (a
   // bigger mark would cover neighbors and catch taps meant for them).
   // Activating it then opens the player page.
@@ -55,7 +59,10 @@ const PlayerDot = memo(function PlayerDot({
       role="button"
       tabIndex={0}
       onKeyDown={onSelect && activateOnKey(onSelect)}
-      aria-label={selected ? `View ${payload.player_display_name}'s player page` : `Highlight ${payload.player_display_name}`}
+      aria-label={
+        label ??
+        (selected ? `View ${payload.player_display_name}'s player page` : `Highlight ${payload.player_display_name}`)
+      }
       className={`origin-center cursor-pointer transition-transform duration-150 [transform-box:fill-box] ${hovered ? "scale-125" : ""}`}
     >
       <circle cx={cx} cy={cy} r={16} fill="transparent" />
@@ -93,7 +100,7 @@ const PlayerDot = memo(function PlayerDot({
 })
 
 // Tooltip header: a bigger (non-round, 192px) headshot beside the name and team.
-function TooltipHeader({ point }: { point: PlayerPoint }) {
+export function TooltipHeader({ point }: { point: PlayerPoint }) {
   return (
     <div className="flex items-center gap-2">
       <PlayerAvatar

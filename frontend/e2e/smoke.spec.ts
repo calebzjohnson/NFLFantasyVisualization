@@ -56,6 +56,12 @@ const PAGES = [
     title: "Create · Plot the Pigskin",
   },
   { name: "create team lines", path: "/create?kind=teams&type=line&ids=KC,BUF", title: "Create · Plot the Pigskin" },
+  {
+    name: "create player scatter",
+    path: "/create?kind=players&type=scatter&ids=00-0033873,00-0034796&stats=passing_yards,epa_per_dropback",
+    title: "Create · Plot the Pigskin",
+  },
+  { name: "create team beeswarm", path: "/create?kind=teams&type=beeswarm&ids=KC,BUF", title: "Create · Plot the Pigskin" },
 ]
 
 for (const { name, path, title } of PAGES) {
@@ -303,6 +309,71 @@ for (const { path, heading, opened } of COMPARE_SCATTERS) {
     await expect(page).toHaveURL(opened)
   })
 }
+
+// On the Create page's scatter a mark is a pick toggle, not a link: a click or
+// tap adds it to the picks, one on a pick removes it, and nothing navigates.
+test("Create scatter marks add and remove picks, by click or by tap", async ({ page, hasTouch }) => {
+  const path = "/create?kind=teams&type=scatter&ids=KC"
+  await page.goto(path)
+  const chart = page.locator("section", { has: page.getByRole("heading", { name: /vs\./ }) })
+  const add = chart.locator('svg [role=button][aria-label^="Add"]')
+  const remove = chart.locator('svg [role=button][aria-label^="Remove"]')
+  await add.first().waitFor({ timeout: 60_000 })
+  await expect(page.getByText("Loading…")).toHaveCount(0, { timeout: 60_000 })
+  await chart.scrollIntoViewIfNeeded()
+  const press = (target: import("@playwright/test").Locator) =>
+    hasTouch ? target.tap({ force: true }) : target.click({ force: true })
+
+  // On a touchscreen the tapped team also fills the details box; a mouse has the hover card instead.
+  const status = (text: string | RegExp) => chart.getByText(text)
+
+  await expect(remove).toHaveCount(1)
+  await press(add.nth(3))
+  await expect(remove).toHaveCount(2)
+  await expect(chart.getByRole("list", { name: "Picks" }).getByRole("listitem")).toHaveCount(2)
+  if (hasTouch) await expect(status("One of your picks. Tap again to remove.")).toBeVisible()
+  else await expect(status(/One of your picks/)).toHaveCount(0)
+
+  await press(chart.locator('[aria-label="Remove Kansas City Chiefs from your picks"]'))
+  await expect(remove).toHaveCount(1)
+  await expect(page).toHaveURL(/\/create\?kind=teams&type=scatter&ids=[A-Z]+$/)
+  expect(page.url()).not.toContain("KC")
+
+  if (hasTouch) {
+    // The removed team stays in the box, a tap away from coming back, with a way to its page.
+    await expect(status("Not in your picks. Tap again to add.")).toBeVisible()
+    await chart.getByRole("button", { name: "View Kansas City Chiefs →" }).click()
+    await expect(page).toHaveURL("/teams/KC")
+  }
+})
+
+// Adding a player loads their bio; the chart must stay up meanwhile, or the
+// tapped player drops out of the details box.
+test("a Create scatter tap on a player shows them in the details box", async ({ page, hasTouch }) => {
+  test.skip(!hasTouch, "the details box is touch-only")
+  await page.goto("/create?kind=players&type=scatter&ids=00-0033873&stats=passing_yards,epa_per_dropback")
+  const chart = page.locator("section", { has: page.getByRole("heading", { name: /vs\./ }) })
+  const add = chart.locator('svg [role=button][aria-label^="Add"]')
+  await add.first().waitFor({ timeout: 60_000 })
+  await chart.scrollIntoViewIfNeeded()
+
+  await add.nth(10).tap({ force: true })
+  await expect(chart.getByText("One of your picks. Tap again to remove.")).toBeVisible()
+  await expect(chart.getByRole("button", { name: /^View .+ →$/ })).toBeVisible()
+})
+
+test("a Create scatter tap past five picks says why it didn't add", async ({ page, hasTouch }) => {
+  test.skip(!hasTouch, "the details box is touch-only")
+  await page.goto("/create?kind=teams&type=scatter&ids=KC,BUF,DET,PHI,SF")
+  const chart = page.locator("section", { has: page.getByRole("heading", { name: /vs\./ }) })
+  const add = chart.locator('svg [role=button][aria-label^="Add"]')
+  await add.first().waitFor({ timeout: 60_000 })
+  await chart.scrollIntoViewIfNeeded()
+
+  await add.first().tap({ force: true })
+  await expect(chart.getByText(/^You have 5 picks\. Remove one to add .+\.$/)).toBeVisible()
+  await expect(chart.locator('svg [role=button][aria-label^="Remove"]')).toHaveCount(5)
+})
 
 // With a mouse, the hover card follows the mark whose center is nearest the
 // pointer (within 20px, chartMarks.REACH), not whichever mark's shape is under it: marks overlap,
