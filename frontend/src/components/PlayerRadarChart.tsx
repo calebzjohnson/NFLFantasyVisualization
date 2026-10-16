@@ -13,6 +13,7 @@ import ChartDataTable from "./ChartDataTable"
 import { ChartContainer, type ChartConfig } from "./evilcharts/ui/recharts-chart"
 import { ChartTooltip } from "./evilcharts/ui/recharts-tooltip"
 import Panel from "./Panel"
+import StatGlossary from "./StatGlossary"
 import RadarAxisTick from "./RadarAxisTick"
 
 interface RadarAxis {
@@ -184,16 +185,9 @@ function PlayerRadarChart({
             Each axis is this player's percentile rank at their position this season; the dashed
             ring marks the 50th percentile, or league average.
           </p>
-          <details className="px-3 pb-1 pt-2 text-xs text-[var(--text-muted)]">
-            <summary className="-my-1 cursor-pointer py-1 text-[var(--text-secondary)]">What do these stats mean?</summary>
-            <dl className="mt-2 grid gap-1.5">
-              {data.axes.map((axis) => (
-                <div key={axis.key}>
-                  <dt className="inline font-medium text-[var(--text-secondary)]">{axis.label}: </dt>
-                  <dd className="inline">{AXIS_GLOSSARY[axis.key] ?? "—"}</dd>
-                </div>
-              ))}
-            </dl>
+          <StatGlossary
+            entries={data.axes.map((axis) => ({ key: axis.key, label: axis.label, text: AXIS_GLOSSARY[axis.key] }))}
+          >
             {ngsAxisLabels.length > 0 && (
               <p className="mt-2 border-t border-[var(--border)] pt-2">
                 {ngsAxisLabels.join(" and ")} {ngsAxisLabels.length > 1 ? "are" : "is"} sourced from
@@ -201,7 +195,7 @@ function PlayerRadarChart({
                 to appear.
               </p>
             )}
-          </details>
+          </StatGlossary>
           <ChartDataTable
             caption={`${data.name}'s percentile ranks among ${position}s`}
             columns={["Stat", "Value", "Percentile"]}

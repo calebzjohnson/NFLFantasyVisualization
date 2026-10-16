@@ -8,6 +8,7 @@ const NAV_TABS = [
   { label: "Home", to: "/" },
   { label: "Teams", to: "/teams" },
   { label: "Players", to: "/players" },
+  { label: "Create", to: "/create" },
   { label: "About", to: "/about" },
 ] as const
 

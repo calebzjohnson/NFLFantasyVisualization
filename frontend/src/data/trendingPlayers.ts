@@ -44,6 +44,7 @@ export interface TrendLine {
   team: string
   headshot: string | null
   logo?: string // teams get a logo badge instead of initials
+  color?: string // the line's own color, in place of TrendChart's up/down ones
   slope: number
   games: { week: number; value: number }[]
 }

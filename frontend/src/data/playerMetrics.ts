@@ -28,16 +28,59 @@ export interface PlayerMetric {
   key: string
   label: string
   unit?: string // e.g. "%" for share-based metrics; omitted for plain counts
+  decimals?: number // shown to this many places; default 1 (per-play EPA needs 2)
+  minSample?: MinSample // per-play stats only: below this, the number is mostly noise
   value: (row: StatFields) => number
+}
+
+// The fewest plays a per-play stat needs before it means much - one dropback
+// can be worth -5 EPA. Compare Players leaves out players below it, and the
+// Create page flags them. Shared objects, so the scatter can group stats that
+// need the same thing.
+export interface MinSample {
+  noun: string // what's counted, e.g. "carries"
+  min: number
+  count: (row: StatFields) => number
+}
+
+export function meetsMinimum(row: StatFields, metric: PlayerMetric): boolean {
+  return !metric.minSample || metric.minSample.count(row) >= metric.minSample.min
 }
 
 export function num(row: StatFields, field: string): number {
   return Number(row[field] ?? 0)
 }
 
+// How a metric's values display: its unit and decimal places.
+export type MetricFormat = Pick<PlayerMetric, "unit" | "decimals">
+
+export function roundTo(value: number, decimals = 1): number {
+  return Number.isInteger(value) ? value : Math.round(value * 10 ** decimals) / 10 ** decimals
+}
+
+// A metric value for display: the metric's decimals at most, thousands separators, and its unit.
+export function formatValue(value: number, format: MetricFormat = {}): string {
+  return `${roundTo(value, format.decimals).toLocaleString()}${format.unit ?? ""}`
+}
+
+// Unrounded, unlike perAttempt (which rounds to one decimal): per-play EPA
+// lives in the hundredths, and formatValue rounds for display. 0 with no plays.
+function perPlay(total: number, plays: number): number {
+  return plays === 0 ? 0 : total / plays
+}
+
 function percent(row: StatFields, field: string): number {
   return num(row, field) * 100
 }
+
+// A dropback is a pass attempt or a sack (scrambles aren't counted separately).
+const MIN_DROPBACKS: MinSample = {
+  noun: "dropbacks",
+  min: 25,
+  count: (row) => num(row, "attempts") + num(row, "sacks_suffered"),
+}
+const MIN_CARRIES: MinSample = { noun: "carries", min: 10, count: (row) => num(row, "carries") }
+const MIN_TARGETS: MinSample = { noun: "targets", min: 8, count: (row) => num(row, "targets") }
 
 const fantasyPointsPpr: PlayerMetric = {
   key: "fantasy_points_ppr",
@@ -52,6 +95,7 @@ const QB_METRICS: PlayerMetric[] = [
     key: "completion_pct",
     label: "Completion %",
     unit: "%",
+    minSample: MIN_DROPBACKS,
     value: (row) => perAttempt(num(row, "completions") * 100, num(row, "attempts")),
   },
   { key: "passing_yards", label: "Passing Yards", value: (row) => num(row, "passing_yards") },
@@ -64,6 +108,7 @@ const QB_METRICS: PlayerMetric[] = [
   {
     key: "rating",
     label: "Passer Rating",
+    minSample: MIN_DROPBACKS,
     value: (row) =>
       passerRating(
         num(row, "completions"),
@@ -73,7 +118,14 @@ const QB_METRICS: PlayerMetric[] = [
         num(row, "passing_interceptions"),
       ),
   },
-  { key: "passing_epa", label: "EPA", value: (row) => num(row, "passing_epa") },
+  {
+    key: "epa_per_dropback",
+    label: "EPA / Dropback",
+    decimals: 2,
+    minSample: MIN_DROPBACKS,
+    // nflverse's passing_epa covers pass attempts and sacks, so a dropback is either.
+    value: (row) => perPlay(num(row, "passing_epa"), num(row, "attempts") + num(row, "sacks_suffered")),
+  },
   { key: "passing_cpoe", label: "CPOE", value: (row) => num(row, "passing_cpoe") },
   { key: "sacks_suffered", label: "Sacks Taken", value: (row) => num(row, "sacks_suffered") },
   fantasyPointsPpr,
@@ -86,9 +138,16 @@ const RB_METRICS: PlayerMetric[] = [
   {
     key: "ypc",
     label: "Yards / Carry",
+    minSample: MIN_CARRIES,
     value: (row) => perAttempt(num(row, "rushing_yards"), num(row, "carries")),
   },
-  { key: "rushing_epa", label: "Rushing EPA", value: (row) => num(row, "rushing_epa") },
+  {
+    key: "rushing_epa_per_carry",
+    label: "Rushing EPA / Carry",
+    decimals: 2,
+    minSample: MIN_CARRIES,
+    value: (row) => perPlay(num(row, "rushing_epa"), num(row, "carries")),
+  },
   { key: "receptions", label: "Receptions", value: (row) => num(row, "receptions") },
   { key: "targets", label: "Targets", value: (row) => num(row, "targets") },
   {
@@ -97,7 +156,7 @@ const RB_METRICS: PlayerMetric[] = [
     value: (row) => num(row, "receiving_yards"),
   },
   { key: "target_share", label: "Target Share", unit: "%", value: (row) => percent(row, "target_share") },
-  { key: "wopr", label: "WOPR", value: (row) => num(row, "wopr") },
+  { key: "wopr", label: "WOPR", decimals: 2, value: (row) => num(row, "wopr") },
   fantasyPointsPpr,
 ]
 
@@ -113,9 +172,16 @@ const WR_METRICS: PlayerMetric[] = [
   {
     key: "ypr",
     label: "Yards / Reception",
+    minSample: MIN_TARGETS,
     value: (row) => perAttempt(num(row, "receiving_yards"), num(row, "receptions")),
   },
-  { key: "receiving_epa", label: "EPA", value: (row) => num(row, "receiving_epa") },
+  {
+    key: "epa_per_target",
+    label: "EPA / Target",
+    decimals: 2,
+    minSample: MIN_TARGETS,
+    value: (row) => perPlay(num(row, "receiving_epa"), num(row, "targets")),
+  },
   { key: "target_share", label: "Target Share", unit: "%", value: (row) => percent(row, "target_share") },
   {
     key: "air_yards_share",
@@ -123,8 +189,7 @@ const WR_METRICS: PlayerMetric[] = [
     unit: "%",
     value: (row) => percent(row, "air_yards_share"),
   },
-  { key: "racr", label: "RACR", value: (row) => num(row, "racr") },
-  { key: "wopr", label: "WOPR", value: (row) => num(row, "wopr") },
+  { key: "wopr", label: "WOPR", decimals: 2, value: (row) => num(row, "wopr") },
   fantasyPointsPpr,
 ]
 
@@ -408,7 +473,6 @@ const RAW_FIELDS: Record<PositionGroup, string[]> = {
     "receiving_epa",
     "target_share",
     "air_yards_share",
-    "racr",
     "wopr",
     "fantasy_points_ppr",
   ],
@@ -420,7 +484,6 @@ const RAW_FIELDS: Record<PositionGroup, string[]> = {
     "receiving_epa",
     "target_share",
     "air_yards_share",
-    "racr",
     "wopr",
     "fantasy_points_ppr",
   ],

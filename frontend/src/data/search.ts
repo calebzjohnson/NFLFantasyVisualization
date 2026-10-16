@@ -1,5 +1,5 @@
 // search.ts
-// Search matching for the search bars: which players and teams match a typed query.
+// Search matching for the search bars (and the Create page picker): the player list to search, and which players and teams match a typed query.
 import type { TeamInfo } from "./teams"
 
 // nflverse's player-stats table includes a stray aggregate row with every
@@ -10,6 +10,9 @@ export interface SearchPlayer {
   recent_team: string | null
   position: string | null
 }
+
+// Every player with stats this season, with just what a search result shows.
+export const SEARCH_PLAYERS_PATH = "/players?fields=player_id,player_display_name,recent_team,position"
 
 export type SearchScope = "players" | "teams" | "all"
 
