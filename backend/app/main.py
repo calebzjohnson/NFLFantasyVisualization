@@ -7,7 +7,7 @@ from slowapi.middleware import SlowAPIMiddleware
 
 from app.config import get_settings
 from app.rate_limit import limiter, rate_limit_exceeded
-from app.routers import players, scores, standings, teams
+from app.routers import matchups, players, scores, standings, teams
 
 settings = get_settings()
 
@@ -50,7 +50,13 @@ def cache_control(response: Response) -> None:
     response.headers["Cache-Control"] = f"public, max-age={age}, stale-while-revalidate={age}"
 
 
-for router in (players.router, scores.router, standings.router, teams.router):
+for router in (
+    matchups.router,
+    players.router,
+    scores.router,
+    standings.router,
+    teams.router,
+):
     app.include_router(router, dependencies=[Depends(cache_control)])
 
 

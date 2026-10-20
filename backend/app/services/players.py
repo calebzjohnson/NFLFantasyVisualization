@@ -265,7 +265,7 @@ def _usage_pool(team_stats: pd.DataFrame, metric: str) -> pd.DataFrame:
     return team_stats
 
 
-def _headshot_by_id() -> dict[str, str]:
+def headshot_by_id() -> dict[str, str]:
     """gsis_id -> headshot URL, from the standing roster table (not
     season-scoped) - a single shared lookup so every weekly-usage code path
     (season-stats-based pools and play-by-play-based TD involvement alike)
@@ -419,7 +419,7 @@ def _qb_td_involvement(player_id: str, player_name: str, team: str, season: int)
             sorted(int(week) for week in offense["week"].unique()),
             player_id,
             player_name,
-            _headshot_by_id(),
+            headshot_by_id(),
         ),
     }
 
@@ -447,7 +447,7 @@ def _usage_weekly(
     )
 
     return _weekly_player_lines(
-        weekly_totals, season_totals, name_by_id, _headshot_by_id(), player_id
+        weekly_totals, season_totals, name_by_id, headshot_by_id(), player_id
     )
 
 

@@ -48,6 +48,7 @@ const PAGES = [
   },
   { name: "players", path: "/players", title: "Players · Plot the Pigskin" },
   { name: "player", path: "/players/00-0033873", title: "Patrick Mahomes · Plot the Pigskin" },
+  { name: "matchups", path: "/matchups", title: "Matchups · Plot the Pigskin" },
   { name: "about", path: "/about", title: "About · Plot the Pigskin" },
   { name: "create", path: "/create", title: "Create · Plot the Pigskin" },
   {
@@ -763,4 +764,38 @@ test("team leaders expands to the whole league", async ({ page }) => {
 
   // The two sack columns are told apart: taken on offense, recorded on defense.
   await expect(modal.getByRole("columnheader", { name: /SCK TKN/ })).toBeVisible()
+})
+
+
+test("a matchup slate links each game into its own page", async ({ page }) => {
+  await page.goto("/matchups?week=1")
+  const slate = page.locator("section", { has: page.getByRole("heading", { name: "Matchups" }) })
+  await expect(slate.getByText("Week 1")).toBeVisible()
+
+  // Week 1 is long played, so every game on this slate is final.
+  await expect(slate.getByText("Final").first()).toBeVisible({ timeout: 60_000 })
+  const first = slate.getByRole("link").first()
+  const href = await first.getAttribute("href")
+  await first.click()
+
+  await expect(page).toHaveURL(href ?? "")
+  await expect(page.getByRole("heading", { name: "Team Comparison" })).toBeVisible({
+    timeout: 60_000,
+  })
+  await expect(page.getByRole("heading", { name: "Win Probability" })).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Drives" })).toBeVisible()
+})
+
+test("an upcoming game is previewed rather than broken down", async ({ page }) => {
+  // The last week of the season can't have been played yet, whenever this runs.
+  await page.goto("/matchups?week=18")
+  const slate = page.locator("section", { has: page.getByRole("heading", { name: "Matchups" }) })
+  await slate.getByRole("link").first().click()
+
+  await expect(page.getByRole("heading", { name: "The Matchup" })).toBeVisible({ timeout: 60_000 })
+  await expect(page.getByRole("heading", { name: "Season Comparison" })).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Season Leaders" })).toBeVisible()
+  // A game that hasn't been played has no result to break down.
+  await expect(page.getByRole("heading", { name: "Win Probability" })).toBeHidden()
+  await expect(page.getByRole("heading", { name: "Drives" })).toBeHidden()
 })

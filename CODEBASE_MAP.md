@@ -60,6 +60,7 @@ Each chart fetches its own data. Pages pass ids (team abbreviation, player id, p
 | `teams.py` | Active teams (filtered by schedule), plus a per-team game stats log. |
 | `standings.py` + `tiebreakers.py` | Division standings in official NFL tiebreaker order. |
 | `scores.py` | A week's games. The default week follows the fantasy calendar (rolls over Wednesday, US Eastern). |
+| `matchups.py` | One game: before kickoff a preview (per-game season box score, recent form, season leaders, offense-vs-defense EPA), after it a breakdown (box score, line score, drives, win probability, game leaders, full box score). Betting lines are in the schedule row and deliberately not sent. |
 
 ### Endpoints (`app/routers/`)
 
@@ -85,6 +86,7 @@ Each chart fetches its own data. Pages pass ids (team abbreviation, player id, p
 | `/teams/{team}/tendencies` | team_tendencies | yes | TeamTendenciesPanel |
 | `/standings` | standings | | DivisionStandings, TeamPage header |
 | `/scores?week=` | scores | | PreviousWeekScores |
+| `/matchups/{game_id}` | matchups | yes | MatchupPage (MatchupPreviewPanel, MatchupComparison, MatchupLeaders, MatchupWinProbability, MatchupDrives, MatchupBoxScore) |
 
 When adding an endpoint, also add it to the heavy-endpoint list in `DEPLOYMENT_NOTES.md` if it loads play-by-play or a whole-league frame.
 
@@ -104,6 +106,8 @@ One `test_<module>.py` per service, plus `test_<name>_router.py` for the HTTP la
 | `/players` | `PlayersPage` | SearchBar, page-wide PositionGroupToggle driving StatLeadersPanel, PlayerComparisonScatter, LeagueBeeswarm (`PROFILE_GROUPS` only), TrendingPlayersChart |
 | `/players/:playerId` | `PlayerPage` | PlayerBioBar, GameLogPanel, PlayerRadarChart, LeagueBeeswarm, TeamUsagePanel |
 | `/create` | `CreatePage` | Chart builder: players or teams (never mixed), Bar (ComparisonBarChart) or Line (TrendChart), up to 5 picks and the stats, all in `?kind&type&ids&stats` |
+| `/matchups` | `MatchupsPage` | MatchupSlate (a week's games, reusing `/scores`), each linking to one matchup |
+| `/matchups/:gameId` | `MatchupPage` | Header (line score, records, recent-form pills), then either the preview (scheduled) or, in `?tab=`, **Game** (comparison, leaders, win probability, drives) / **Box Score** (final) |
 | `/about` | `AboutPage` | Static copy and data freshness (`/players/latest-week`) |
 
 `src/main.tsx` mounts the app under `BrowserRouter`. `vercel.json` rewrites every non-asset path to `index.html`.
@@ -115,13 +119,13 @@ Every file opens with a two-line contract comment (file name, then purpose). Rea
 - **Layout and chrome:** `Navbar` (title, tabs, search), `Panel` (card wrapper), `Modal` + `ExpandButton` (fuller view of a panel), `PositionGroupToggle` (pill buttons, also used for tabs), `AxisSelect` (stat picker), `SearchBar`.
 - **Identity:** `PlayerBioBar`, `TeamHeaderBar`, `PlayerAvatar` (headshot, or initials as fallback), `TeamLogo` (HTML badge + SVG marker), `TeamLink`, `StatusBadge` (injury/availability), `RankChange` (movement arrows).
 - **Tables:** `DetailedLeaderTable` (sortable ranked table), `StatLeadersPanel`, `TeamLeadersPanel`, `GameLogPanel` + `GameLogTable`, `DivisionStandings` + `DivisionStandingsTable`, `DepthChartTable`, `TeamDepthChartPanel`, `PreviousWeekScores`.
-- **Charts:** `MetricScatter` (pick-your-axes scatter, shared by Compare Teams and `PlayerComparisonScatter`; a click or a `HighlightPicker` search highlights one mark, drawn on top while the rest fade, and a second click opens its page), `TeamEfficiencyScatter`, `TrendChart` (+ `TrendingPlayersChart` wrapper; also the Create page's picked lines), `ComparisonBarChart` (Create page: HTML bars, one scale per stat), `PlayerRadarChart` / `TeamRadarChart`, `LeagueBeeswarm` (League Comparison for players or teams, with an optional focus row; the radars and it use `RadarAxisTick` for two-line labels), `TeamScoringComposition` (donut), `TeamUsagePanel` (weekly lines/bars + season donut, the largest file), `TeamPlaymakingPanel`, `TeamTendenciesPanel`.
+- **Charts:** `MetricScatter` (pick-your-axes scatter, shared by Compare Teams and `PlayerComparisonScatter`; a click or a `HighlightPicker` search highlights one mark, drawn on top while the rest fade, and a second click opens its page), `TeamEfficiencyScatter`, `TrendChart` (+ `TrendingPlayersChart` wrapper; also the Create page's picked lines), `ComparisonBarChart` (Create page: HTML bars, one scale per stat), `PlayerRadarChart` / `TeamRadarChart`, `LeagueBeeswarm` (League Comparison for players or teams, with an optional focus row; the radars and it use `RadarAxisTick` for two-line labels), `TeamScoringComposition` (donut), `TeamUsagePanel` (weekly lines/bars + season donut, the largest file), `TeamPlaymakingPanel`, `TeamTendenciesPanel`, `MatchupSlate` (a week's games as cards), `MatchupPreviewPanel` (offense-vs-defense EPA bars), `MatchupComparison` (split bars in team colours, gist inline and the rest in a Modal; shared by preview and breakdown), `MatchupLeaders` (headshot, value and name a side; shared likewise), `MatchupWinProbability` (two areas off a 50 baseline, coloured by who's favoured), `MatchupDrives` (a Sankey per team, with a list toggle), `MatchupBoxScore`.
 - **Chart accessibility and touch:** `ChartDataTable` ("show data as table"), `StatGlossary` ("What do these stats mean?" under the radars and Create charts), `TapDetails` (on touchscreens, a details box below the chart replaces the tooltip; `HoverCard` is the mouse tooltip for the nearest mark).
 - `evilcharts/ui/`: `recharts-chart.tsx` (chart container and config context) and `recharts-tooltip.tsx`, adapted from Evil Charts.
 
 ### `src/data/`: per-feature types and pure logic (no React)
 
-`teams` (team type, logo lookup, team URLs), `standings`, `scores`, `efficiency`, `teamMetrics` (team stat catalog), `playerMetrics` (player metric catalog, `/players` path builders, `SNAP_SHARE_FIELD`), `leaderCategories` + `leaderStatsTypes` + `leaderMovement` (Stat Leaders config and week-over-week rank change; `PROFILE_GROUPS` = positions with radar profiles), `trendingPlayers` (snap-share qualification), `gameLog` (per-position game log columns), `playerBio`, `usage` (usage payload type, color assignment), `playmaking`, `tendencies` (pairs play-calling rates into 100% split bars), `depthChart`, `search`.
+`teams` (team type, logo lookup, team URLs), `standings`, `scores`, `efficiency`, `teamMetrics` (team stat catalog), `playerMetrics` (player metric catalog, `/players` path builders, `SNAP_SHARE_FIELD`), `leaderCategories` + `leaderStatsTypes` + `leaderMovement` (Stat Leaders config and week-over-week rank change; `PROFILE_GROUPS` = positions with radar profiles), `trendingPlayers` (snap-share qualification), `gameLog` (per-position game log columns), `playerBio`, `usage` (usage payload type, color assignment), `playmaking`, `tendencies` (pairs play-calling rates into 100% split bars), `matchups` (one game's preview/breakdown types, the comparison row catalog, offense-vs-defense pairing, drives-to-Sankey), `teamColors` (a readable colour pair for two teams, since four share one primary), `depthChart`, `search`.
 
 ### `src/lib/`: cross-cutting helpers
 
