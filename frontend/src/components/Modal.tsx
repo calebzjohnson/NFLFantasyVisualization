@@ -9,10 +9,14 @@ function Modal({
   title,
   onClose,
   children,
+  // Tailwind max-width for the dialog. A table wants the room; a column of
+  // bars reads better narrow.
+  width = "max-w-5xl",
 }: {
   title: string
   onClose: () => void
   children: ReactNode
+  width?: string
 }) {
   const titleId = useId()
   const panelRef = useRef<HTMLDivElement>(null)
@@ -55,7 +59,7 @@ function Modal({
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className="flex max-h-[85vh] w-full max-w-5xl flex-col overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface-1)] shadow-2xl shadow-black/50 outline-none"
+        className={`flex max-h-[85vh] w-full ${width} flex-col overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface-1)] shadow-2xl shadow-black/50 outline-none`}
       >
         <div className="flex items-center justify-between gap-2 border-b border-[var(--border)] bg-[var(--surface-2)] px-4 py-3">
           <h2

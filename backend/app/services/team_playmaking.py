@@ -8,10 +8,10 @@ from app.data import pbp, player_stats
 from app.data import players as players_data
 from app.services.extended_stats import total_tackles
 from app.services.players import (
-    _headshot_by_id,
     _usage_amount,
     _usage_pool,
     _usage_weekly,
+    headshot_by_id,
 )
 
 REGULAR_SEASON = "REG"
@@ -155,7 +155,7 @@ def get_team_playmaking(team: str) -> dict[str, Any]:
     if stats.empty or team not in set(stats["recent_team"]):
         raise TeamNotFoundError(f"No players found for team: {team}")
 
-    headshots = _headshot_by_id()
+    headshots = headshot_by_id()
     return {
         "team": team,
         "touches": _usage_section(team, season, stats, "touches"),
