@@ -175,10 +175,7 @@ test("trending chart lines preview then open, by hover or by tap", async ({ page
     return hitLine.evaluate((path) => {
       const pt = path.getPointAtLength(path.getTotalLength() / 2)
       const m = path.getScreenCTM()!
-      // Rounded, because a dispatched mouse event lands on a whole pixel:
-      // two lines can run less than a pixel apart, so the player at the
-      // fractional point isn't always the one the click will open.
-      const screen = { x: Math.round(pt.x * m.a + m.e), y: Math.round(pt.y * m.d + m.f) }
+      const screen = { x: pt.x * m.a + m.e, y: pt.y * m.d + m.f }
       return { ...screen, id: path.ownerDocument.elementFromPoint(screen.x, screen.y)!.getAttribute("name") }
     })
   }
