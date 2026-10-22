@@ -11,12 +11,8 @@ import PositionGroupToggle from "../components/PositionGroupToggle"
 import SearchBar from "../components/SearchBar"
 import StatLeadersPanel from "../components/StatLeadersPanel"
 import TrendingPlayersChart from "../components/TrendingPlayersChart"
-import { POSITION_GROUPS, PROFILE_GROUPS, type PositionGroup } from "../data/leaderCategories"
+import { isPositionGroup, POSITION_GROUPS, PROFILE_GROUPS, type PositionGroup } from "../data/leaderCategories"
 import { usePageTitle } from "../lib/usePageTitle"
-
-function isPositionGroup(value: string | null): value is PositionGroup {
-  return POSITION_GROUPS.includes(value as PositionGroup)
-}
 
 function PlayersPage() {
   usePageTitle("Players")

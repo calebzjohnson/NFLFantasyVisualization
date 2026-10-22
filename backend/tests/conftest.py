@@ -116,6 +116,8 @@ def sample_schedule() -> pd.DataFrame:
         spread_line=3.5, away_moneyline=150, home_moneyline=-170, total_line=47.5,
         under_odds=-110, over_odds=-110, wind=8.0, roof="outdoors",
         away_qb_name="Away QB", home_qb_name="Home QB", referee="Ref",
+        away_rest=7, home_rest=7, div_game=1, surface="grass",
+        away_coach="Away Coach", home_coach="Home Coach", stadium="The Stadium",
     )
 
 
@@ -219,15 +221,17 @@ def tendency_plays(monkeypatch: pytest.MonkeyPatch) -> None:
         row = dict(season_type="REG", posteam=team, play_type=kind, shotgun=0, no_huddle=0,
                    qb_dropback=1 if kind == "pass" else 0, qb_kneel=0, qb_spike=0,
                    wp=0.5, qtr=1, down=1, pass_length=None,
-                   run_location=None, run_gap=None, yardline_100=50,
+                   run_location=None, run_gap=None, pass_location=None, yardline_100=50,
                    third_down_converted=0, third_down_failed=0,
                    fourth_down_converted=0, fourth_down_failed=0)
         row.update(kw)
         return row
 
-    rows = [play("DAL", "pass", shotgun=1, pass_length="deep")]
-    rows += [play("DAL", "pass", shotgun=1, pass_length="short") for _ in range(3)]
-    rows += [play("DAL", "pass", pass_length="short") for _ in range(2)]
+    rows = [play("DAL", "pass", shotgun=1, pass_length="deep", pass_location="middle")]
+    rows += [play("DAL", "pass", shotgun=1, pass_length="short", pass_location="left")
+             for _ in range(3)]
+    rows += [play("DAL", "pass", pass_length="short", pass_location="middle")]
+    rows += [play("DAL", "pass", pass_length="short", pass_location="right")]
     # Three of DAL's four runs are inside (two up the middle, one off guard);
     # the fourth is off end. run_gap is absent on middle runs, as in the real
     # data, so this also covers that case.
@@ -251,7 +255,7 @@ def tendency_plays(monkeypatch: pytest.MonkeyPatch) -> None:
     rows[2]["third_down_failed"] = 1
     punt = dict(season_type="REG", play_type="punt", shotgun=0, no_huddle=0, qb_dropback=0,
                 qb_kneel=0, qb_spike=0, wp=0.5, qtr=1, down=4, pass_length=None,
-                run_location=None, run_gap=None, yardline_100=50,
+                run_location=None, run_gap=None, pass_location=None, yardline_100=50,
                 third_down_converted=0, third_down_failed=0,
                 fourth_down_converted=0, fourth_down_failed=0)
     rows += [dict(punt, posteam="DAL"), dict(punt, posteam="NYG"), dict(punt, posteam="NYG")]
@@ -451,3 +455,82 @@ def week_snaps(monkeypatch: pytest.MonkeyPatch) -> None:
         "app.data.pfr_defense.get_season_pfr_defense",
         lambda season: pd.DataFrame(columns=["pfr_player_id", "game_type", "week", *PFR_COLUMNS]),
     )
+
+
+@pytest.fixture
+def matchup_plays() -> pd.DataFrame:
+    """Small stand-in for pbp.get_season_pbp(season) covering one finished
+    game (DAL at NYG) plus a later-week play, so the breakdown has to filter
+    by game_id. DAL gains 30 yards on 2 plays and loses the ball once; NYG
+    gains 5 on its one play and converts its only third down. The kickoff
+    row (no posteam) and the punt (not a scrimmage play) are there to confirm
+    both are excluded from the rates but the kickoff doesn't start a drive.
+    """
+    shared = dict(season_type="REG", week=1, penalty_team=None, penalty_yards=0.0,
+                  sack=0, first_down=0, drive=1.0, drive_time_of_possession="2:30")
+    rows = [
+        dict(game_id="2026_01_DAL_NYG", play_type="kickoff", epa=0.1, posteam=None,
+             defteam=None, yards_gained=0, fixed_drive=1.0, fixed_drive_result="Touchdown",
+             qtr=1, down=np.nan, third_down_converted=np.nan, interception=0, fumble_lost=0,
+             home_wp=0.5, game_seconds_remaining=3600.0, success=0,
+             total_away_score=0, total_home_score=0, **shared),
+        dict(game_id="2026_01_DAL_NYG", play_type="pass", epa=1.0, posteam="DAL",
+             defteam="NYG", yards_gained=25, fixed_drive=1.0, fixed_drive_result="Touchdown",
+             qtr=1, down=1.0, third_down_converted=np.nan, interception=0, fumble_lost=0,
+             home_wp=0.45, game_seconds_remaining=3500.0, success=1,
+             total_away_score=7, total_home_score=0, **shared),
+        dict(game_id="2026_01_DAL_NYG", play_type="run", epa=-0.5, posteam="DAL",
+             defteam="NYG", yards_gained=5, fixed_drive=2.0, fixed_drive_result="Turnover",
+             qtr=2, down=2.0, third_down_converted=np.nan, interception=1, fumble_lost=0,
+             home_wp=0.7, game_seconds_remaining=1800.0, success=0,
+             total_away_score=7, total_home_score=3, **shared),
+        dict(game_id="2026_01_DAL_NYG", play_type="punt", epa=-2.0, posteam="DAL",
+             defteam="NYG", yards_gained=0, fixed_drive=2.0, fixed_drive_result="Turnover",
+             qtr=2, down=4.0, third_down_converted=np.nan, interception=0, fumble_lost=0,
+             home_wp=0.72, game_seconds_remaining=1700.0, success=0,
+             total_away_score=7, total_home_score=3, **shared),
+        dict(game_id="2026_01_DAL_NYG", play_type="pass", epa=0.4, posteam="NYG",
+             defteam="DAL", yards_gained=5, fixed_drive=3.0, fixed_drive_result="Field goal",
+             qtr=3, down=3.0, third_down_converted=1.0, interception=0, fumble_lost=0,
+             home_wp=0.8, game_seconds_remaining=900.0, success=1,
+             total_away_score=7, total_home_score=10, **shared),
+        dict(game_id="2026_02_DET_BUF", play_type="pass", epa=5.0, posteam="DET",
+             defteam="BUF", yards_gained=50, fixed_drive=1.0, fixed_drive_result="Touchdown",
+             qtr=1, down=1.0, third_down_converted=np.nan, interception=0, fumble_lost=0,
+             home_wp=0.5, game_seconds_remaining=3600.0, success=1,
+             total_away_score=0, total_home_score=7,
+             season_type="REG", week=2, penalty_team=None, penalty_yards=0.0),
+    ]
+    return pd.DataFrame(rows)
+
+
+@pytest.fixture
+def matchup_week_stats() -> pd.DataFrame:
+    """Small stand-in for player_stats.get_week_stats(season): two players a
+    side in week 1's DAL/NYG game, plus a week 2 row that must not reach it.
+    """
+    def row(**kw: object) -> dict[str, object]:
+        base = dict(
+            week=1, season_type="REG", passing_yards=0.0, rushing_yards=0.0,
+            receiving_yards=0.0, def_sacks=0.0, def_tackles_solo=0.0,
+            def_tackles_with_assist=0.0, def_tackle_assists=0.0, completions=0.0,
+            attempts=0.0, passing_tds=0.0, passing_interceptions=0.0, sacks_suffered=0.0,
+            carries=0.0, rushing_tds=0.0, rushing_fumbles_lost=0.0, targets=0.0,
+            receptions=0.0, receiving_tds=0.0, receiving_fumbles_lost=0.0,
+            def_interceptions=0.0, def_tds=0.0, position="WR",
+        )
+        base.update(kw)
+        return base
+
+    return pd.DataFrame([
+        row(player_id="Q1", player_display_name="Q One", team="DAL", position="QB",
+            passing_yards=300.0, completions=20.0, attempts=30.0, passing_tds=2.0),
+        row(player_id="W1", player_display_name="W One", team="DAL",
+            receiving_yards=120.0, receptions=8.0, targets=10.0),
+        row(player_id="Q2", player_display_name="Q Two", team="NYG", position="QB",
+            passing_yards=250.0, completions=18.0, attempts=33.0),
+        row(player_id="L1", player_display_name="L One", team="NYG", position="LB",
+            def_tackles_solo=7.0, def_tackle_assists=2.0, def_sacks=1.0),
+        row(player_id="Q3", player_display_name="Q Three", team="DAL", week=2,
+            passing_yards=999.0),
+    ])

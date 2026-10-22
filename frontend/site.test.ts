@@ -1,5 +1,6 @@
 // site.test.ts
-// Tests index.html's static head (title matches the site name, meta description, icons) and robots.txt.
+// Tests index.html's static head (title matches the site name, meta description, icons), robots.txt,
+// and the touch-zoom guard in src/index.css.
 import { existsSync, readFileSync } from "node:fs"
 import { describe, expect, it } from "vitest"
 import { SITE_NAME } from "./src/lib/site.ts"
@@ -23,6 +24,19 @@ describe("index.html", () => {
       expect(html).toMatch(new RegExp(`<link rel="${rel}"[^>]*href="/${file}"`))
       expect(existsSync(`public/${file}`)).toBe(true)
     }
+  })
+
+  // Pinch-zoom must stay available; the touch-zoom fix lives in CSS instead.
+  it("doesn't disable zooming in the viewport meta", () => {
+    expect(html).not.toMatch(/maximum-scale|user-scalable/)
+  })
+})
+
+describe("src/index.css", () => {
+  // iOS Safari zooms into a focused field under 16px; the fields use text-sm (14px).
+  it("gives form fields 16px text on touchscreens so focusing one doesn't zoom the page", () => {
+    const css = readFileSync("src/index.css", "utf8")
+    expect(css).toMatch(/@media \(hover: none\) \{\s*input,\s*select,\s*textarea \{\s*font-size: 16px;/)
   })
 })
 

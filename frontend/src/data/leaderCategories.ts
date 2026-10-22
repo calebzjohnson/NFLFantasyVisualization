@@ -19,6 +19,10 @@ export type RawPlayerRow = Record<string, string | number | null> & {
 export const POSITION_GROUPS = ["QB", "RB", "WR", "TE", "EDGE", "DL", "LB", "CB", "S", "OL", "K", "P"] as const
 export type PositionGroup = (typeof POSITION_GROUPS)[number]
 
+export function isPositionGroup(value: string | null | undefined): value is PositionGroup {
+  return POSITION_GROUPS.includes(value as PositionGroup)
+}
+
 // Groups the backend builds radar (and usage) profiles for. Offensive linemen
 // and specialists have no per-player stats worth a percentile profile.
 export const PROFILE_GROUPS: ReadonlySet<string> = new Set(["QB", "RB", "WR", "TE", "EDGE", "DL", "LB", "CB", "S"])

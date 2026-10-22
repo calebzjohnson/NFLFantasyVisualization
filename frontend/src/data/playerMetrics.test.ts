@@ -3,7 +3,7 @@
 import { describe, expect, it } from "vitest"
 import { readFields } from "../test/readFields"
 import { POSITION_GROUPS } from "./leaderCategories"
-import { metricMedian, PLAYER_METRICS, playersPathForPosition, playersWeeklyPathForPosition } from "./playerMetrics"
+import { formatValue, meetsMinimum, metricMedian, minimumNotes, smallSampleNotes, PLAYER_METRICS, playersPathForPosition, playersWeeklyPathForPosition } from "./playerMetrics"
 
 const yards = PLAYER_METRICS.WR.find((m) => m.key === "receiving_yards")!
 
@@ -61,5 +61,53 @@ describe("metric catalogs", () => {
     for (const position of ["EDGE", "DL", "LB", "CB", "S", "OL", "K", "P"] as const) {
       expect(PLAYER_METRICS[position].map((m) => m.key)).not.toContain("fantasy_points_ppr")
     }
+  })
+})
+
+describe("per-play EPA", () => {
+  it("divides by plays without rounding away the hundredths, and shows two decimals", () => {
+    const metric = PLAYER_METRICS.QB.find((m) => m.key === "epa_per_dropback")!
+    const value = metric.value({ passing_epa: 6, attempts: 190, sacks_suffered: 10 })
+    expect(value).toBeCloseTo(0.03)
+    expect(formatValue(value, metric)).toBe("0.03")
+    expect(metric.value({ passing_epa: 0, attempts: 0, sacks_suffered: 0 })).toBe(0)
+  })
+})
+
+describe("meetsMinimum", () => {
+  const metric = (key: string) => Object.values(PLAYER_METRICS).flat().find((m) => m.key === key)!
+
+  it("needs 25 dropbacks (attempts plus sacks), 10 carries, or 8 targets for per-play stats", () => {
+    expect(meetsMinimum({ attempts: 20, sacks_suffered: 5 }, metric("epa_per_dropback"))).toBe(true)
+    expect(meetsMinimum({ attempts: 20, sacks_suffered: 4 }, metric("completion_pct"))).toBe(false)
+    expect(meetsMinimum({ carries: 9 }, metric("ypc"))).toBe(false)
+    expect(meetsMinimum({ targets: 8 }, metric("epa_per_target"))).toBe(true)
+  })
+
+  it("always passes totals, which mean something at any volume", () => {
+    expect(meetsMinimum({}, metric("passing_yards"))).toBe(true)
+  })
+})
+
+describe("minimum notes", () => {
+  const metric = (key: string) => Object.values(PLAYER_METRICS).flat().find((m) => m.key === key)!
+
+  it("names who a minimum leaves out, one sentence per minimum, grouping stats that share one", () => {
+    expect(minimumNotes("players", [metric("completion_pct"), metric("epa_per_dropback"), metric("passing_yards")])).toEqual([
+      "Players with fewer than 25 dropbacks aren't shown, since Completion % and EPA / Dropback swing a lot on a handful of plays.",
+    ])
+    expect(minimumNotes("players", [metric("ypc")], "aren't ranked")).toEqual([
+      "Players with fewer than 10 carries aren't ranked, since Yards / Carry swings a lot on a handful of plays.",
+    ])
+  })
+
+  it("names picks under a stat's minimum with their play counts", () => {
+    const picks = [
+      { name: "Starter", row: { carries: 100 } },
+      { name: "Backup", row: { carries: 6 } },
+    ]
+    expect(smallSampleNotes(picks, [metric("ypc"), metric("carries")])).toEqual([
+      "Small sample for Yards / Carry: Backup (6 carries).",
+    ])
   })
 })

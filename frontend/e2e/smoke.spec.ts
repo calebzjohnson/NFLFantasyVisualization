@@ -48,7 +48,27 @@ const PAGES = [
   },
   { name: "players", path: "/players", title: "Players · Plot the Pigskin" },
   { name: "player", path: "/players/00-0033873", title: "Patrick Mahomes · Plot the Pigskin" },
+  { name: "matchups", path: "/matchups", title: "Matchups · Plot the Pigskin" },
   { name: "about", path: "/about", title: "About · Plot the Pigskin" },
+  { name: "create", path: "/create", title: "Create · Plot the Pigskin" },
+  {
+    name: "create player bars",
+    path: "/create?kind=players&type=bar&ids=00-0033873&stats=passing_yards,passing_tds",
+    title: "Create · Plot the Pigskin",
+  },
+  { name: "create team lines", path: "/create?kind=teams&type=line&ids=KC,BUF", title: "Create · Plot the Pigskin" },
+  {
+    name: "create player scatter",
+    path: "/create?kind=players&type=scatter&ids=00-0033873,00-0034796&stats=passing_yards,epa_per_dropback",
+    title: "Create · Plot the Pigskin",
+  },
+  { name: "create team beeswarm", path: "/create?kind=teams&type=beeswarm&ids=KC,BUF", title: "Create · Plot the Pigskin" },
+  {
+    name: "create player radar",
+    path: "/create?kind=players&type=radar&ids=00-0033873,00-0034796",
+    title: "Create · Plot the Pigskin",
+  },
+  { name: "create team radar", path: "/create?kind=teams&type=radar&ids=KC,BUF,DET", title: "Create · Plot the Pigskin" },
 ]
 
 for (const { name, path, title } of PAGES) {
@@ -153,10 +173,23 @@ test("trending chart lines preview then open, by hover or by tap", async ({ page
     await hitLine.waitFor({ timeout: 60_000 })
     await chart.scrollIntoViewIfNeeded()
     return hitLine.evaluate((path) => {
-      const pt = path.getPointAtLength(path.getTotalLength() / 2)
+      // Walk the line for a whole pixel it has to itself. The midpoint isn't
+      // always one: these hit strokes are wide and overlap, so where two
+      // players' trends converge the point belongs to whichever line is on
+      // top, and a click there opens that one instead.
       const m = path.getScreenCTM()!
-      const screen = { x: pt.x * m.a + m.e, y: pt.y * m.d + m.f }
-      return { ...screen, id: path.ownerDocument.elementFromPoint(screen.x, screen.y)!.getAttribute("name") }
+      const length = path.getTotalLength()
+      let fallback = null
+      for (let at = 0.3; at <= 0.7; at += 0.02) {
+        const pt = path.getPointAtLength(length * at)
+        const screen = { x: Math.round(pt.x * m.a + m.e), y: Math.round(pt.y * m.d + m.f) }
+        const el = path.ownerDocument.elementFromPoint(screen.x, screen.y)
+        const id = el?.getAttribute("name") ?? null
+        if (!id) continue
+        fallback ??= { ...screen, id }
+        if (el === path) return { ...screen, id }
+      }
+      return fallback ?? { x: 0, y: 0, id: null }
     })
   }
 
@@ -296,6 +329,115 @@ for (const { path, heading, opened } of COMPARE_SCATTERS) {
     await expect(page).toHaveURL(opened)
   })
 }
+
+// On the Create page's scatter a mark is a pick toggle, not a link: a click or
+// tap adds it to the picks, one on a pick removes it, and nothing navigates.
+test("Create scatter marks add and remove picks, by click or by tap", async ({ page, hasTouch }) => {
+  const path = "/create?kind=teams&type=scatter&ids=KC"
+  await page.goto(path)
+  const chart = page.locator("section", { has: page.getByRole("heading", { name: /vs\./ }) })
+  const add = chart.locator('svg [role=button][aria-label^="Add"]')
+  const remove = chart.locator('svg [role=button][aria-label^="Remove"]')
+  await add.first().waitFor({ timeout: 60_000 })
+  await expect(page.getByText("Loading…")).toHaveCount(0, { timeout: 60_000 })
+  await chart.scrollIntoViewIfNeeded()
+  const press = (target: import("@playwright/test").Locator) =>
+    hasTouch ? target.tap({ force: true }) : target.click({ force: true })
+
+  // On a touchscreen the tapped team also fills the details box; a mouse has the hover card instead.
+  const status = (text: string | RegExp) => chart.getByText(text)
+
+  await expect(remove).toHaveCount(1)
+  await press(add.nth(3))
+  await expect(remove).toHaveCount(2)
+  await expect(chart.getByRole("list", { name: "Picks" }).getByRole("listitem")).toHaveCount(2)
+  if (hasTouch) await expect(status("One of your picks. Tap again to remove.")).toBeVisible()
+  else await expect(status(/One of your picks/)).toHaveCount(0)
+
+  await press(chart.locator('[aria-label="Remove Kansas City Chiefs from your picks"]'))
+  await expect(remove).toHaveCount(1)
+  await expect(page).toHaveURL(/\/create\?kind=teams&type=scatter&ids=[A-Z]+$/)
+  expect(page.url()).not.toContain("KC")
+
+  if (hasTouch) {
+    // The removed team stays in the box, a tap away from coming back, with a way to its page.
+    await expect(status("Not in your picks. Tap again to add.")).toBeVisible()
+    await chart.getByRole("button", { name: "View Kansas City Chiefs →" }).click()
+    await expect(page).toHaveURL("/teams/KC")
+  }
+})
+
+// Adding a player loads their bio; the chart must stay up meanwhile, or the
+// tapped player drops out of the details box.
+test("a Create scatter tap on a player shows them in the details box", async ({ page, hasTouch }) => {
+  test.skip(!hasTouch, "the details box is touch-only")
+  await page.goto("/create?kind=players&type=scatter&ids=00-0033873&stats=passing_yards,epa_per_dropback")
+  const chart = page.locator("section", { has: page.getByRole("heading", { name: /vs\./ }) })
+  const add = chart.locator('svg [role=button][aria-label^="Add"]')
+  await add.first().waitFor({ timeout: 60_000 })
+  await chart.scrollIntoViewIfNeeded()
+
+  await add.nth(10).tap({ force: true })
+  await expect(chart.getByText("One of your picks. Tap again to remove.")).toBeVisible()
+  await expect(chart.getByRole("button", { name: /^View .+ →$/ })).toBeVisible()
+})
+
+test("a Create scatter tap past five picks says why it didn't add", async ({ page, hasTouch }) => {
+  test.skip(!hasTouch, "the details box is touch-only")
+  await page.goto("/create?kind=teams&type=scatter&ids=KC,BUF,DET,PHI,SF")
+  const chart = page.locator("section", { has: page.getByRole("heading", { name: /vs\./ }) })
+  const add = chart.locator('svg [role=button][aria-label^="Add"]')
+  await add.first().waitFor({ timeout: 60_000 })
+  await chart.scrollIntoViewIfNeeded()
+
+  await add.first().tap({ force: true })
+  await expect(chart.getByText(/^You have 5 picks\. Remove one to add .+\.$/)).toBeVisible()
+  await expect(chart.locator('svg [role=button][aria-label^="Remove"]')).toHaveCount(5)
+})
+
+// Pointing at (or tapping) the radar anywhere picks the nearest spoke by angle,
+// and lists every pick's numbers on it: a hover card, or the box below on a touchscreen.
+test("Create radar spokes show every pick's numbers, by hover or by tap", async ({ page, hasTouch }) => {
+  await page.goto("/create?kind=teams&type=radar&ids=KC,BUF&stats=points,points_allowed,yards,turnovers")
+  const chart = page.locator("section", { has: page.getByRole("heading", { name: "Radar Comparison" }) })
+  const svg = chart.locator("svg.recharts-surface")
+  await svg.waitFor({ timeout: 60_000 })
+  await svg.scrollIntoViewIfNeeded()
+  const box = (await svg.boundingBox())!
+  // Straight up from the center: the first spoke, Points / Game.
+  const [x, y] = [box.x + box.width / 2, box.y + box.height / 2 - 60]
+
+  if (hasTouch) {
+    await expect(chart.getByText("Tap a stat to see every pick's numbers on it.", { exact: true })).toBeVisible()
+    await page.touchscreen.tap(x, y)
+    const details = chart.locator("[aria-live]")
+    await expect(details).toContainText("Points / Game")
+    await expect(details).toContainText("Kansas City Chiefs")
+    await expect(details).toContainText("Buffalo Bills")
+  } else {
+    await page.mouse.move(x, y)
+    const card = chart.locator("[data-hover-card]")
+    await expect(card).toContainText("Points / Game")
+    await expect(card).toContainText("Buffalo Bills")
+    // In the panel but well away from the radar (its bottom-left corner): no card.
+    await page.mouse.move(box.x + 10, box.y + box.height - 10)
+    await expect(card).toHaveCount(0)
+  }
+})
+
+// Every Create chart's whole panel fits on one desktop screen (FIT_SCREEN caps
+// the charts sized by their width).
+test("each Create chart panel fits on one desktop screen", async ({ page, hasTouch }) => {
+  test.skip(hasTouch, "a desktop layout check")
+  for (const type of ["bar", "line", "scatter", "beeswarm", "radar"]) {
+    await page.goto(`/create?kind=players&type=${type}&ids=00-0033873,00-0034796&stats=passing_yards,passing_tds,completions,attempts`)
+    await expect(page.getByText("Loading…")).toHaveCount(0, { timeout: 60_000 })
+    const panel = page.locator("section").nth(1)
+    await expect(panel.locator("h2")).toBeVisible()
+    const height = (await panel.boundingBox())!.height
+    expect(height, `${type} panel`).toBeLessThanOrEqual(page.viewportSize()!.height)
+  }
+})
 
 // With a mouse, the hover card follows the mark whose center is nearest the
 // pointer (within 20px, chartMarks.REACH), not whichever mark's shape is under it: marks overlap,
@@ -719,18 +861,29 @@ test("team leaders switch stat without leaving the tab", async ({ page }) => {
   await expect(page).toHaveURL("/teams/KC?tab=playmaking")
 })
 
-test("play calling groups its rates and ranks each one", async ({ page }) => {
+test("play calling groups its rates and ranks each one", async ({ page, isMobile }) => {
   await page.goto("/teams/KC")
   const panel = page.locator("section", { has: page.getByRole("heading", { name: "Play Calling" }) })
 
-  for (const group of ["Balance", "Formation", "Run Direction", "Tempo", "Conversions"]) {
+  for (const group of ["Balance", "Formation", "Pass Location", "Run Direction", "Third Down"]) {
     await expect(panel.getByRole("heading", { name: group })).toBeVisible()
   }
-  // Both sides of a split are listed, so nothing has to be inferred.
-  await expect(panel.getByText("Dropback Rate")).toBeVisible()
-  await expect(panel.getByText("Run Rate", { exact: true })).toBeVisible()
-  // Every rate carries a league rank.
-  await expect(panel.getByText(/^\d+(st|nd|rd|th)$/).first()).toBeVisible()
+  // Each split is one bar carrying both sides, with the team's and the
+  // league's shares stacked.
+  const split = panel.getByRole("figure", { name: /^Dropback \/ Run\./ })
+  await expect(split).toBeVisible()
+  await expect(split.getByText("Team")).toBeVisible()
+  await expect(split.getByText("League")).toBeVisible()
+  // Each row is its own target, so pointing at one highlights that row alone.
+  const teamBar = split.getByRole("button", { name: /team$/ })
+  // Hover on a mouse, tap on a phone - either way it's the same control.
+  if (isMobile) await teamBar.tap()
+  else await teamBar.hover()
+  await expect(teamBar).toHaveAttribute("aria-pressed", "true")
+  await expect(split.getByRole("button", { name: /league average$/ })).toHaveAttribute(
+    "aria-pressed",
+    "false",
+  )
 })
 
 test("team leaders expands to the whole league", async ({ page }) => {
@@ -745,4 +898,38 @@ test("team leaders expands to the whole league", async ({ page }) => {
 
   // The two sack columns are told apart: taken on offense, recorded on defense.
   await expect(modal.getByRole("columnheader", { name: /SCK TKN/ })).toBeVisible()
+})
+
+
+test("a matchup slate links each game into its own page", async ({ page }) => {
+  await page.goto("/matchups?week=1")
+  const slate = page.locator("section", { has: page.getByRole("heading", { name: "Matchups" }) })
+  await expect(slate.getByText("Week 1")).toBeVisible()
+
+  // Week 1 is long played, so every game on this slate is final.
+  await expect(slate.getByText("Final").first()).toBeVisible({ timeout: 60_000 })
+  const first = slate.getByRole("link").first()
+  const href = await first.getAttribute("href")
+  await first.click()
+
+  await expect(page).toHaveURL(href ?? "")
+  await expect(page.getByRole("heading", { name: "Team Comparison" })).toBeVisible({
+    timeout: 60_000,
+  })
+  await expect(page.getByRole("heading", { name: "Win Probability" })).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Drives" })).toBeVisible()
+})
+
+test("an upcoming game is previewed rather than broken down", async ({ page }) => {
+  // The last week of the season can't have been played yet, whenever this runs.
+  await page.goto("/matchups?week=18")
+  const slate = page.locator("section", { has: page.getByRole("heading", { name: "Matchups" }) })
+  await slate.getByRole("link").first().click()
+
+  await expect(page.getByRole("heading", { name: "The Matchup" })).toBeVisible({ timeout: 60_000 })
+  await expect(page.getByRole("heading", { name: "Season Comparison" })).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Season Leaders" })).toBeVisible()
+  // A game that hasn't been played has no result to break down.
+  await expect(page.getByRole("heading", { name: "Win Probability" })).toBeHidden()
+  await expect(page.getByRole("heading", { name: "Drives" })).toBeHidden()
 })

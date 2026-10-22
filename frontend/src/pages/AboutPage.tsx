@@ -16,6 +16,19 @@ const FEEDBACK_EMAIL = "plotthepigskin@gmail.com"
 // Newest first. Add an entry here with each release.
 const RELEASES = [
   {
+    version: "v2",
+    date: "October 2026",
+    notes: [
+      "Matchups for every game on the schedule. Before kickoff you get each team's recent form and how its offense has fared against the kind of defense it's about to face.",
+      "After a game, a review of what happened, with the two teams side by side, who led it, how the win probability swung, and where every drive ended. The full box score sits in its own tab.",
+      "Build your own chart on the Create page. Pick any players or teams and see them as bars, lines, a scatter, a beeswarm, or a radar, with a link that opens the same chart for whoever you send it to.",
+      "Play calling on each team's overview, covering how often they drop back or run, line up under center or in the shotgun, throw short or deep, and go for it on fourth down, each measured against the rest of the league.",
+      "A Playmaking tab on team pages showing who gets the touches, the targets, and the ball in the red zone.",
+      "A Depth Chart tab showing each team's lineup by unit, with who's unavailable and why.",
+      "Charts that work on a phone. Tap a mark to see its numbers instead of needing a mouse to hover.",
+    ],
+  },
+  {
     version: "v1",
     date: "October 2026",
     notes: [

@@ -5,12 +5,13 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { fetchJson } from "../lib/api"
 import { teamInfo } from "../test/fixtures"
 import { mockApi, renderWithRouter } from "../test/render"
-import LeagueBeeswarm, { SwarmRows, type SwarmPoint } from "./LeagueBeeswarm"
+import LeagueBeeswarm, { BeeswarmChart, SwarmRows, type SwarmPoint } from "./LeagueBeeswarm"
 
 vi.mock("../lib/api", () => ({ fetchJson: vi.fn() }))
 
 afterEach(() => {
   vi.unstubAllGlobals()
+  vi.restoreAllMocks()
 })
 
 function point(value: number | null): SwarmPoint {
@@ -60,13 +61,30 @@ describe("LeagueBeeswarm", () => {
     await waitFor(() => expect(fetchJson).toHaveBeenCalledWith("/players/radar-pool?position=W%2FR%3Fx%3D1%23y"))
   })
 
-  it("on a touchscreen phone, prompts a tap and says to swipe for every stat", async () => {
+  // jsdom has no layout, so a chart wider than its box is faked here.
+  function stubOverflow(scrollWidth: number, clientWidth: number) {
+    vi.spyOn(HTMLElement.prototype, "scrollWidth", "get").mockReturnValue(scrollWidth)
+    vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(clientWidth)
+  }
+
+  // pt-2 matches MetricScatter's caption, so both sit the same distance below the tap box.
+  it("on a touchscreen phone, prompts a tap and says to swipe when the columns overflow", async () => {
     vi.stubGlobal("matchMedia", () => ({ matches: true, addEventListener: () => {}, removeEventListener: () => {} }))
+    stubOverflow(622, 300)
     mockApi(playerPool("QB"))
     renderWithRouter(<LeagueBeeswarm kind="players" position="QB" />)
     expect(await screen.findByText("Tap a dot to see that player's numbers.")).toBeInTheDocument()
     expect(screen.getByText(/Tap a dot to highlight that player in every column/)).toBeInTheDocument()
-    expect(screen.getByText(/Swipe the chart sideways to see all 1 stats\./)).toBeInTheDocument()
+    expect(screen.getByText(/Swipe the chart sideways to see all 1 stats\./)).toHaveClass("pt-2")
+  })
+
+  it("on a phone, doesn't say to swipe when every column fits", async () => {
+    vi.stubGlobal("matchMedia", () => ({ matches: true, addEventListener: () => {}, removeEventListener: () => {} }))
+    stubOverflow(300, 300)
+    mockApi(playerPool("LB"))
+    renderWithRouter(<LeagueBeeswarm kind="players" position="LB" />)
+    await screen.findByText("Tap a dot to see that player's numbers.")
+    expect(screen.queryByText(/Swipe/)).not.toBeInTheDocument()
   })
 
   it("with a mouse on a wide screen, says to click instead", async () => {
@@ -121,5 +139,36 @@ describe("LeagueBeeswarm", () => {
 
     fireEvent.change(search, { target: { value: "Buffalo Bills" } })
     expect(screen.getByRole("figure", { name: /Highlighted: Buffalo Bills\.$/ })).toBeInTheDocument()
+  })
+})
+
+describe("BeeswarmChart", () => {
+  it("draws any columns it's handed, with pinned picks named in a color key instead of a search", () => {
+    mockApi({ "/teams": TEAMS })
+    renderWithRouter(
+      <BeeswarmChart
+        axes={[{ key: "targets", label: "Targets" }]}
+        rows={[
+          { id: "p1", name: "Jane Doe", team: "KC", axes: [{ key: "targets", value: "40", percentile: 100 }] },
+          { id: "p2", name: "Sam Roe", team: "BUF", axes: [{ key: "targets", value: "12", percentile: 50 }] },
+        ]}
+        players
+        pinned={[{ id: "p2", name: "Sam Roe", color: "#eb6834" }]}
+        who="Every one of this season's WRs (2)"
+        poolText="Every one of the WRs with stats"
+        tableCaption="Every player's picked stats with percentile ranks"
+        notes={["Totals rank everyone at the position."]}
+      />,
+    )
+
+    expect(screen.queryByLabelText("Highlight")).not.toBeInTheDocument()
+    expect(screen.getByRole("list", { name: "Picks" })).toHaveTextContent("Sam Roe")
+    expect(
+      screen.getByRole("figure", {
+        name: "Every one of this season's WRs (2), placed by percentile rank on each of 1 stats. Picked: Sam Roe.",
+      }),
+    ).toBeInTheDocument()
+    expect(screen.getByText(/Totals rank everyone at the position\.$/)).toBeInTheDocument()
+    expect(screen.getByRole("table")).toHaveTextContent("Sam RoeBUF12 (50th)")
   })
 })

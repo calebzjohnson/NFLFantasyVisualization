@@ -4,7 +4,10 @@ import type * as React from "react"
 import { Route, Routes } from "react-router-dom"
 import Navbar from "./components/Navbar"
 import AboutPage from "./pages/AboutPage"
+import CreatePage from "./pages/CreatePage"
 import HomePage from "./pages/HomePage"
+import MatchupPage from "./pages/MatchupPage"
+import MatchupsPage from "./pages/MatchupsPage"
 import PlayerPage from "./pages/PlayerPage"
 import PlayersPage from "./pages/PlayersPage"
 import TeamPage from "./pages/TeamPage"
@@ -33,8 +36,11 @@ function App() {
           <Route path="/" element={<HomePage />} />
           <Route path="/teams" element={<TeamsPage />} />
           <Route path="/teams/:teamAbbr" element={<TeamPage />} />
+          <Route path="/matchups" element={<MatchupsPage />} />
+          <Route path="/matchups/:gameId" element={<MatchupPage />} />
           <Route path="/players" element={<PlayersPage />} />
           <Route path="/players/:playerId" element={<PlayerPage />} />
+          <Route path="/create" element={<CreatePage />} />
           <Route path="/about" element={<AboutPage />} />
         </Routes>
       </main>

@@ -89,6 +89,55 @@ describe("MetricScatter", () => {
 
   })
 
+  it("leaves out rows under a per-play stat's minimum, and says so", () => {
+    const sample = { noun: "carries", min: 10, count: (row: Record<string, unknown>) => Number(row.carries) }
+    const metrics = [
+      { key: "carries", label: "Carries", value: (row: Record<string, unknown>) => Number(row.carries) },
+      { key: "ypc", label: "Yards / Carry", minSample: sample, value: (row: Record<string, unknown>) => Number(row.ypc) },
+    ]
+    const rows = [
+      { name: "Starter", carries: 120, ypc: 4.5 },
+      { name: "Backup", carries: 3, ypc: 11 },
+    ]
+    const { rerender } = render(scatter({ metrics, rows, rowName: (row) => String(row.name), rowId: (row) => String(row.name) }))
+
+    const table = screen.getByRole("table")
+    expect(table).toHaveTextContent("Starter")
+    expect(table).not.toHaveTextContent("Backup")
+    expect(
+      screen.getByText("Things with fewer than 10 carries aren't shown, since Yards / Carry swings a lot on a handful of plays."),
+    ).toBeInTheDocument()
+
+    // With nobody over the minimum, the note explains the empty chart.
+    rerender(scatter({ metrics, rows: [rows[1]], rowName: (row) => String(row.name), rowId: (row) => String(row.name) }))
+    expect(screen.queryByText("Nothing yet.")).not.toBeInTheDocument()
+    expect(screen.getByText(/^Things with fewer than 10 carries aren't shown/)).toBeInTheDocument()
+  })
+
+  it("with pinned picks, swaps the pickers and search for a color key, keeps picks under a minimum, and flags them", () => {
+    const sample = { noun: "carries", min: 10, count: (row: Record<string, unknown>) => Number(row.carries) }
+    const metrics = [
+      { key: "carries", label: "Carries", value: (row: Record<string, unknown>) => Number(row.carries) },
+      { key: "ypc", label: "Yards / Carry", minSample: sample, value: (row: Record<string, unknown>) => Number(row.ypc) },
+    ]
+    const rows = [
+      { name: "Starter", carries: 120, ypc: 4.5 },
+      { name: "Backup", carries: 3, ypc: 11 },
+      { name: "Pick", carries: 6, ypc: 2 },
+    ]
+    const name = (row: { name?: unknown }) => String(row.name)
+    render(scatter({ metrics, rows, rowName: name, rowId: name, pinned: [{ id: "Pick", name: "Pick", color: "#2a78d6" }] }))
+
+    expect(screen.queryByLabelText("X axis")).not.toBeInTheDocument()
+    expect(screen.queryByLabelText("Highlight")).not.toBeInTheDocument()
+    expect(screen.getByRole("list", { name: "Picks" })).toHaveTextContent("Pick")
+    expect(screen.getByRole("figure", { name: /Picked: Pick\.$/ })).toBeInTheDocument()
+    const table = screen.getByRole("table")
+    expect(table).toHaveTextContent("Pick")
+    expect(table).not.toHaveTextContent("Backup")
+    expect(screen.getByText("Small sample for Yards / Carry: Pick (6 carries).")).toBeInTheDocument()
+  })
+
   it("hides the highlight search until there are rows", () => {
     render(scatter({ loading: true }))
     expect(screen.queryByLabelText("Highlight")).not.toBeInTheDocument()
@@ -163,5 +212,20 @@ describe("withHighlightedOnTop", () => {
 
     expect(points.at(-1)).toEqual({ kind: "solo", x: 0, y: 0, row: rows[1] })
     expect(points.find((p) => p.kind === "cluster")).toMatchObject({ members: [rows[0], rows[2]] })
+  })
+
+  it("draws pinned rows on top, out of any tie, with the highlighted row last of all", () => {
+    const rows = [
+      { id: "a", x: 0, y: 0 },
+      { id: "b", x: 0, y: 0 },
+      { id: "c", x: 0, y: 0 },
+      { id: "d", x: 1, y: 1 },
+    ]
+    const points = withHighlightedOnTop(rows, "d", id, new Set(["b"]))
+    expect(points.map((p) => (p.kind === "solo" ? p.row.id : `cluster:${p.members.map((m) => m.id).join("")}`))).toEqual([
+      "cluster:ac",
+      "b",
+      "d",
+    ])
   })
 })

@@ -23,7 +23,6 @@ export type TeamSide = (typeof TEAM_SIDES)[number]
 export interface TeamMetric extends PlayerMetric {
   side: TeamSide
   short: string // Team Leaders column header
-  lowerIsBetter?: boolean // sorts ascending first, e.g. points allowed
 }
 
 // Per-game average. A /teams/weekly row has no `games` field - it's one game -

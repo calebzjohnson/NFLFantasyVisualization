@@ -1,5 +1,5 @@
 // search.ts
-// Search matching for the search bars: which players and teams match a typed query.
+// Search matching for the search bars (and the Create page picker): the player list to search, and which players and teams match a typed query.
 import type { TeamInfo } from "./teams"
 
 // nflverse's player-stats table includes a stray aggregate row with every
@@ -10,6 +10,9 @@ export interface SearchPlayer {
   recent_team: string | null
   position: string | null
 }
+
+// Every player with stats this season, with just what a search result shows.
+export const SEARCH_PLAYERS_PATH = "/players?fields=player_id,player_display_name,recent_team,position"
 
 export type SearchScope = "players" | "teams" | "all"
 
@@ -33,6 +36,7 @@ export function searchResults(
   scope: SearchScope,
   players: SearchPlayer[] | null,
   teams: TeamInfo[] | null,
+  maxResults = MAX_RESULTS,
 ): { teams: TeamInfo[]; players: SearchPlayer[] } {
   const trimmed = query.trim()
   if (trimmed.length === 0) return { teams: [], players: [] }
@@ -42,13 +46,13 @@ export function searchResults(
       ? []
       : (teams ?? [])
           .filter((team) => matchesQuery(`${team.team_name} ${team.team_abbr}`, trimmed))
-          .slice(0, scope === "all" ? MAX_TEAMS_IN_ALL : MAX_RESULTS)
+          .slice(0, scope === "all" ? MAX_TEAMS_IN_ALL : maxResults)
   const playerMatches =
     scope === "teams"
       ? []
       : (players ?? [])
           .filter((player) => player.player_display_name && matchesQuery(player.player_display_name, trimmed))
-          .slice(0, MAX_RESULTS - teamMatches.length)
+          .slice(0, maxResults - teamMatches.length)
 
   return { teams: teamMatches, players: playerMatches }
 }

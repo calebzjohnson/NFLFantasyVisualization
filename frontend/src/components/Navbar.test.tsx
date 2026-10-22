@@ -16,7 +16,7 @@ describe("Navbar", () => {
     mockApi({})
     renderWithRouter(<Navbar />, { route: "/teams" })
 
-    for (const tab of ["Home", "Teams", "Players", "About"]) {
+    for (const tab of ["Home", "Teams", "Players", "Create", "About"]) {
       expect(screen.getByRole("link", { name: tab })).toBeInTheDocument()
     }
     expect(screen.getByRole("link", { name: "Teams" })).toHaveAttribute("aria-current", "page")

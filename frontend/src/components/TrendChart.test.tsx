@@ -59,6 +59,36 @@ describe("TrendChart", () => {
     expect(dolphins).toHaveTextContent(/Miami DolphinsDown—17/)
   })
 
+  it("with a summary, describes picked lines in their own colors, with no stat picker or Trend column", () => {
+    mockApi({ "/teams": [teamInfo("BUF")] })
+    const { container } = renderWithRouter(
+      <TrendChart
+        title="Points by Week"
+        metrics={TEAM_METRICS.slice(0, 1)}
+        plural="teams"
+        singular="team"
+        loading={false}
+        error={null}
+        trends={() => ({ up: [{ ...up, color: "#e34948" }], down: [] })}
+        summary="points / game each week for the 1 team you picked"
+      />,
+    )
+
+    expect(
+      screen.getByRole("figure", {
+        name: "Points by Week: points / game each week for the 1 team you picked, week 1 to week 2.",
+      }),
+    ).toBeInTheDocument()
+    expect(screen.getByText(/^Points \/ game each week for the 1 team you picked\./)).toBeInTheDocument()
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument()
+    expect(within(screen.getByRole("table")).getAllByRole("columnheader").map((th) => th.textContent)).toEqual([
+      "Team",
+      "Wk 1",
+      "Wk 2",
+    ])
+    expect(container.querySelector(".recharts-line-curve[stroke='#e34948']")).not.toBeNull()
+  })
+
   it("tells mouse users to hover or click a line", () => {
     renderChart(() => {})
     expect(screen.getByText(/Hover or click a line to see that team's numbers and go to their page\./)).toBeInTheDocument()

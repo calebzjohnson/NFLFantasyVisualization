@@ -3,16 +3,16 @@
 // filters them client-side as the user types (see data/search.ts), and shows
 // matches in an ARIA combobox listbox linking to each page - grouped Teams,
 // then Players, when searching both. Arrow keys move through results, Enter
-// opens one, Escape closes the list.
-import { type KeyboardEvent, type ReactNode, useId, useRef, useState } from "react"
+// opens one, Escape closes the list. With `onPick` (the Create page's Add box)
+// choosing a result hands back its id instead of opening its page.
+import { type KeyboardEvent, type ReactNode, useId, useMemo, useRef, useState } from "react"
+import type * as React from "react"
 import { Link, useNavigate } from "react-router-dom"
-import { searchResults, type SearchPlayer, type SearchScope } from "../data/search"
+import { SEARCH_PLAYERS_PATH, searchResults, type SearchPlayer, type SearchScope } from "../data/search"
 import { teamPath, type TeamInfo } from "../data/teams"
 import { teamLogoUrl } from "../lib/imageUrls"
 import { useFetch } from "../lib/useFetch"
 import { TeamLogoBadge } from "./TeamLogo"
-
-const PLAYERS_PATH = "/players?fields=player_id,player_display_name,recent_team,position"
 
 const NO_RESULTS: Record<SearchScope, string> = {
   players: "No players found",
@@ -25,6 +25,8 @@ const DROPDOWN_CLASS =
 
 interface SearchOption {
   key: string
+  // The player id or team abbreviation, for onPick.
+  id: string
   to: string
   state?: { playerName: string | null }
   content: ReactNode
@@ -38,11 +40,25 @@ interface SearchBarProps {
   // Below 1024px, stretch the results to the nearest positioned ancestor (the
   // navbar) instead of the input, so a narrow search box still gets a readable list.
   wideDropdown?: boolean
+  // Choosing a result calls this with its id instead of opening its page.
+  onPick?: (id: string) => void
+  // Player ids or team abbreviations to leave out of the results (already picked).
+  exclude?: ReadonlySet<string>
+  // Most results to show at once, when the default 8 is too tall for where the box sits.
+  maxResults?: number
 }
 
-function SearchBar({ placeholder, label = placeholder, scope, wideDropdown = false }: SearchBarProps) {
+function SearchBar({
+  placeholder,
+  label = placeholder,
+  scope,
+  wideDropdown = false,
+  onPick,
+  exclude,
+  maxResults,
+}: SearchBarProps) {
   const navigate = useNavigate()
-  const players = useFetch<SearchPlayer[]>(scope === "teams" ? null : PLAYERS_PATH)
+  const players = useFetch<SearchPlayer[]>(scope === "teams" ? null : SEARCH_PLAYERS_PATH)
   const teams = useFetch<TeamInfo[]>(scope === "players" ? null : "/teams")
   const [query, setQuery] = useState("")
   const [open, setOpen] = useState(false)
@@ -52,9 +68,18 @@ function SearchBar({ placeholder, label = placeholder, scope, wideDropdown = fal
   const optionId = (index: number) => `${listboxId}-option-${index}`
   const dropdownClass = wideDropdown ? `${DROPDOWN_CLASS} max-lg:right-0 max-lg:left-0 max-lg:w-auto` : DROPDOWN_CLASS
 
-  const matches = searchResults(query, scope, players.data, teams.data)
+  const playerList = useMemo(
+    () => (exclude ? players.data?.filter((player) => !exclude.has(player.player_id ?? "")) : players.data) ?? null,
+    [players.data, exclude],
+  )
+  const teamList = useMemo(
+    () => (exclude ? teams.data?.filter((team) => !exclude.has(team.team_abbr)) : teams.data) ?? null,
+    [teams.data, exclude],
+  )
+  const matches = searchResults(query, scope, playerList, teamList, maxResults)
   const teamOptions: SearchOption[] = matches.teams.map((team) => ({
     key: `team-${team.team_abbr}`,
+    id: team.team_abbr,
     to: teamPath(team.team_abbr),
     content: (
       <>
@@ -68,6 +93,7 @@ function SearchBar({ placeholder, label = placeholder, scope, wideDropdown = fal
   }))
   const playerOptions: SearchOption[] = matches.players.map((player) => ({
     key: `player-${player.player_id}`,
+    id: player.player_id ?? "",
     to: `/players/${player.player_id}`,
     state: { playerName: player.player_display_name },
     content: (
@@ -93,7 +119,8 @@ function SearchBar({ placeholder, label = placeholder, scope, wideDropdown = fal
   function select(option: SearchOption) {
     setQuery("")
     close()
-    navigate(option.to, { state: option.state })
+    if (onPick) onPick(option.id)
+    else navigate(option.to, { state: option.state })
   }
 
   function onInputKeyDown(event: KeyboardEvent<HTMLInputElement>) {
@@ -113,24 +140,35 @@ function SearchBar({ placeholder, label = placeholder, scope, wideDropdown = fal
   }
 
   function renderOption(option: SearchOption, index: number) {
+    const shared = {
+      id: optionId(index),
+      role: "option",
+      "aria-selected": index === active,
+      // Keep focus in the input, so its blur doesn't close the list before the click lands.
+      onMouseDown: (event: React.MouseEvent) => event.preventDefault(),
+      onMouseEnter: () => setActive(index),
+      className: `flex cursor-pointer items-center justify-between gap-2 px-3 py-2 text-sm text-[var(--text-primary)] ${
+        index === active ? "bg-[var(--surface-2)]" : ""
+      }`,
+    }
+    // Picking isn't navigation, so it's no link.
+    if (onPick) {
+      return (
+        <div key={option.key} {...shared} onClick={() => select(option)}>
+          {option.content}
+        </div>
+      )
+    }
     return (
       <Link
         key={option.key}
-        id={optionId(index)}
-        role="option"
-        aria-selected={index === active}
+        {...shared}
         to={option.to}
         state={option.state}
-        // Keep focus in the input, so its blur doesn't close the list before the click lands.
-        onMouseDown={(event) => event.preventDefault()}
-        onMouseEnter={() => setActive(index)}
         onClick={() => {
           setQuery("")
           close()
         }}
-        className={`flex items-center justify-between gap-2 px-3 py-2 text-sm text-[var(--text-primary)] ${
-          index === active ? "bg-[var(--surface-2)]" : ""
-        }`}
       >
         {option.content}
       </Link>

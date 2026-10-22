@@ -36,10 +36,14 @@ function PlayerBioBar({ bio, team }: PlayerBioBarProps) {
     <div className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface-1)] shadow-lg shadow-black/30">
       <div className="flex flex-wrap items-center gap-6 p-6">
         {bio.headshot_url && (
+          // The team's colour behind the cut-out, the same way PlayerAvatar
+          // backs a player with no headshot. Falls back to the panel surface
+          // for anyone without a team.
           <img
             src={headshotUrl(bio.headshot_url, 288)}
             alt={bio.display_name}
-            className="h-24 w-24 shrink-0 rounded-full border-2 border-[var(--border)] bg-[var(--surface-2)] object-cover"
+            style={{ backgroundColor: team?.team_color ?? "var(--surface-2)" }}
+            className="h-24 w-24 shrink-0 rounded-full border-2 border-[var(--border)] object-cover"
           />
         )}
 
@@ -61,7 +65,7 @@ function PlayerBioBar({ bio, team }: PlayerBioBarProps) {
           </div>
         </div>
 
-        <dl className="min-w-[240px] divide-y divide-[var(--border)]">
+        <dl className="min-w-[240px] divide-y divide-[var(--border)] max-md:w-full">
           <Fact label="HT/WT" value={formatHeightWeight(bio)} />
           <Fact label="Birthdate" value={birthdate} />
           <Fact label="College" value={bio.college} />

@@ -39,7 +39,11 @@ export function useTapToOpen<Id>(open: (id: Id) => void, { selectFirst = false }
     // For charts whose hover re-renders replace the marks mid-click: the
     // pressed node is gone by mouseup, so the browser never fires the click.
     // A press that moved, or became a scroll (pointercancel), isn't a tap.
-    pressHandlers(markAt: (clientX: number, clientY: number, pointerType: string) => Id | null) {
+    // `onTap` replaces the select-then-open behavior, e.g. to toggle a mark.
+    pressHandlers(
+      markAt: (clientX: number, clientY: number, pointerType: string) => Id | null,
+      onTap: (id: Id | null) => void = tap,
+    ) {
       return {
         onPointerDown(event: React.PointerEvent) {
           onPointerDown(event)
@@ -52,7 +56,7 @@ export function useTapToOpen<Id>(open: (id: Id) => void, { selectFirst = false }
           const start = press.current
           press.current = null
           if (start && Math.hypot(event.clientX - start.x, event.clientY - start.y) < TAP_SLOP) {
-            tap(markAt(event.clientX, event.clientY, event.pointerType))
+            onTap(markAt(event.clientX, event.clientY, event.pointerType))
           }
         },
       }

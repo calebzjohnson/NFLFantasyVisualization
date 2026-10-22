@@ -10,10 +10,12 @@
 // clicking it does too. On a touchscreen, where nothing hovers, the first tap
 // on a line shows its numbers in a box below the chart (so the chart stays
 // clear to tap the next line), and a second tap or the box's button opens its page.
+// The Create page reuses it for lines the user picked: each line brings its
+// own color, and `summary` describes the chart in place of "trending".
 import { forwardRef, useLayoutEffect, useMemo, useRef, useState } from "react"
 import type * as React from "react"
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts"
-import type { PlayerMetric } from "../data/playerMetrics"
+import { formatValue, roundTo, type MetricFormat, type PlayerMetric } from "../data/playerMetrics"
 import type { TeamInfo } from "../data/teams"
 import type { TrendLine } from "../data/trendingPlayers"
 import { activateOnKey } from "../lib/activateOnKey"
@@ -21,6 +23,7 @@ import { initialsFor, readableTextColor } from "../lib/playerVisuals"
 import { useFetch } from "../lib/useFetch"
 import { TOUCH_QUERY, useMediaQuery } from "../lib/useMediaQuery"
 import { useTapToOpen } from "../lib/useTapToOpen"
+import { FIT_SCREEN } from "../lib/utils"
 import AxisSelect from "./AxisSelect"
 import { ChartContainer, type ChartConfig } from "./evilcharts/ui/recharts-chart"
 import ChartDataTable from "./ChartDataTable"
@@ -40,17 +43,12 @@ const HIT_STROKE_WIDTH = 10
 const CARD_OFFSET = 14
 const ENDPOINT_LOGO_SIZE = 14
 
-function formatValue(value: number, unit?: string): string {
-  const rounded = Number.isInteger(value) ? value : Math.round(value * 10) / 10
-  return `${rounded.toLocaleString()}${unit ?? ""}`
-}
-
 // "+198.0/wk" - the slope, signed, with a true minus sign and "per week" so
 // it reads as a rate rather than a plain stat value.
-function formatSlope(value: number, unit?: string): string {
-  const rounded = Number.isInteger(value) ? value : Math.round(value * 10) / 10
+function formatSlope(value: number, format: MetricFormat): string {
+  const rounded = roundTo(value, format.decimals)
   const sign = rounded === 0 ? "" : rounded > 0 ? "+" : "−"
-  return `${sign}${Math.abs(rounded).toLocaleString()}${unit ?? ""}/wk`
+  return `${sign}${Math.abs(rounded).toLocaleString()}${format.unit ?? ""}/wk`
 }
 
 interface LineMeta {
@@ -154,7 +152,7 @@ function LineIdentity({ meta }: { meta: LineMeta }) {
 
 // Touchscreen stand-in for the hover card, under the chart instead of over
 // it: weeks run in a wrapping row rather than a column, to stay short.
-function LineDetails({ meta, unit, onOpen }: { meta: LineMeta; unit?: string; onOpen?: () => void }) {
+function LineDetails({ meta, format, onOpen }: { meta: LineMeta; format: MetricFormat; onOpen?: () => void }) {
   return (
     <div className="flex flex-col gap-1.5">
       <LineIdentity meta={meta} />
@@ -162,12 +160,12 @@ function LineDetails({ meta, unit, onOpen }: { meta: LineMeta; unit?: string; on
         {meta.line.games.map((game) => (
           <span key={game.week}>
             Wk {game.week}{" "}
-            <span className="font-mono tabular-nums text-[var(--text-primary)]">{formatValue(game.value, unit)}</span>
+            <span className="font-mono tabular-nums text-[var(--text-primary)]">{formatValue(game.value, format)}</span>
           </span>
         ))}
         <span>
           Slope{" "}
-          <span className="font-mono tabular-nums text-[var(--text-primary)]">{formatSlope(meta.line.slope, unit)}</span>
+          <span className="font-mono tabular-nums text-[var(--text-primary)]">{formatSlope(meta.line.slope, format)}</span>
         </span>
       </div>
       {onOpen && <OpenButton name={meta.line.name} onClick={onOpen} />}
@@ -183,12 +181,12 @@ const LineHoverCard = forwardRef<
   HTMLDivElement,
   {
     meta: LineMeta
-    unit?: string
+    format: MetricFormat
     style?: React.CSSProperties
     // Shown on a touchscreen when tapping the line again opens its page.
     hint?: string
   }
->(function LineHoverCard({ meta, unit, style, hint }, ref) {
+>(function LineHoverCard({ meta, format, style, hint }, ref) {
   const { line } = meta
   return (
     <div
@@ -204,14 +202,14 @@ const LineHoverCard = forwardRef<
           <div key={game.week} className="flex items-center justify-between text-[var(--text-secondary)]">
             <span>Week {game.week}</span>
             <span className="font-mono tabular-nums text-[var(--text-primary)]">
-              {formatValue(game.value, unit)}
+              {formatValue(game.value, format)}
             </span>
           </div>
         ))}
         <div className="mt-1 flex items-center justify-between border-t border-[var(--border)] pt-1 font-medium">
           <span className="text-[var(--text-secondary)]">Slope</span>
           <span className="font-mono tabular-nums text-[var(--text-primary)]">
-            {formatSlope(line.slope, unit)}
+            {formatSlope(line.slope, format)}
           </span>
         </div>
       </div>
@@ -231,9 +229,25 @@ interface TrendChartProps {
   // Lines to plot for a metric - memoize it (useCallback) so hovering doesn't recompute trends.
   trends: (metric: PlayerMetric) => { up: TrendLine[]; down: TrendLine[] }
   onSelect?: (line: TrendLine) => void
+  // Replaces the "trending up or down" description (chart label and caption)
+  // and drops the table's Trend column - for lines that weren't picked by trend.
+  summary?: string
+  // Between the caption and the data table, e.g. a stat glossary.
+  footer?: React.ReactNode
 }
 
-function TrendChart({ title, metrics, plural, singular, loading, error, trends, onSelect }: TrendChartProps) {
+function TrendChart({
+  title,
+  metrics,
+  plural,
+  singular,
+  loading,
+  error,
+  trends,
+  onSelect,
+  summary,
+  footer,
+}: TrendChartProps) {
   const [statKey, setStatKey] = useState(metrics[0].key)
   const [hoveredId, setHoveredId] = useState<string | null>(null)
   const [cursorPos, setCursorPos] = useState<{ x: number; y: number } | null>(null)
@@ -297,7 +311,7 @@ function TrendChart({ title, metrics, plural, singular, loading, error, trends, 
     ]
     return all.map(({ line, color }) => ({
       line,
-      color,
+      color: line.color ?? color,
       teamColor: colorByTeam.get(line.team) ?? "var(--accent)",
       lastWeek: line.games[line.games.length - 1]?.week ?? 0,
     }))
@@ -360,27 +374,29 @@ function TrendChart({ title, metrics, plural, singular, loading, error, trends, 
 
   return (
     <Panel title={title}>
-      <div className="flex flex-wrap items-center justify-center gap-3 border-b border-[var(--border)] px-4 py-3">
-        <AxisSelect
-          label="Stat"
-          value={metric.label}
-          options={metrics.map((m) => m.label)}
-          onChange={(label) => {
-            setStatKey(optionByLabel.get(label)?.key ?? metrics[0].key)
-            // Switching the stat swaps out which lines qualify and what they
-            // look like - a hoveredId left over from the previous stat could
-            // point at a line that isn't plotted anymore, or a stale position
-            // for one that is. Drop it so hover starts clean.
-            setHoveredId(null)
-            tap.tap(null)
-          }}
-        />
-      </div>
+      {metrics.length > 1 && (
+        <div className="flex flex-wrap items-center justify-center gap-3 border-b border-[var(--border)] px-4 py-3">
+          <AxisSelect
+            label="Stat"
+            value={metric.label}
+            options={metrics.map((m) => m.label)}
+            onChange={(label) => {
+              setStatKey(optionByLabel.get(label)?.key ?? metrics[0].key)
+              // Switching the stat swaps out which lines qualify and what they
+              // look like - a hoveredId left over from the previous stat could
+              // point at a line that isn't plotted anymore, or a stale position
+              // for one that is. Drop it so hover starts clean.
+              setHoveredId(null)
+              tap.tap(null)
+            }}
+          />
+        </div>
+      )}
       {loading && <p className="p-4 text-sm text-[var(--text-secondary)]">Loading…</p>}
       {error && <p className="p-4 text-sm text-[var(--negative)]">Couldn't load {plural}: {error}</p>}
       {!loading && !error && lineMetas.length === 0 && (
         <p className="p-4 text-sm text-[var(--text-secondary)]">
-          Not enough games yet to spot a trend in {metric.label.toLowerCase()}.
+          {summary ? "No games to show yet." : `Not enough games yet to spot a trend in ${metric.label.toLowerCase()}.`}
         </p>
       )}
       {lineMetas.length > 0 && (
@@ -395,8 +411,8 @@ function TrendChart({ title, metrics, plural, singular, loading, error, trends, 
           >
             <ChartContainer
               config={chartConfig}
-              className="aspect-[3/2]"
-              label={`${title}: the ${lineMetas.length} ${plural} trending up or down the most in ${metric.label.toLowerCase()}, week ${weeks[0]} to week ${weeks[weeks.length - 1]}.`}
+              className={`aspect-[3/2] ${FIT_SCREEN}`}
+              label={`${title}: ${summary ?? `the ${lineMetas.length} ${plural} trending up or down the most in ${metric.label.toLowerCase()}`}, week ${weeks[0]} to week ${weeks[weeks.length - 1]}.`}
             >
               <LineChart data={chartData} margin={{ top: 8, right: 16, bottom: 24, left: 4 }}>
                 <CartesianGrid stroke="var(--border)" strokeOpacity={0.6} />
@@ -418,7 +434,7 @@ function TrendChart({ title, metrics, plural, singular, loading, error, trends, 
                   }}
                 />
                 <YAxis
-                  tickFormatter={(value) => formatValue(Number(value), metric.unit)}
+                  tickFormatter={(value) => formatValue(Number(value), metric)}
                   tickLine={false}
                   axisLine={{ stroke: "var(--border)" }}
                   width={54}
@@ -481,7 +497,7 @@ function TrendChart({ title, metrics, plural, singular, loading, error, trends, 
               {activeMeta && (
                 <LineDetails
                   meta={activeMeta}
-                  unit={metric.unit}
+                  format={metric}
                   onOpen={onSelect && (() => onSelect(activeMeta.line))}
                 />
               )}
@@ -491,29 +507,40 @@ function TrendChart({ title, metrics, plural, singular, loading, error, trends, 
             <LineHoverCard
               ref={cardRef}
               meta={activeMeta}
-              unit={metric.unit}
+              format={metric}
               style={cardStyle}
               // Tapped on a device that also hovers (a touchscreen laptop).
               hint={onSelect && hoveredId === null ? "Tap the line again to open" : undefined}
             />
           )}
           <p className="pt-2 text-xs text-[var(--text-muted)]">
-            The {lineMetas.length} {plural} trending up (blue) or down (amber) the most in{" "}
-            {metric.label.toLowerCase()} over the last {weeks.length} week
-            {weeks.length === 1 ? "" : "s"}.
+            {summary ? (
+              `${summary[0].toUpperCase()}${summary.slice(1)}.`
+            ) : (
+              <>
+                The {lineMetas.length} {plural} trending up (blue) or down (amber) the most in{" "}
+                {metric.label.toLowerCase()} over the last {weeks.length} week
+                {weeks.length === 1 ? "" : "s"}.
+              </>
+            )}
             {/* On a touchscreen the box above already says to tap a line. */}
             {!touchScreen &&
               ` Hover ${onSelect ? "or click " : ""}a line to see that ${singular}'s numbers${onSelect ? " and go to their page" : ""}.`}
           </p>
+          {footer}
           <ChartDataTable
-            caption={`Weekly ${metric.label.toLowerCase()} for the ${plural} trending the most`}
-            columns={[singular[0].toUpperCase() + singular.slice(1), "Trend", ...weeks.map((week) => `Wk ${week}`)]}
+            caption={`Weekly ${metric.label.toLowerCase()} for ${summary ? `the ${plural} shown` : `the ${plural} trending the most`}`}
+            columns={[
+              singular[0].toUpperCase() + singular.slice(1),
+              ...(summary ? [] : ["Trend"]),
+              ...weeks.map((week) => `Wk ${week}`),
+            ]}
             rows={lineMetas.map((meta) => [
               meta.line.name,
-              meta.color === UP_COLOR ? "Up" : "Down",
+              ...(summary ? [] : [meta.color === UP_COLOR ? "Up" : "Down"]),
               ...weeks.map((week) => {
                 const game = meta.line.games.find((g) => g.week === week)
-                return game ? formatValue(game.value, metric.unit) : null
+                return game ? formatValue(game.value, metric) : null
               }),
             ])}
           />

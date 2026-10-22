@@ -41,4 +41,9 @@ describe("PlayerBioBar", () => {
     expect(screen.getByText("Free Agent")).toBeInTheDocument()
     expect(screen.queryByRole("link")).not.toBeInTheDocument()
   })
+
+  it("stretches the facts list to the card's width once it wraps below the name on smaller screens", () => {
+    renderWithRouter(<PlayerBioBar bio={{ ...bio, college: "Texas Tech" }} team={null} />)
+    expect(screen.getByText("College").closest("dl")).toHaveClass("max-md:w-full")
+  })
 })
