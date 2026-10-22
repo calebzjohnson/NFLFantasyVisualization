@@ -3,7 +3,7 @@
 import { describe, expect, it } from "vitest"
 import { readFields } from "../test/readFields"
 import { POSITION_GROUPS } from "./leaderCategories"
-import { formatValue, meetsMinimum, metricMedian, PLAYER_METRICS, playersPathForPosition, playersWeeklyPathForPosition } from "./playerMetrics"
+import { formatValue, meetsMinimum, metricMedian, minimumNotes, smallSampleNotes, PLAYER_METRICS, playersPathForPosition, playersWeeklyPathForPosition } from "./playerMetrics"
 
 const yards = PLAYER_METRICS.WR.find((m) => m.key === "receiving_yards")!
 
@@ -86,5 +86,28 @@ describe("meetsMinimum", () => {
 
   it("always passes totals, which mean something at any volume", () => {
     expect(meetsMinimum({}, metric("passing_yards"))).toBe(true)
+  })
+})
+
+describe("minimum notes", () => {
+  const metric = (key: string) => Object.values(PLAYER_METRICS).flat().find((m) => m.key === key)!
+
+  it("names who a minimum leaves out, one sentence per minimum, grouping stats that share one", () => {
+    expect(minimumNotes("players", [metric("completion_pct"), metric("epa_per_dropback"), metric("passing_yards")])).toEqual([
+      "Players with fewer than 25 dropbacks aren't shown, since Completion % and EPA / Dropback swing a lot on a handful of plays.",
+    ])
+    expect(minimumNotes("players", [metric("ypc")], "aren't ranked")).toEqual([
+      "Players with fewer than 10 carries aren't ranked, since Yards / Carry swings a lot on a handful of plays.",
+    ])
+  })
+
+  it("names picks under a stat's minimum with their play counts", () => {
+    const picks = [
+      { name: "Starter", row: { carries: 100 } },
+      { name: "Backup", row: { carries: 6 } },
+    ]
+    expect(smallSampleNotes(picks, [metric("ypc"), metric("carries")])).toEqual([
+      "Small sample for Yards / Carry: Backup (6 carries).",
+    ])
   })
 })

@@ -88,4 +88,22 @@ describe("useFetchAll", () => {
     await waitFor(() => expect(result.current.error).toBe("Request to /all-bad failed (404)"))
     expect(result.current.data).toBeNull()
   })
+
+  it("with keepPrevious, keeps the last data while a changed set of paths loads", async () => {
+    let resolve: (value: string) => void = () => {}
+    mockFetchJson.mockImplementation(async (path: string) =>
+      path === "/keep-b" ? new Promise<string>((r) => (resolve = r)) : path,
+    )
+    const { result, rerender } = renderHook(({ paths }) => useFetchAll<string>(paths, { keepPrevious: true }), {
+      initialProps: { paths: ["/keep-a"] },
+    })
+    await waitFor(() => expect(result.current.data).toEqual(["/keep-a"]))
+
+    rerender({ paths: ["/keep-a", "/keep-b"] })
+    expect(result.current).toEqual({ data: ["/keep-a"], error: null, loading: true })
+
+    resolve("/keep-b")
+    await waitFor(() => expect(result.current.data).toEqual(["/keep-a", "/keep-b"]))
+    expect(result.current.loading).toBe(false)
+  })
 })

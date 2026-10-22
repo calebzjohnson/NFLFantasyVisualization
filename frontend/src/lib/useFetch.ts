@@ -51,8 +51,12 @@ function stateForKey<T>(key: string | null): FetchState<T[]> {
 // Every path's response, in order, once all have arrived - for a list of
 // paths only known at runtime (e.g. one per player picked). paths may be null
 // for "don't fetch yet", which stays loading; an empty list is done at once.
-// If any request fails, the whole state carries that error.
-export function useFetchAll<T>(paths: string[] | null): FetchState<T[]> {
+// If any request fails, the whole state carries that error. With
+// keepPrevious, a change to the paths keeps the last data (still flagged
+// loading) until the new set arrives, so a page doesn't blank out to load one
+// more item; the kept data is for the old paths, so look items up by their
+// own ids, never by position.
+export function useFetchAll<T>(paths: string[] | null, { keepPrevious = false } = {}): FetchState<T[]> {
   const key = paths === null ? null : paths.join(SEPARATOR)
   const [state, setState] = useState<FetchState<T[]>>(() => stateForKey<T>(key))
 
@@ -62,7 +66,8 @@ export function useFetchAll<T>(paths: string[] | null): FetchState<T[]> {
   const [trackedKey, setTrackedKey] = useState(key)
   if (key !== trackedKey) {
     setTrackedKey(key)
-    setState(stateForKey<T>(key))
+    const next = stateForKey<T>(key)
+    setState(keepPrevious && next.loading && state.data ? { data: state.data, error: null, loading: true } : next)
   }
 
   useEffect(() => {

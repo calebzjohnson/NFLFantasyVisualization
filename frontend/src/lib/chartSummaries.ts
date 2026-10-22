@@ -28,8 +28,8 @@ export function radarRows(axes: RankedAxis[]): ChartCell[][] {
   return axes.map((axis) => [axis.label, axis.value, percentileText(axis.percentile)])
 }
 
-// One beeswarm cell: the raw stat with its percentile, e.g. "0.21 (82nd)".
-export function swarmCell(axis: { value: number | null; percentile: number | null }): ChartCell {
+// One beeswarm cell: the stat (raw, or already formatted) with its percentile, e.g. "0.21 (82nd)".
+export function swarmCell(axis: { value: number | string | null; percentile: number | null }): ChartCell {
   if (axis.value === null) return null
   const percentile = percentileText(axis.percentile)
   return percentile ? `${axis.value} (${percentile})` : String(axis.value)

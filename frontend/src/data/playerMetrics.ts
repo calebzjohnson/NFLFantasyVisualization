@@ -30,6 +30,9 @@ export interface PlayerMetric {
   unit?: string // e.g. "%" for share-based metrics; omitted for plain counts
   decimals?: number // shown to this many places; default 1 (per-play EPA needs 2)
   minSample?: MinSample // per-play stats only: below this, the number is mostly noise
+  // A smaller value is the better result (interceptions thrown, points
+  // allowed): sorted ascending first, and ranked in reverse for percentiles.
+  lowerIsBetter?: boolean
   value: (row: StatFields) => number
 }
 
@@ -45,6 +48,33 @@ export interface MinSample {
 
 export function meetsMinimum(row: StatFields, metric: PlayerMetric): boolean {
   return !metric.minSample || metric.minSample.count(row) >= metric.minSample.min
+}
+
+// Who a chart leaves out for these stats' minimums, one sentence per minimum,
+// e.g. "Players with fewer than 25 dropbacks aren't shown, since Completion %
+// and EPA / Dropback swing a lot on a handful of plays." `noun` is plural.
+export function minimumNotes(noun: string, metrics: PlayerMetric[], verb = "aren't shown"): string[] {
+  return [...new Set(metrics.map((metric) => metric.minSample))].flatMap((sample) => {
+    if (!sample) return []
+    const labels = [...new Set(metrics.filter((m) => m.minSample === sample).map((m) => m.label))]
+    return [
+      `${noun[0].toUpperCase()}${noun.slice(1)} with fewer than ${sample.min} ${sample.noun} ${verb}, since ${labels.join(" and ")} ${labels.length > 1 ? "swing" : "swings"} a lot on a handful of plays.`,
+    ]
+  })
+}
+
+// Picks drawn anyway under a stat's minimum (the user chose them), one
+// sentence per stat, e.g. "Small sample for Yards / Carry: Austin Ekeler (7 carries)."
+export function smallSampleNotes(picks: { name: string; row: StatFields }[], metrics: PlayerMetric[]): string[] {
+  return metrics.flatMap((metric) => {
+    const sample = metric.minSample
+    if (!sample) return []
+    const small = picks.filter((pick) => !meetsMinimum(pick.row, metric))
+    if (small.length === 0) return []
+    return [
+      `Small sample for ${metric.label}: ${small.map((pick) => `${pick.name} (${sample.count(pick.row)} ${sample.noun})`).join(", ")}.`,
+    ]
+  })
 }
 
 export function num(row: StatFields, field: string): number {
@@ -103,6 +133,7 @@ const QB_METRICS: PlayerMetric[] = [
   {
     key: "passing_interceptions",
     label: "Interceptions",
+    lowerIsBetter: true,
     value: (row) => num(row, "passing_interceptions"),
   },
   {
@@ -127,7 +158,7 @@ const QB_METRICS: PlayerMetric[] = [
     value: (row) => perPlay(num(row, "passing_epa"), num(row, "attempts") + num(row, "sacks_suffered")),
   },
   { key: "passing_cpoe", label: "CPOE", value: (row) => num(row, "passing_cpoe") },
-  { key: "sacks_suffered", label: "Sacks Taken", value: (row) => num(row, "sacks_suffered") },
+  { key: "sacks_suffered", label: "Sacks Taken", lowerIsBetter: true, value: (row) => num(row, "sacks_suffered") },
   fantasyPointsPpr,
 ]
 
@@ -249,6 +280,7 @@ const pressureRate: PlayerMetric = {
 const missedTacklePct: PlayerMetric = {
   key: "missed_tackle_pct",
   label: "Missed Tackle %",
+  lowerIsBetter: true,
   unit: "%",
   value: (row) => {
     const missed = num(row, "def_missed_tackles")
@@ -258,16 +290,19 @@ const missedTacklePct: PlayerMetric = {
 const targetsAllowed: PlayerMetric = {
   key: "def_targets",
   label: "Targets Allowed",
+  lowerIsBetter: true,
   value: (row) => num(row, "def_targets"),
 }
 const yardsAllowed: PlayerMetric = {
   key: "def_yards_allowed",
   label: "Yards Allowed",
+  lowerIsBetter: true,
   value: (row) => num(row, "def_yards_allowed"),
 }
 const ratingAllowed: PlayerMetric = {
   key: "passer_rating_allowed",
   label: "Passer Rating Allowed",
+  lowerIsBetter: true,
   value: (row) =>
     passerRating(
       num(row, "def_completions_allowed"),
@@ -317,11 +352,13 @@ const DB_METRICS: PlayerMetric[] = [
   {
     key: "def_completions_allowed",
     label: "Completions Allowed",
+    lowerIsBetter: true,
     value: (row) => num(row, "def_completions_allowed"),
   },
   {
     key: "completion_pct_allowed",
     label: "Completion % Allowed",
+    lowerIsBetter: true,
     unit: "%",
     value: (row) => perAttempt(num(row, "def_completions_allowed") * 100, num(row, "def_targets")),
   },
@@ -329,9 +366,15 @@ const DB_METRICS: PlayerMetric[] = [
   {
     key: "yards_per_target_allowed",
     label: "Yards / Target Allowed",
+    lowerIsBetter: true,
     value: (row) => perAttempt(num(row, "def_yards_allowed"), num(row, "def_targets")),
   },
-  { key: "def_receiving_td_allowed", label: "TDs Allowed", value: (row) => num(row, "def_receiving_td_allowed") },
+  {
+    key: "def_receiving_td_allowed",
+    label: "TDs Allowed",
+    lowerIsBetter: true,
+    value: (row) => num(row, "def_receiving_td_allowed"),
+  },
   ratingAllowed,
   missedTacklePct,
   defenseSnaps,
@@ -340,11 +383,12 @@ const DB_METRICS: PlayerMetric[] = [
 const OL_METRICS: PlayerMetric[] = [
   { key: "offense_snaps", label: "Offensive Snaps", value: (row) => num(row, "offense_snaps") },
   { key: "offense_snap_pct", label: "Snap %", unit: "%", value: (row) => num(row, "offense_snap_pct") },
-  { key: "penalties", label: "Penalties", value: (row) => num(row, "penalties") },
-  { key: "penalty_yards", label: "Penalty Yards", value: (row) => num(row, "penalty_yards") },
+  { key: "penalties", label: "Penalties", lowerIsBetter: true, value: (row) => num(row, "penalties") },
+  { key: "penalty_yards", label: "Penalty Yards", lowerIsBetter: true, value: (row) => num(row, "penalty_yards") },
   {
     key: "penalties_per_100_snaps",
     label: "Penalties / 100 Snaps",
+    lowerIsBetter: true,
     value: (row) => perAttempt(num(row, "penalties") * 100, num(row, "offense_snaps")),
   },
 ]
@@ -384,7 +428,7 @@ const P_METRICS: PlayerMetric[] = [
     unit: "%",
     value: (row) => perAttempt(num(row, "pt_inside_20") * 100, num(row, "pt_att")),
   },
-  { key: "pt_touchback", label: "Touchbacks", value: (row) => num(row, "pt_touchback") },
+  { key: "pt_touchback", label: "Touchbacks", lowerIsBetter: true, value: (row) => num(row, "pt_touchback") },
 ]
 
 // Defenders, linemen, and specialists get no Fantasy Points metric -

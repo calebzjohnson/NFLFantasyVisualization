@@ -69,4 +69,17 @@ describe("useTapToOpen", () => {
     expect(result.current.selected).toBeNull()
     expect(open).not.toHaveBeenCalled()
   })
+
+  it("hands a press's mark to onTap instead, when given one", () => {
+    const { open, result } = setup()
+    const onTap = vi.fn()
+    const handlers = result.current.pressHandlers(() => "KC", onTap)
+    act(() => {
+      handlers.onPointerDown({ pointerType: "mouse", button: 0, clientX: 5, clientY: 5 } as React.PointerEvent)
+      handlers.onPointerUp({ pointerType: "mouse", clientX: 6, clientY: 5 } as React.PointerEvent)
+    })
+    expect(onTap).toHaveBeenCalledWith("KC")
+    expect(open).not.toHaveBeenCalled()
+    expect(result.current.selected).toBeNull()
+  })
 })

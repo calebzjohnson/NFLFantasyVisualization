@@ -56,6 +56,44 @@ describe("SearchBar", () => {
     expect(await screen.findByRole("option", { name: /Josh Allen/ })).toHaveAttribute("href", "/players/P1")
   })
 
+  it("with onPick, hands back a chosen result's id instead of opening its page, leaving out excluded ones", async () => {
+    const onPick = vi.fn()
+    render(
+      <MemoryRouter>
+        <SearchBar placeholder="Add a player..." scope="players" onPick={onPick} exclude={new Set(["P3"])} />
+        <Routes>
+          <Route path="/" element={null} />
+          <Route path="/players/:playerId" element={<p>Player page</p>} />
+        </Routes>
+      </MemoryRouter>,
+    )
+    type("josh")
+    const allen = await screen.findByRole("option", { name: /Josh Allen/ })
+    expect(allen).not.toHaveAttribute("href")
+    expect(screen.queryByRole("option", { name: /Josh Jacobs/ })).not.toBeInTheDocument()
+
+    fireEvent.click(allen)
+    expect(onPick).toHaveBeenCalledWith("P1")
+    expect(screen.queryByText("Player page")).not.toBeInTheDocument()
+
+    // Enter on the first result picks it too.
+    type("bo")
+    await screen.findByRole("option", { name: /Bo Nix/ })
+    key("Enter")
+    expect(onPick).toHaveBeenLastCalledWith("P2")
+  })
+
+  it("shows no more than maxResults results", async () => {
+    render(
+      <MemoryRouter>
+        <SearchBar placeholder="Add a player..." scope="players" onPick={() => {}} maxResults={1} />
+      </MemoryRouter>,
+    )
+    type("josh")
+    await screen.findByRole("option", { name: /Josh Allen/ })
+    expect(screen.getAllByRole("option")).toHaveLength(1)
+  })
+
   it("finds teams and links to their page, without fetching players", async () => {
     renderSearch("teams")
     type("bills")
