@@ -173,10 +173,23 @@ test("trending chart lines preview then open, by hover or by tap", async ({ page
     await hitLine.waitFor({ timeout: 60_000 })
     await chart.scrollIntoViewIfNeeded()
     return hitLine.evaluate((path) => {
-      const pt = path.getPointAtLength(path.getTotalLength() / 2)
+      // Walk the line for a whole pixel it has to itself. The midpoint isn't
+      // always one: these hit strokes are wide and overlap, so where two
+      // players' trends converge the point belongs to whichever line is on
+      // top, and a click there opens that one instead.
       const m = path.getScreenCTM()!
-      const screen = { x: pt.x * m.a + m.e, y: pt.y * m.d + m.f }
-      return { ...screen, id: path.ownerDocument.elementFromPoint(screen.x, screen.y)!.getAttribute("name") }
+      const length = path.getTotalLength()
+      let fallback = null
+      for (let at = 0.3; at <= 0.7; at += 0.02) {
+        const pt = path.getPointAtLength(length * at)
+        const screen = { x: Math.round(pt.x * m.a + m.e), y: Math.round(pt.y * m.d + m.f) }
+        const el = path.ownerDocument.elementFromPoint(screen.x, screen.y)
+        const id = el?.getAttribute("name") ?? null
+        if (!id) continue
+        fallback ??= { ...screen, id }
+        if (el === path) return { ...screen, id }
+      }
+      return fallback ?? { x: 0, y: 0, id: null }
     })
   }
 
